@@ -10,7 +10,10 @@ const app = document.querySelector<HTMLElement>("#app")!;
 for (const calc of calculators) {
   const link = document.createElement("a");
   link.href = `#${calc.id}`;
-  link.textContent = calc.title;
+  link.innerHTML = `<span class="long"></span><span class="short"></span>`;
+  link.querySelector(".long")!.textContent = calc.title;
+  link.querySelector(".short")!.textContent = calc.shortTitle ?? calc.title;
+  link.setAttribute("aria-label", calc.title);
   link.dataset.id = calc.id;
   tabs.append(link);
 }

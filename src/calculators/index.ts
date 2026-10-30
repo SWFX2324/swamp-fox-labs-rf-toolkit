@@ -1,4 +1,5 @@
 import { antennaLengthCalculator } from "./antennaLength";
+import { coaxLossCalculator } from "./coaxLoss";
 import { linkBudgetCalculator } from "./linkBudget";
 import { satPointingCalculator } from "./satPointing";
 
@@ -8,7 +9,14 @@ export interface Calculator {
   /** Older hashes that should still open this calculator. */
   aliases?: string[];
   title: string;
+  /** Tab label on phones, where the full titles don't fit on one row. */
+  shortTitle?: string;
   render(): HTMLElement;
 }
 
-export const calculators: Calculator[] = [linkBudgetCalculator, antennaLengthCalculator, satPointingCalculator];
+export const calculators: Calculator[] = [
+  linkBudgetCalculator,
+  antennaLengthCalculator,
+  coaxLossCalculator,
+  satPointingCalculator,
+];

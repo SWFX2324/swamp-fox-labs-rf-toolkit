@@ -240,6 +240,7 @@ export const linkBudgetCalculator: Calculator = {
   id: "link",
   aliases: ["fspl"],
   title: "Link Budget",
+  shortTitle: "Link",
   render() {
     const form = document.createElement("form");
     form.className = "calculator link-budget";

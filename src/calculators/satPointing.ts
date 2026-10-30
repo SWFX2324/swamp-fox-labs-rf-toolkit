@@ -167,6 +167,7 @@ function drawPointing(azTrue: number, declination: number, elevation: number): s
 export const satPointingCalculator: Calculator = {
   id: "sat",
   title: "Sat Pointing",
+  shortTitle: "Sat",
   render() {
     const form = document.createElement("form");
     form.className = "calculator two-col sat-pointing";
@@ -176,7 +177,11 @@ export const satPointingCalculator: Calculator = {
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
     const fill = (values: Record<string, string>) => {
-      for (const [name, value] of Object.entries(values)) field(name).value = value;
+      // Skip names that no longer exist, such as a renamed field in old saved state.
+      for (const [name, value] of Object.entries(values)) {
+        const el = form.elements.namedItem(name);
+        if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
+      }
     };
     fill(loadState());
 

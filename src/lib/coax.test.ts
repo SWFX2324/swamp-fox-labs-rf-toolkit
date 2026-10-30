@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { beyondCableRange, cableLossDb, findCable, lossPer100Ft } from "./coax";
+import {
+  beyondCableRange,
+  cableLossDb,
+  findCable,
+  lossPer100Ft,
+  powerDelivered,
+  swrAtInput,
+  totalLineLossDb,
+} from "./coax";
 import { toHz, toMetres } from "./units";
 
 const cable = (id: string) => findCable(id)!;
@@ -39,6 +47,32 @@ describe("cableLossDb", () => {
   it("rejects bad inputs", () => {
     expect(() => cableLossDb(cable("rg-58"), 0, 10)).toThrow(RangeError);
     expect(() => cableLossDb(cable("rg-58"), 1e8, -1)).toThrow(RangeError);
+  });
+});
+
+describe("mismatch", () => {
+  it("adds nothing at 1:1", () => {
+    expect(totalLineLossDb(2.5, 1)).toBeCloseTo(2.5, 9);
+    expect(swrAtInput(2.5, 1)).toBeCloseTo(1, 9);
+  });
+
+  it("adds about half a dB to a 1 dB line at 3:1", () => {
+    // Γ = 0.5, a = 1.2589: 10·log10((1.5849 − 0.25) / (1.2589 × 0.75)) = 1.504 dB.
+    expect(totalLineLossDb(1, 3)).toBeCloseTo(1.504, 2);
+  });
+
+  it("makes a 3:1 antenna look like about 2:1 through 3 dB of coax", () => {
+    // Γ at the radio = 0.5 / 10^0.3 ≈ 0.2506, SWR ≈ 1.67.
+    expect(swrAtInput(3, 3)).toBeCloseTo(1.669, 2);
+  });
+
+  it("rejects an SWR below 1", () => {
+    expect(() => totalLineLossDb(1, 0.5)).toThrow(RangeError);
+  });
+
+  it("converts loss to delivered power", () => {
+    expect(powerDelivered(3)).toBeCloseTo(0.501, 3);
+    expect(powerDelivered(0)).toBe(1);
   });
 });
 

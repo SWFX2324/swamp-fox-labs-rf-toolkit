@@ -90,6 +90,7 @@ const metric = (m: number) =>
 export const antennaLengthCalculator: Calculator = {
   id: "antenna",
   title: "Antenna Length",
+  shortTitle: "Antenna",
   render() {
     const form = document.createElement("form");
     form.className = "calculator two-col antenna-length";
@@ -100,7 +101,11 @@ export const antennaLengthCalculator: Calculator = {
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
 
     const fill = (values: Record<string, string>) => {
-      for (const [name, value] of Object.entries(values)) field(name).value = value;
+      // Skip names that no longer exist, such as a renamed field in old saved state.
+      for (const [name, value] of Object.entries(values)) {
+        const el = form.elements.namedItem(name);
+        if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
+      }
     };
     fill(loadState());
 

@@ -61,6 +61,39 @@ export function cableLossDb(cable: Cable, freqHz: number, lengthM: number): numb
   return (lossPer100Ft(cable, freqHz) * lengthM) / toMetres(100, "ft");
 }
 
+/**
+ * Total line loss with a mismatched load (ARRL Antenna Book):
+ *
+ *   loss = 10·log10[(a² − |Γ|²) / (a·(1 − |Γ|²))],  a = 10^(matched/10)
+ *
+ * where Γ is the reflection coefficient at the antenna end. Reflected power
+ * crosses the line twice, so a high SWR costs more in lossy coax.
+ */
+export function totalLineLossDb(matchedLossDb: number, swrAtLoad: number): number {
+  const gamma = reflectionCoefficient(swrAtLoad);
+  const a = 10 ** (matchedLossDb / 10);
+  return 10 * Math.log10((a * a - gamma * gamma) / (a * (1 - gamma * gamma)));
+}
+
+/**
+ * SWR seen at the radio end. Line loss soaks up some of the reflection on
+ * the way back, so a lossy line makes a bad antenna look better than it is.
+ */
+export function swrAtInput(matchedLossDb: number, swrAtLoad: number): number {
+  const gamma = reflectionCoefficient(swrAtLoad) * 10 ** (-matchedLossDb / 10);
+  return (1 + gamma) / (1 - gamma);
+}
+
+function reflectionCoefficient(swr: number): number {
+  if (!(swr >= 1)) throw new RangeError("SWR must be 1 or more");
+  return Number.isFinite(swr) ? (swr - 1) / (swr + 1) : 1;
+}
+
+/** Fraction of input power that reaches the far end for a loss in dB. */
+export function powerDelivered(lossDb: number): number {
+  return 10 ** (-lossDb / 10);
+}
+
 /** True when freqHz is above the range the cable's coefficients cover. */
 export function beyondCableRange(cable: Cable, freqHz: number): boolean {
   return freqHz / 1e6 > cable.maxMHz;
