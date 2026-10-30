@@ -23,6 +23,7 @@ export default defineConfig({
         // and nothing is downloaded in bulk (per the OSM tile usage policy).
         runtimeCaching: [
           {
+            // OpenStreetMap tiles, used by both the Streets and Dark maps.
             urlPattern: /^https:\/\/tile\.openstreetmap\.org\//,
             handler: "StaleWhileRevalidate",
             options: {

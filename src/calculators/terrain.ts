@@ -2,9 +2,9 @@
 // elevation profile between them, and how well the path clears it.
 
 import * as L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { createMap, showDefaultView } from "./mapKit";
 import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
-import { fetchElevations } from "../lib/elevation";
+import { fetchPathElevations } from "./tileElevation";
 import { createPathStore } from "../lib/pathStore";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type LatLon, bearingDeg, distanceBetweenM, formatLatLon, parseLatLon, samplePath } from "../lib/geo";
@@ -84,10 +84,10 @@ const template = `
   </div>
   <p class="note attribution">
     Terrain loss uses the Bullington method of ITU-R P.526-16, which can read
-    low on paths over several ridges. Elevation: Copernicus DEM GLO-90 (90 m) via
-    <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.
-    Saved and recent paths work offline; the map background only shows areas
-    you've viewed before.
+    low on paths over several ridges. Elevation: Terrain Tiles (Mapzen, AWS Open
+    Data), bare earth at up to about 30 m; US data courtesy of the U.S.
+    Geological Survey. Saved and recent paths work offline, as do areas you've
+    viewed before.
   </p>
 `;
 
@@ -192,7 +192,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     loading = controller;
     setStatus("Loading terrain…");
     try {
-      const result = await fetchElevations(samplePath(tx, rx, sampleCount(distance)), { signal: controller.signal });
+      const result = await fetchPathElevations(samplePath(tx, rx, sampleCount(distance)), controller.signal);
       if (controller.signal.aborted) return;
       elevations = result;
       store.remember(tx, rx, result);
@@ -219,14 +219,11 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
 
   const initMap = () => {
     if (map || !card.isConnected) return;
-    map = L.map(el("map"), { zoomControl: true, attributionControl: true });
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
-    if (tx && rx) map.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
-    else if (tx) map.setView([tx.lat, tx.lon], 11);
-    else map.setView([37.5, -96], 4);
+    map = createMap(el("map"), (m) => {
+      if (tx && rx) m.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
+      else if (tx) m.setView([tx.lat, tx.lon], 11);
+      else showDefaultView(m);
+    });
     map.on("click", (e: L.LeafletMouseEvent) => {
       const at = { lat: e.latlng.lat, lon: e.latlng.lng };
       if (!tx) tx = at;
@@ -235,7 +232,6 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       pinsChanged();
     });
     syncPins();
-    new ResizeObserver(() => map?.invalidateSize()).observe(el("map"));
   };
   // Leaflet needs the container in the page before it starts. A timer rather
   // than requestAnimationFrame, which doesn't run while the tab is hidden.

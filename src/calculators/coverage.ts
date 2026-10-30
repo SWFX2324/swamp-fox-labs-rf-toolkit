@@ -1,14 +1,15 @@
 // Coverage Map: shade the area one site can reach, over terrain, on the map.
 
 import * as L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type RadialSamples, coverageMargins, coverageStats, marginAt, sampleRadials } from "../lib/coverage";
 import { bearingDeg, distanceBetweenM } from "../lib/geo";
 import { EARTH_RADIUS_M } from "../lib/horizon";
 import { compassPoint } from "../lib/satPointing";
-import { ElevationGrid, type TileId, chooseZoom, decodeTile, tileUrl, tilesCovering } from "../lib/terrainTiles";
+import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
+import { loadTiles } from "./tileElevation";
 import {
   type DistanceUnit,
   type FrequencyUnit,
@@ -48,9 +49,6 @@ const detailLevels: Record<string, { radials: number; steps: number; label: stri
   standard: { radials: 120, steps: 120, label: "Standard (3° steps)" },
   fine: { radials: 240, steps: 160, label: "Fine (1.5° steps)" },
 };
-
-// Decoded tiles survive tab switches for this page load.
-const tileCache = new Map<string, Float32Array>();
 
 function numberField(label: string, name: string, unit: string, attrs = ""): string {
   return `
@@ -180,22 +178,6 @@ function cssColor(name: string): [number, number, number] {
   return [Number(m[0]), Number(m[1]), Number(m[2])];
 }
 
-async function loadTile(tile: TileId, signal: AbortSignal): Promise<Float32Array> {
-  const key = `${tile.z}/${tile.x}/${tile.y}`;
-  const cached = tileCache.get(key);
-  if (cached) return cached;
-  const res = await fetch(tileUrl(tile), { signal });
-  if (!res.ok) throw new Error(`Terrain tile returned ${res.status}`);
-  const bitmap = await createImageBitmap(await res.blob());
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(bitmap, 0, 0);
-  const heights = decodeTile(ctx.getImageData(0, 0, canvas.width, canvas.height).data);
-  tileCache.set(key, heights);
-  return heights;
-}
 
 export const coverageCalculator: Calculator = {
   id: "coverage",
@@ -382,19 +364,12 @@ export const coverageCalculator: Calculator = {
       const z = chooseZoom(p, r, 36);
       const tiles = tilesCovering(p, r, z);
       const grid = new ElevationGrid(z);
-      let done = 0;
       setStatus(`Loading terrain 0 of ${tiles.length}…`);
       try {
-        // A few at a time: fast, without flooding a slow connection.
-        const queue = [...tiles];
-        const worker = async () => {
-          while (queue.length) {
-            const t = queue.shift()!;
-            grid.set(t, await loadTile(t, controller.signal));
-            setStatus(`Loading terrain ${++done} of ${tiles.length}…`);
-          }
-        };
-        await Promise.all([worker(), worker(), worker(), worker()]);
+        await loadTiles(tiles, grid, {
+          signal: controller.signal,
+          onProgress: (done, total) => setStatus(`Loading terrain ${done} of ${total}…`),
+        });
       } catch (err) {
         if (controller.signal.aborted) return;
         setStatus(
@@ -407,7 +382,8 @@ export const coverageCalculator: Calculator = {
       setStatus("Calculating…");
       // Let the status paint before the heavy loop.
       await new Promise((resolve) => setTimeout(resolve, 30));
-      samples = sampleRadials(p, r, detail.radials, detail.steps, (q) => grid.sample(q));
+      // Sea-floor depths become sea level: the signal crosses the water surface.
+      samples = sampleRadials(p, r, detail.radials, detail.steps, (q) => Math.max(0, grid.sample(q)));
       sampledFor = sampleKey();
       recompute();
       setStatus("");
@@ -421,14 +397,14 @@ export const coverageCalculator: Calculator = {
 
     const initMap = () => {
       if (map || !form.isConnected) return;
-      map = L.map(out("map"));
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 18,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(map);
       const p = site();
-      if (p) map.setView([p.lat, p.lon], 11);
-      else map.setView([37.5, -96], 4);
+      map = createMap(out("map"), (m) => {
+        // Frame the coverage circle, or the site, or the default view.
+        const here = site();
+        if (ring) m.fitBounds(ring.getBounds(), { padding: [10, 10] });
+        else if (here) m.setView([here.lat, here.lon], 11);
+        else showDefaultView(m);
+      });
       map.on("click", (e: L.LeafletMouseEvent) => {
         const q = { lat: e.latlng.lat, lon: e.latlng.lng };
         if (samples && margins && sampledFor === sampleKey()) {
@@ -451,7 +427,6 @@ export const coverageCalculator: Calculator = {
         field("site").value = formatCoordinates(q);
         inputsChanged();
       });
-      new ResizeObserver(() => map?.invalidateSize()).observe(out("map"));
       placeSite(!!p);
     };
     const waitForPage = () => (form.isConnected ? initMap() : setTimeout(waitForPage, 50));

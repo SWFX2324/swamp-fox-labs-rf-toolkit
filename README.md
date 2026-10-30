@@ -19,7 +19,7 @@ It runs entirely in the browser. Once a page has loaded, it keeps working offlin
 | Coax Loss | Available | Loss, power delivered and SWR at the radio for a coax run, including the extra loss a high SWR causes, with every cable compared side by side for the same frequency and length. |
 | RF Converter | Available | Linked converters for watts, dBm, dBW, microvolts and S-meter readings; SWR, return loss, reflection coefficient and mismatch loss; dBi and dBd; and decibel ratios. |
 
-Every location box accepts decimal lat/lon or MGRS, and a switch in the top bar sets which one the app shows.
+Every location box accepts decimal lat/lon or MGRS, and a switch in the top bar sets which one the app shows. Maps have a recenter button and a Streets or Dark base map; the choice carries across every map.
 
 LMR coax figures use the k1/k2 coefficients published in the Times Microwave Communications Coax Selection Guide. The RG figures are fits to typical values from the same guide and vary by manufacturer.
 
@@ -42,8 +42,7 @@ The formulas live in `src/lib` as plain functions with no UI code, each with tes
 
 ## Data and credits
 
-- Terrain elevation: [Copernicus DEM GLO-90](https://doi.org/10.5270/ESA-c5d3d65) (© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA), served by the [Open-Meteo Elevation API](https://open-meteo.com/en/docs/elevation-api).
-- Coverage terrain: [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) by Mapzen on AWS Open Data. US elevation courtesy of the U.S. Geological Survey (3DEP, SRTM); other regions per the [source list](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
+- Terrain elevation (terrain profile, Mesh Planner, Coverage Map): [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) by Mapzen on AWS Open Data. US elevation courtesy of the U.S. Geological Survey (3DEP, SRTM); other regions per the [source list](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
 - Magnetic declination: [World Magnetic Model WMM2025](https://www.ncei.noaa.gov/products/world-magnetic-model) by NOAA NCEI and the British Geological Survey, a U.S. Government work not subject to copyright. The implementation is tested against NOAA's 100 official WMM2025 test values.
 - MGRS conversion: [mgrs](https://github.com/proj4js/mgrs) by the proj4js project (MIT).
 - Map tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, drawn with [Leaflet](https://leafletjs.com/).

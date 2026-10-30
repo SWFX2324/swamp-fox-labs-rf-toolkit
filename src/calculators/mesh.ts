@@ -2,10 +2,10 @@
 // real terrain with identical radios, plus whether the mesh holds together.
 
 import * as L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
-import { ElevationRateLimitError, MAX_PER_REQUEST, fetchElevations } from "../lib/elevation";
+import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, distanceBetweenM, samplePath } from "../lib/geo";
 import { type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
 import { createPathStore, pathKey } from "../lib/pathStore";
@@ -131,8 +131,8 @@ const template = `
         </div>
         <p class="note">
           Solid links keep your fade margin; marginal ones connect with less.
-          Terrain loss uses ITU-R P.526 Bullington diffraction on 90 m
-          elevation data, so trees and buildings aren't counted.
+          Terrain loss uses ITU-R P.526 Bullington diffraction on bare-earth
+          elevation (Terrain Tiles, USGS in the US), so trees and buildings aren't counted.
         </p>
       </div>
     </section>
@@ -374,10 +374,8 @@ export const meshCalculator: Calculator = {
       }
     };
 
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const loadTerrain = async () => {
       loading?.abort();
-      clearTimeout(retryTimer);
       const controller = new AbortController();
       loading = controller;
       // Paths not loaded yet, plus any that failed before.
@@ -398,23 +396,12 @@ export const meshCalculator: Calculator = {
         }
         setStatus(`Loading terrain ${++fetched} of ${todo.length}…`);
         try {
-          // One request per path keeps a 10-node plan inside the free API's
-          // per-minute limit.
-          const count = Math.min(MAX_PER_REQUEST, sampleCount(distanceBetweenM(a, b)));
-          const elev = await fetchElevations(samplePath(a, b, count), { signal: controller.signal });
+          const elev = await fetchPathElevations(samplePath(a, b, sampleCount(distanceBetweenM(a, b))), controller.signal);
           if (controller.signal.aborted) return;
           terrain.set(key, elev);
           store.remember(a, b, elev);
         } catch (err) {
           if (controller.signal.aborted) return;
-          if (err instanceof ElevationRateLimitError) {
-            setStatus("The free elevation service is rate-limiting requests. Trying the rest again in a minute…");
-            recompute();
-            retryTimer = setTimeout(() => {
-              if (form.isConnected && loading === controller) void loadTerrain();
-            }, 61_000);
-            return;
-          }
           terrain.set(key, "error");
           lastError = (err as Error).message;
         }
@@ -453,15 +440,11 @@ export const meshCalculator: Calculator = {
 
     const initMap = () => {
       if (map || !form.isConnected) return;
-      map = L.map(out("map"));
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 18,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(map);
-      if (nodes.length) map.fitBounds(L.latLngBounds(nodes.map((n) => [n.lat, n.lon] as [number, number])), { padding: [40, 40], maxZoom: 14 });
-      else map.setView([37.5, -96], 4);
+      map = createMap(out("map"), (m) => {
+        if (nodes.length) m.fitBounds(L.latLngBounds(nodes.map((n) => [n.lat, n.lon] as [number, number])), { padding: [40, 40], maxZoom: 14 });
+        else showDefaultView(m);
+      });
       map.on("click", (e: L.LeafletMouseEvent) => addNode({ lat: e.latlng.lat, lon: e.latlng.lng }));
-      new ResizeObserver(() => map?.invalidateSize()).observe(out("map"));
       drawMarkers();
       recompute();
     };

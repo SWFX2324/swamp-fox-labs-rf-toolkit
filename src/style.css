@@ -343,6 +343,27 @@ button.secondary:disabled:hover { border-color: var(--border); }
 .leaflet-container .path-line.s-marginal { stroke: var(--serious); stroke-dasharray: none; }
 .leaflet-container .path-line.s-fail { stroke: var(--critical); stroke-dasharray: none; }
 .leaflet-container { font: inherit; }
+/* Map controls in the app's colours (zoom, recenter, layers, attribution). */
+.leaflet-bar a, .leaflet-bar a:hover {
+  background: var(--card); color: var(--text); border-bottom-color: var(--border);
+}
+.leaflet-bar a:hover { background: var(--card-2); }
+.leaflet-bar { border: 1px solid var(--border) !important; box-shadow: 0 1px 4px rgb(0 0 0 / .25) !important; }
+/* Dark base map: invert OpenStreetMap, then turn the hues back so water stays
+   blue and parks green, and soften it to sit with the dark theme. */
+.leaflet-layer.map-dark { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.88) saturate(0.55); }
+.recenter-control a { display: grid; place-items: center; }
+.recenter-control svg { width: 18px; height: 18px; }
+.leaflet-control-layers {
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--border) !important; border-radius: 8px !important;
+  box-shadow: 0 1px 4px rgb(0 0 0 / .25) !important;
+}
+.leaflet-control-layers-expanded { padding: 8px 12px; }
+.leaflet-control-layers label { flex-direction: row; align-items: center; color: var(--text); font-size: 13px; }
+.leaflet-control-layers-selector { min-height: 0; margin: 0 6px 0 0; }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--card) 80%, transparent) !important; color: var(--text-2); }
+.leaflet-control-attribution a { color: var(--accent); }
 .leaflet-control-attribution { font-size: 10px; }
 
 .profile-chart { margin-top: 12px; }

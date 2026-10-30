@@ -6,9 +6,12 @@ import {
   decodeTerrarium,
   decodeTile,
   fromGlobalPixel,
+  pathHeights,
   tileUrl,
   tilesCovering,
+  tilesForPoints,
   toGlobalPixel,
+  zoomForPoints,
 } from "./terrainTiles";
 
 describe("tile maths", () => {
@@ -65,6 +68,40 @@ describe("tilesCovering and chooseZoom", () => {
     expect(tilesCovering(charlotte, 15_000, z).length).toBeLessThanOrEqual(36);
     expect(z === 12 || tilesCovering(charlotte, 15_000, z + 1).length > 36).toBe(true);
     expect(chooseZoom(charlotte, 80_000)).toBeLessThan(chooseZoom(charlotte, 5_000));
+  });
+});
+
+describe("tilesForPoints and zoomForPoints", () => {
+  const a = { lat: 35.5951, lon: -82.5515 };
+  const b = { lat: 35.7454, lon: -81.6848 };
+  const path = Array.from({ length: 50 }, (_, i) => ({
+    lat: a.lat + ((b.lat - a.lat) * i) / 49,
+    lon: a.lon + ((b.lon - a.lon) * i) / 49,
+  }));
+
+  it("covers only the tiles along a path, not its whole bounding box", () => {
+    const z = 12;
+    const along = tilesForPoints(path, z);
+    const box = tilesCovering({ lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 }, 45_000, z);
+    expect(along.length).toBeLessThan(box.length);
+    expect(new Set(along.map((t) => `${t.x}/${t.y}`)).size).toBe(along.length);
+  });
+
+  it("includes the neighbour tile when a point sits on a tile edge", () => {
+    const edge = fromGlobalPixel(256 * 1000, 256 * 500 + 100, 12);
+    const tiles = tilesForPoints([edge], 12);
+    expect(tiles.map((t) => t.x).sort((p, q) => p - q)).toEqual([999, 1000]);
+  });
+
+  it("stays within the tile budget", () => {
+    expect(tilesForPoints(path, zoomForPoints(path, 10)).length).toBeLessThanOrEqual(10);
+  });
+});
+
+describe("pathHeights", () => {
+  it("floors sea-floor depths at sea level and fills gaps", () => {
+    expect(pathHeights([12, -40, Number.NaN, 30])).toEqual([12, 0, 0, 30]);
+    expect(pathHeights([Number.NaN, 5])).toEqual([0, 5]);
   });
 });
 

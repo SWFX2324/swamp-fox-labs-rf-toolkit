@@ -16,7 +16,8 @@ export interface SavedPath {
   savedAt: string;
 }
 
-const CACHE_KEY = "rf-toolkit:profile-cache";
+// v2: profiles from Terrain Tiles (v1 held Open-Meteo profiles).
+const CACHE_KEY = "rf-toolkit:profile-cache-v2";
 const SAVED_KEY = "rf-toolkit:saved-paths";
 export const CACHE_LIMIT = 20;
 

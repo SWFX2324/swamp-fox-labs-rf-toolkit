@@ -69,6 +69,43 @@ export function tilesCovering(center: LatLon, radiusM: number, z: number): TileI
   return out;
 }
 
+/**
+ * Tiles needed to sample every point, including the neighbouring pixels
+ * bilinear interpolation reads across tile edges.
+ */
+export function tilesForPoints(points: LatLon[], z: number): TileId[] {
+  const n = 2 ** z;
+  const seen = new Map<string, TileId>();
+  for (const p of points) {
+    const { gx, gy } = toGlobalPixel(p, z);
+    for (const px of [Math.floor(gx - 0.5), Math.floor(gx + 0.5)]) {
+      for (const py of [Math.floor(gy - 0.5), Math.floor(gy + 0.5)]) {
+        const x = ((Math.floor(px / TILE_SIZE) % n) + n) % n;
+        const y = Math.min(n - 1, Math.max(0, Math.floor(py / TILE_SIZE)));
+        seen.set(`${x}/${y}`, { z, x, y });
+      }
+    }
+  }
+  return [...seen.values()];
+}
+
+/** The sharpest zoom at which these points need no more than maxTiles. */
+export function zoomForPoints(points: LatLon[], maxTiles = 40): number {
+  for (let z = MAX_ZOOM; z > 1; z--) if (tilesForPoints(points, z).length <= maxTiles) return z;
+  return 1;
+}
+
+/**
+ * Heights for radio paths: sea-floor depths (negative) become sea level,
+ * since the signal crosses the water's surface, and gaps take the previous
+ * point's height.
+ */
+export function pathHeights(raw: number[]): number[] {
+  const out: number[] = [];
+  for (const h of raw) out.push(Number.isFinite(h) ? Math.max(0, h) : (out[out.length - 1] ?? 0));
+  return out;
+}
+
 /** The sharpest zoom whose tiles for this area stay within maxTiles. */
 export function chooseZoom(center: LatLon, radiusM: number, maxTiles = 36): number {
   for (let z = MAX_ZOOM; z > 1; z--) if (tilesCovering(center, radiusM, z).length <= maxTiles) return z;

@@ -3,7 +3,7 @@
 // Magnetic Model and a bearing line on the map.
 
 import * as L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type LatLon, destinationPoint } from "../lib/geo";
@@ -323,19 +323,15 @@ export const satPointingCalculator: Calculator = {
 
     const initMap = () => {
       if (map || !form.isConnected) return;
-      map = L.map(out("map"));
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(map);
-      const site = parseCoordinates(field("site").value);
-      if (site) map.setView([site.lat, site.lon], 15);
-      else map.setView([37.5, -96], 4);
+      map = createMap(out("map"), (m) => {
+        const site = parseCoordinates(field("site").value);
+        if (site) m.setView([site.lat, site.lon], Math.max(m.getZoom() || 0, 15));
+        else showDefaultView(m);
+      });
       map.on("click", (e: L.LeafletMouseEvent) => {
         field("site").value = formatCoordinates({ lat: e.latlng.lat, lon: e.latlng.lng });
         update();
       });
-      new ResizeObserver(() => map?.invalidateSize()).observe(out("map"));
       lastSiteText = "";
       update();
     };
