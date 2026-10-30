@@ -15,6 +15,7 @@ import {
   parseOrbitalSlot,
   reflectorTiltDeg,
 } from "../lib/satPointing";
+import { fromMetres } from "../lib/units";
 import { decimalYear, magneticField, modelIsCurrent } from "../lib/wmm";
 
 const STORAGE_KEY = "rf-toolkit:sat-pointing";
@@ -317,8 +318,8 @@ export const satPointingCalculator: Calculator = {
       }
 
       const oneWayMs = oneWayDelayS(look.rangeM) * 1000;
-      out("range").textContent = `${Math.round(look.rangeM / 1000).toLocaleString()} km`;
-      out("rangeSub").textContent = `${fmt(oneWayMs, 0)} ms one way · about ${fmt(oneWayMs * 4, 0)} ms for a request and reply through the satellite`;
+      out("range").textContent = `${Math.round(fromMetres(look.rangeM, "mi")).toLocaleString()} mi`;
+      out("rangeSub").textContent = `${Math.round(look.rangeM / 1000).toLocaleString()} km · ${fmt(oneWayMs, 0)} ms one way · about ${fmt(oneWayMs * 4, 0)} ms for a request and reply through the satellite`;
     };
 
     const initMap = () => {

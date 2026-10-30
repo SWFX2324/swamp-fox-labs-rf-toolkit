@@ -39,8 +39,8 @@ const defaults: Record<string, string> = {
   rxCable: "0",
   sens: "-100",
   fade: "10",
-  radius: "10",
-  radiusUnit: "km",
+  radius: "6",
+  radiusUnit: "mi",
   detail: "standard",
 };
 
@@ -74,7 +74,7 @@ const template = `
         <label>Radius
           <span class="input-unit">
             <input name="radius" type="number" inputmode="decimal" step="any" min="0.5" max="80" />
-            <select name="radiusUnit"><option>km</option><option>mi</option></select>
+            <select name="radiusUnit"><option>mi</option><option>km</option></select>
           </span>
         </label>
         <label>Detail

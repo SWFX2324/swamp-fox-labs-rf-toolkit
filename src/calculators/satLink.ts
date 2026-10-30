@@ -5,6 +5,7 @@ import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { formatOrbitalSlot, lookAngles, parseOrbitalSlot } from "../lib/satPointing";
 import { dvbs2Modcods, satBands, satLinkBudget } from "../lib/satLink";
+import { fromMetres } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:sat-link";
 const POINTING_KEY = "rf-toolkit:sat-pointing";
@@ -219,7 +220,7 @@ export const satLinkCalculator: Calculator = {
       const slot = parseOrbitalSlot(el("slot").value);
       const look = site && slot !== undefined ? lookAngles(site, slot) : undefined;
       out("geo").textContent = look
-        ? `${formatOrbitalSlot(slot!)} · ${fmt(look.elevation)}° up · ${Math.round(look.rangeM / 1000).toLocaleString()} km`
+        ? `${formatOrbitalSlot(slot!)} · ${fmt(look.elevation)}° up · ${Math.round(fromMetres(look.rangeM, "mi")).toLocaleString()} mi`
         : "Geostationary";
 
       const modcod = dvbs2Modcods.find((m) => m.name === el("modcod").value) ?? dvbs2Modcods[6];
