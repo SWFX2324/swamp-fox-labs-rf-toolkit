@@ -206,9 +206,29 @@ button.secondary:hover { border-color: var(--accent); }
 .notes { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); font-size: 12px; }
 .notes li + li { margin-top: 4px; }
 
+/* ------------------------------------------------------------ sat pointing */
+.sat-map { margin-top: 12px; }
+.leaflet-container .bearing-line { stroke: var(--accent); stroke-width: 3; fill: none; }
+.sat-pointing .tiles { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.sat-pointing .tile .sub { white-space: normal; }
+.pointing-diagram { background: var(--card-2); border-radius: 10px; padding: 8px 6px 2px; margin-bottom: 12px; }
+.pointing-diagram svg { display: block; width: 100%; height: auto; max-height: 220px; }
+.pointing-diagram .rose { fill: var(--card); stroke: var(--border); stroke-width: 1.5; }
+.pointing-diagram .tick { stroke: var(--muted); stroke-width: 1; }
+.pointing-diagram .cardinal { fill: var(--text-2); font: 600 10px/1 system-ui, sans-serif; }
+.pointing-diagram .az-line, .pointing-diagram .el-line { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.pointing-diagram .arrowhead { fill: var(--accent); }
+.pointing-diagram .hub { fill: var(--text); }
+.pointing-diagram .mag-north { stroke: var(--critical); stroke-width: 2.5; stroke-linecap: round; }
+.pointing-diagram .quadrant { fill: var(--card); stroke: var(--border); stroke-width: 1.5; }
+.pointing-diagram .caption { fill: var(--text); font: 600 12px/1 var(--mono); }
+.legend-line { margin: 2px 0 4px 8px; font-size: 11px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.legend-line .sw-mag { width: 14px; border-top: 2.5px solid var(--critical); display: inline-block; }
+.notes.steps { padding-left: 20px; }
+
 /* ------------------------------------------------------------ terrain */
 .terrain .note.top { margin: -4px 0 12px; }
-.terrain .map {
+.terrain .map, .sat-map {
   height: 300px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border);
   background: var(--card-2); z-index: 0;
 }

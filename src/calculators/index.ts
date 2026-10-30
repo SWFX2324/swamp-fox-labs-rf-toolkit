@@ -1,5 +1,6 @@
 import { antennaLengthCalculator } from "./antennaLength";
 import { linkBudgetCalculator } from "./linkBudget";
+import { satPointingCalculator } from "./satPointing";
 
 export interface Calculator {
   /** URL hash and tab id. */
@@ -10,4 +11,4 @@ export interface Calculator {
   render(): HTMLElement;
 }
 
-export const calculators: Calculator[] = [linkBudgetCalculator, antennaLengthCalculator];
+export const calculators: Calculator[] = [linkBudgetCalculator, antennaLengthCalculator, satPointingCalculator];

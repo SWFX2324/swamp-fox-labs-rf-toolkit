@@ -40,6 +40,16 @@ export function intermediatePoint(a: LatLon, b: LatLon, t: number): LatLon {
   return { lat: deg(Math.atan2(z, Math.hypot(x, y))), lon: deg(Math.atan2(y, x)) };
 }
 
+/** The point distanceM along a great circle from p, starting on bearingDeg. */
+export function destinationPoint(p: LatLon, bearingDeg: number, distanceM: number): LatLon {
+  const d = distanceM / EARTH_RADIUS_M;
+  const th = rad(bearingDeg);
+  const la1 = rad(p.lat);
+  const la2 = Math.asin(Math.sin(la1) * Math.cos(d) + Math.cos(la1) * Math.sin(d) * Math.cos(th));
+  const lo2 = rad(p.lon) + Math.atan2(Math.sin(th) * Math.sin(d) * Math.cos(la1), Math.cos(d) - Math.sin(la1) * Math.sin(la2));
+  return { lat: deg(la2), lon: ((deg(lo2) + 540) % 360) - 180 };
+}
+
 /** count evenly spaced points from a to b, both ends included. */
 export function samplePath(a: LatLon, b: LatLon, count: number): LatLon[] {
   return Array.from({ length: count }, (_, i) => intermediatePoint(a, b, i / (count - 1)));

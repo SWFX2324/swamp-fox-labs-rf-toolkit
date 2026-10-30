@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bearingDeg, distanceBetweenM, intermediatePoint, parseLatLon, samplePath } from "./geo";
+import { bearingDeg, destinationPoint, distanceBetweenM, intermediatePoint, parseLatLon, samplePath } from "./geo";
 
 describe("distanceBetweenM", () => {
   it("is about 111.2 km per degree of latitude", () => {
@@ -42,6 +42,20 @@ describe("intermediatePoint and samplePath", () => {
     expect(pts[10].lon).toBeCloseTo(b.lon, 9);
     const step = distanceBetweenM(a, b) / 10;
     expect(distanceBetweenM(pts[3], pts[4])).toBeCloseTo(step, 0);
+  });
+});
+
+describe("destinationPoint", () => {
+  it("goes the right distance on the right bearing", () => {
+    const start = { lat: 35.2271, lon: -80.8431 };
+    const end = destinationPoint(start, 212.5, 50_000);
+    expect(distanceBetweenM(start, end)).toBeCloseTo(50_000, 3);
+    expect(bearingDeg(start, end)).toBeCloseTo(212.5, 6);
+  });
+
+  it("wraps across the antimeridian", () => {
+    const end = destinationPoint({ lat: 0, lon: 179.9 }, 90, 50_000);
+    expect(end.lon).toBeLessThan(-179);
   });
 });
 
