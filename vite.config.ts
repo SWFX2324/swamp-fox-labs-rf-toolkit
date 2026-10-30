@@ -31,6 +31,16 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            // Terrain elevation tiles never change, so keep them until evicted.
+            urlPattern: /^https:\/\/s3\.amazonaws\.com\/elevation-tiles-prod\//,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "elevation-tiles",
+              expiration: { maxEntries: 500, maxAgeSeconds: 180 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),

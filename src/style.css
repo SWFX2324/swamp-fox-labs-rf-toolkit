@@ -224,6 +224,19 @@ button.secondary:hover { border-color: var(--accent); }
 .notes { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); font-size: 12px; }
 .notes li + li { margin-top: 4px; }
 
+/* ------------------------------------------------------------ coverage map */
+.coverage-map { height: 420px; margin-top: 12px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--card-2); z-index: 0; }
+.run-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.run-row .note { margin: 0; }
+.leaflet-container .coverage-ring { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 5; }
+.coverage-overlay { image-rendering: auto; }
+.coverage-legend .cov-strong { background: color-mix(in srgb, var(--good) 65%, transparent); }
+.coverage-legend .cov-solid { background: color-mix(in srgb, var(--good) 40%, transparent); }
+.coverage-legend .cov-marginal { background: color-mix(in srgb, var(--warning) 47%, transparent); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--card); color: var(--text); }
+.leaflet-popup-content { font: 13px/1.4 system-ui, sans-serif; margin: 10px 14px; }
+@media (max-width: 600px) { .coverage-map { height: 340px; } }
+
 /* ------------------------------------------------------------ mesh planner */
 .mesh-map { height: 380px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--card-2); z-index: 0; }
 .mesh .note.top { margin: -4px 0 12px; }
