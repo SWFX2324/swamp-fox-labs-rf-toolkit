@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Fetcher, fetchElevations, MAX_PER_REQUEST } from "./elevation";
+import { ElevationRateLimitError, type Fetcher, fetchElevations, MAX_PER_REQUEST } from "./elevation";
 
 const points = (n: number) => Array.from({ length: n }, (_, i) => ({ lat: 35 + i / 1000, lon: -80 }));
 
@@ -28,6 +28,12 @@ describe("fetchElevations", () => {
     const fetcher: Fetcher = async () =>
       new Response(JSON.stringify({ error: true, reason: "Latitude must be in range" }), { status: 400 });
     await expect(fetchElevations(points(2), { fetcher })).rejects.toThrow("Latitude must be in range");
+  });
+
+  it("flags the request limit so callers can retry", async () => {
+    const fetcher: Fetcher = async () =>
+      new Response(JSON.stringify({ error: true, reason: "Minutely API request limit exceeded." }), { status: 429 });
+    await expect(fetchElevations(points(2), { fetcher })).rejects.toBeInstanceOf(ElevationRateLimitError);
   });
 
   it("rejects a response with the wrong number of values", async () => {

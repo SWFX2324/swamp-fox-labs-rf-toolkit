@@ -10,6 +10,9 @@ export const MAX_PER_REQUEST = 100;
 
 export type Fetcher = (url: string, init?: { signal?: AbortSignal }) => Promise<Response>;
 
+/** The free API's per-minute (or daily) request limit was hit; retry later. */
+export class ElevationRateLimitError extends Error {}
+
 /** Elevations in metres above sea level, in the same order as points. */
 export async function fetchElevations(
   points: LatLon[],
@@ -23,6 +26,7 @@ export async function fetchElevations(
       `&longitude=${batch.map((p) => p.lon.toFixed(5)).join(",")}`;
     const res = await fetcher(url, { signal });
     const body = (await res.json().catch(() => ({}))) as { elevation?: unknown; reason?: string };
+    if (res.status === 429) throw new ElevationRateLimitError(body.reason ?? "Elevation request limit reached");
     if (!res.ok) throw new Error(body.reason ?? `Elevation service returned ${res.status}`);
     const elevation = body.elevation;
     if (!Array.isArray(elevation) || elevation.length !== batch.length || !elevation.every(Number.isFinite)) {

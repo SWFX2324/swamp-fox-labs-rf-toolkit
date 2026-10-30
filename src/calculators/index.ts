@@ -1,6 +1,9 @@
 import { antennaLengthCalculator } from "./antennaLength";
 import { coaxLossCalculator } from "./coaxLoss";
+import { converterCalculator } from "./converter";
 import { linkBudgetCalculator } from "./linkBudget";
+import { meshCalculator } from "./mesh";
+import { satLinkCalculator } from "./satLink";
 import { satPointingCalculator } from "./satPointing";
 
 export interface Calculator {
@@ -16,7 +19,10 @@ export interface Calculator {
 
 export const calculators: Calculator[] = [
   linkBudgetCalculator,
+  meshCalculator,
   antennaLengthCalculator,
   coaxLossCalculator,
   satPointingCalculator,
+  satLinkCalculator,
+  converterCalculator,
 ];

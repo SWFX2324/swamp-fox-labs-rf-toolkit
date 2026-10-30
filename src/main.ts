@@ -1,6 +1,7 @@
 import "./style.css";
 import { registerSW } from "virtual:pwa-register";
 import { calculators } from "./calculators";
+import { type CoordFormat, getCoordFormat, setCoordFormat } from "./lib/coords";
 
 registerSW({ immediate: true });
 
@@ -24,9 +25,30 @@ function show(): void {
   for (const link of tabs.querySelectorAll<HTMLAnchorElement>("a")) {
     link.toggleAttribute("aria-current", link.dataset.id === calc.id);
   }
+  // On phones the tab row scrolls sideways; keep the current tab in view.
+  const current = tabs.querySelector<HTMLAnchorElement>("a[aria-current]");
+  if (current && tabs.scrollWidth > tabs.clientWidth) {
+    tabs.scrollLeft = current.offsetLeft - (tabs.clientWidth - current.offsetWidth) / 2;
+  }
   app.replaceChildren(calc.render());
   document.title = `${calc.title} · RF Toolkit`;
 }
+
+// Coordinate display format, shared by every page with a location box.
+const coordToggle = document.querySelector<HTMLElement>("#coordToggle")!;
+const markFormat = () => {
+  for (const button of coordToggle.querySelectorAll<HTMLButtonElement>("button")) {
+    button.setAttribute("aria-pressed", String(button.dataset.format === getCoordFormat()));
+  }
+};
+coordToggle.addEventListener("click", (e) => {
+  const button = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-format]");
+  if (!button) return;
+  setCoordFormat(button.dataset.format as CoordFormat);
+  markFormat();
+  show();
+});
+markFormat();
 
 window.addEventListener("hashchange", show);
 show();

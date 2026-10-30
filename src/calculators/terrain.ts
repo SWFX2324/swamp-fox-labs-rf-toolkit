@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css";
 import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
 import { fetchElevations } from "../lib/elevation";
 import { createPathStore } from "../lib/pathStore";
+import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type LatLon, bearingDeg, distanceBetweenM, formatLatLon, parseLatLon, samplePath } from "../lib/geo";
 import { FRESNEL_CLEAR_RATIO, type ProfileResult, type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
 import { type DistanceUnit, fromMetres } from "../lib/units";
@@ -53,12 +54,12 @@ const template = `
   <div class="fields coords">
     <label>TX location
       <span class="input-unit">
-        <input name="txLoc" type="text" inputmode="decimal" placeholder="lat, lon" autocomplete="off" />
+        <input name="txLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <button type="button" class="secondary unit-btn" data-t="locate" title="Use my location">Me</button>
       </span>
     </label>
     <label>RX location
-      <input name="rxLoc" type="text" inputmode="decimal" placeholder="lat, lon" autocomplete="off" />
+      <input name="rxLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
     </label>
   </div>
   <p class="note" data-t="status"></p>
@@ -119,6 +120,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   card.innerHTML = template;
   const el = (name: string) => card.querySelector<HTMLElement>(`[data-t="${name}"]`)!;
   const input = (name: string) => card.querySelector<HTMLInputElement>(`input[name="${name}"]`)!;
+  input("txLoc").placeholder = input("rxLoc").placeholder = coordPlaceholder();
 
   const store = createPathStore({
     getItem: (key) => {
@@ -145,8 +147,8 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
 
   // Keep markers, inputs, the line and storage in step with tx and rx.
   const syncPins = () => {
-    input("txLoc").value = tx ? formatLatLon(tx) : "";
-    input("rxLoc").value = rx ? formatLatLon(rx) : "";
+    input("txLoc").value = tx ? formatCoordinates(tx) : "";
+    input("rxLoc").value = rx ? formatCoordinates(rx) : "";
     savePins(tx, rx);
     if (!map) return;
     const place = (marker: L.Marker | undefined, at: LatLon | undefined, label: "tx" | "rx") => {
@@ -244,9 +246,9 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     input(`${side}Loc`).addEventListener("change", (e) => {
       e.stopPropagation();
       const text = (e.target as HTMLInputElement).value.trim();
-      const parsed = text ? parseLatLon(text) : undefined;
+      const parsed = text ? parseCoordinates(text) : undefined;
       if (text && !parsed) {
-        setStatus("Enter coordinates as decimal degrees, like 35.22710, -80.84310.", true);
+        setStatus("Enter decimal degrees like 35.22710, -80.84310, or MGRS like 17S NU 14277 98239.", true);
         return;
       }
       if (side === "tx") tx = parsed;

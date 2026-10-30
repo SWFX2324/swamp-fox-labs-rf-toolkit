@@ -5,7 +5,8 @@
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Calculator } from ".";
-import { type LatLon, destinationPoint, formatLatLon, parseLatLon } from "../lib/geo";
+import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
+import { type LatLon, destinationPoint } from "../lib/geo";
 import {
   compassPoint,
   formatOrbitalSlot,
@@ -31,7 +32,7 @@ const template = `
       <div class="fields">
         <label>Your location
           <span class="input-unit">
-            <input name="site" type="text" inputmode="decimal" placeholder="lat, lon" autocomplete="off" />
+            <input name="site" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
             <button type="button" class="secondary unit-btn" data-action="locate" title="Use my location">Me</button>
           </span>
         </label>
@@ -167,7 +168,7 @@ function drawPointing(azTrue: number, declination: number, elevation: number): s
 export const satPointingCalculator: Calculator = {
   id: "sat",
   title: "Sat Pointing",
-  shortTitle: "Sat",
+  shortTitle: "Pointing",
   render() {
     const form = document.createElement("form");
     form.className = "calculator two-col sat-pointing";
@@ -184,6 +185,10 @@ export const satPointingCalculator: Calculator = {
       }
     };
     fill(loadState());
+    field("site").placeholder = coordPlaceholder();
+    // Show a saved location in the current lat/lon or MGRS format.
+    const savedSite = parseCoordinates(field("site").value);
+    if (savedSite) field("site").value = formatCoordinates(savedSite);
 
     let map: L.Map | undefined;
     let marker: L.Marker | undefined;
@@ -208,7 +213,7 @@ export const satPointingCalculator: Calculator = {
         }).addTo(map);
         marker.on("dragend", () => {
           const p = marker!.getLatLng();
-          field("site").value = formatLatLon({ lat: p.lat, lon: p.lng });
+          field("site").value = formatCoordinates({ lat: p.lat, lon: p.lng });
           update();
         });
       } else {
@@ -234,13 +239,13 @@ export const satPointingCalculator: Calculator = {
       saveState(state);
 
       const siteText = field("site").value.trim();
-      const site = siteText ? parseLatLon(siteText) : undefined;
+      const site = siteText ? parseCoordinates(siteText) : undefined;
       const slotText = field("slot").value.trim();
       const slot = slotText ? parseOrbitalSlot(slotText) : undefined;
       const offset = Number.parseFloat(field("offset").value) || 0;
 
       setStatus(
-        siteText && !site ? "Enter your location as decimal degrees, like 35.22710, -80.84310."
+        siteText && !site ? "Enter decimal degrees like 35.22710, -80.84310, or MGRS like 17S NU 14277 98239."
         : slotText && slot === undefined ? "Enter the orbital slot like 101W, 101.0° W or 28.2E."
         : "",
       );
@@ -323,11 +328,11 @@ export const satPointingCalculator: Calculator = {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(map);
-      const site = parseLatLon(field("site").value);
+      const site = parseCoordinates(field("site").value);
       if (site) map.setView([site.lat, site.lon], 15);
       else map.setView([37.5, -96], 4);
       map.on("click", (e: L.LeafletMouseEvent) => {
-        field("site").value = formatLatLon({ lat: e.latlng.lat, lon: e.latlng.lng });
+        field("site").value = formatCoordinates({ lat: e.latlng.lat, lon: e.latlng.lng });
         update();
       });
       new ResizeObserver(() => map?.invalidateSize()).observe(out("map"));
@@ -345,7 +350,7 @@ export const satPointingCalculator: Calculator = {
       setStatus("Finding your location…");
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          field("site").value = formatLatLon({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+          field("site").value = formatCoordinates({ lat: pos.coords.latitude, lon: pos.coords.longitude });
           setStatus("");
           update();
         },
