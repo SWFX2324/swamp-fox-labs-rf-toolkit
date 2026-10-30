@@ -1,0 +1,21 @@
+{
+  "name": "swamp-fox-labs-rf-toolkit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Practical RF calculators for planning radio links in the field.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.0.5"
+  }
+}
