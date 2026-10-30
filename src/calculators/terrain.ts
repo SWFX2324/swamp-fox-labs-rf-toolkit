@@ -3,7 +3,9 @@
 
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
 import { fetchElevations } from "../lib/elevation";
+import { createPathStore } from "../lib/pathStore";
 import { type LatLon, bearingDeg, distanceBetweenM, formatLatLon, parseLatLon, samplePath } from "../lib/geo";
 import { FRESNEL_CLEAR_RATIO, type ProfileResult, type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
 import { type DistanceUnit, fromMetres } from "../lib/units";
@@ -20,12 +22,14 @@ export interface TerrainParams {
   applies: boolean;
 }
 
+export type TerrainAnalysis = ProfileResult & { diffraction: DiffractionResult };
+
 export interface TerrainCard {
   element: HTMLElement;
   /** Length of the pinned path in metres, or undefined without both pins. */
   pathDistanceM(): number | undefined;
   /** Re-run the analysis for new frequency or heights; returns it if there is one. */
-  refresh(params: TerrainParams): ProfileResult | undefined;
+  refresh(params: TerrainParams): TerrainAnalysis | undefined;
   /** Remove both pins and the profile. */
   reset(): void;
 }
@@ -63,10 +67,26 @@ const template = `
   <div class="terrain-actions">
     <button type="button" class="secondary" data-t="clear">Clear pins</button>
   </div>
+  <div class="fields saved-paths">
+    <label>Saved paths
+      <span class="input-unit">
+        <select data-t="savedList"></select>
+        <button type="button" class="secondary unit-btn" data-t="delete">Delete</button>
+      </span>
+    </label>
+    <label>Save this path as
+      <span class="input-unit">
+        <input data-t="saveName" type="text" placeholder="Ridge to base camp" autocomplete="off" />
+        <button type="button" class="secondary unit-btn" data-t="save">Save</button>
+      </span>
+    </label>
+  </div>
   <p class="note attribution">
-    Elevation: Copernicus DEM GLO-90 (90 m) via
+    Terrain loss uses the Bullington method of ITU-R P.526-16, which can read
+    low on paths over several ridges. Elevation: Copernicus DEM GLO-90 (90 m) via
     <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.
-    Terrain only needs a connection when the pins move.
+    Saved and recent paths work offline; the map background only shows areas
+    you've viewed before.
   </p>
 `;
 
@@ -100,6 +120,16 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   const el = (name: string) => card.querySelector<HTMLElement>(`[data-t="${name}"]`)!;
   const input = (name: string) => card.querySelector<HTMLInputElement>(`input[name="${name}"]`)!;
 
+  const store = createPathStore({
+    getItem: (key) => {
+      try {
+        return localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    setItem: (key, value) => localStorage.setItem(key, value),
+  });
   let { tx, rx } = loadPins();
   let elevations: number[] | undefined;
   let loading: AbortController | undefined;
@@ -149,6 +179,13 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       setStatus("Move the pins farther apart.", true);
       return;
     }
+    const kept = store.lookup(tx, rx);
+    if (kept) {
+      elevations = kept;
+      setStatus("");
+      onPathChange();
+      return;
+    }
     const controller = new AbortController();
     loading = controller;
     setStatus("Loading terrain…");
@@ -156,6 +193,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       const result = await fetchElevations(samplePath(tx, rx, sampleCount(distance)), { signal: controller.signal });
       if (controller.signal.aborted) return;
       elevations = result;
+      store.remember(tx, rx, result);
       setStatus("");
     } catch (err) {
       if (controller.signal.aborted) return;
@@ -247,8 +285,69 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   };
   el("clear").addEventListener("click", reset);
 
+  // Saved paths. These controls sit inside the link budget form, so keep their
+  // events from re-running the budget on every key press.
+  const savedList = el("savedList") as HTMLSelectElement;
+  const saveName = el("saveName") as HTMLInputElement;
+  for (const control of [savedList, saveName]) {
+    control.addEventListener("input", (e) => e.stopPropagation());
+    control.addEventListener("change", (e) => e.stopPropagation());
+  }
+  const listSaved = (selected = "") => {
+    const paths = store.saved();
+    savedList.innerHTML =
+      `<option value="">${paths.length ? "Choose a saved path…" : "No saved paths yet"}</option>` +
+      paths.map((p) => `<option${p.name === selected ? " selected" : ""}></option>`).join("");
+    // Names are user text, so set them as text rather than markup.
+    paths.forEach((p, idx) => {
+      const option = savedList.options[idx + 1];
+      option.value = option.textContent = p.name;
+    });
+    el("delete").toggleAttribute("disabled", !selected);
+  };
+  savedList.addEventListener("change", () => {
+    const path = store.saved().find((p) => p.name === savedList.value);
+    el("delete").toggleAttribute("disabled", !path);
+    if (!path) return;
+    loading?.abort();
+    tx = path.tx;
+    rx = path.rx;
+    elevations = path.elevationsM;
+    saveName.value = path.name;
+    setStatus("");
+    syncPins();
+    if (map) map.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
+    onPathChange();
+  });
+  el("save").addEventListener("click", () => {
+    const name = saveName.value.trim();
+    if (!tx || !rx || !elevations) {
+      setStatus("Drop both pins and let the terrain load before saving.", true);
+      return;
+    }
+    if (!name) {
+      setStatus("Give the path a name to save it.", true);
+      saveName.focus();
+      return;
+    }
+    if (!store.save({ name, tx, rx, elevationsM: elevations })) {
+      setStatus("This browser wouldn't save the path. Storage may be full or blocked.", true);
+      return;
+    }
+    listSaved(name);
+    setStatus(`Saved "${name}". It will work offline.`);
+  });
+  el("delete").addEventListener("click", () => {
+    if (!savedList.value) return;
+    const name = savedList.value;
+    store.remove(name);
+    listSaved();
+    setStatus(`Deleted "${name}".`);
+  });
+  listSaved();
+
   const hfNote = "A line-of-sight terrain profile doesn't apply below 30 MHz.";
-  const refresh = (params: TerrainParams): ProfileResult | undefined => {
+  const refresh = (params: TerrainParams): TerrainAnalysis | undefined => {
     const pill = el("pill");
     const chart = el("chart");
     const facts = el("facts");
@@ -261,14 +360,15 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     }
     if (el("status").textContent === hfNote) setStatus("");
 
-    const distanceM = distanceBetweenM(tx, rx);
-    const result = analyzeProfile({
+    const path = {
       freqHz: params.freqHz,
-      distanceM,
+      distanceM: distanceBetweenM(tx, rx),
       elevationsM: elevations,
       txHeightM: params.txHeightM,
       rxHeightM: params.rxHeightM,
-    });
+    };
+    const result = analyzeProfile(path);
+    const diffraction = bullingtonLoss(path);
     const [text, cls] = statusText[result.status];
     pill.hidden = false;
     pill.className = `pill ${cls}`;
@@ -288,14 +388,15 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
         : `${h(w.clearanceM)} clear, ${fmt(Math.max(0, w.clearanceRatio) * 100, 0)}% of the Fresnel zone`;
     facts.hidden = false;
     facts.querySelector("tbody")!.innerHTML = [
+      ["Terrain diffraction loss", `${fmt(diffraction.lossDb, 1)} dB`],
       ["Tightest point", `${d(w.distanceM)} from TX`],
       [w.clearanceM < 0 ? "Terrain there is" : "Clearance there", tightest],
       ["Ground at TX / RX", `${h(result.txGroundM)} / ${h(result.rxGroundM)}`],
       ["Bearing TX → RX", `${fmt(bearingDeg(tx, rx), 1)}° (back ${fmt(bearingDeg(rx, tx), 1)}°)`],
     ]
-      .map(([k, v]) => `<tr><td>${k}</td><td class="num mono">${v}</td></tr>`)
+      .map(([k, v], idx) => `<tr${idx === 0 ? ' class="total"' : ""}><td>${k}</td><td class="num mono">${v}</td></tr>`)
       .join("");
-    return result;
+    return { ...result, diffraction };
   };
 
   syncPins();

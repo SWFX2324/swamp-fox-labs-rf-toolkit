@@ -20,6 +20,11 @@ export interface LinkInputs {
   txGainDbi: number;
   /** Obstructions, foliage, rain and so on, on top of free-space loss. */
   extraPathLossDb: number;
+  /**
+   * Diffraction loss from a terrain profile of this exact path. Unlike extra
+   * path loss it is left out of the max range, which is about other distances.
+   */
+  terrainLossDb?: number;
   rxGainDbi: number;
   rxCableLossDb: number;
   rxOtherLossDb: number;
@@ -57,7 +62,7 @@ export function eirpDbm(i: Pick<LinkInputs, "txPowerDbm" | "txCableLossDb" | "tx
 export function linkBudget(i: LinkInputs): LinkResult {
   const eirp = eirpDbm(i);
   const fspl = fsplDb(i.freqHz, i.distanceM);
-  const rxIsotropic = eirp - fspl - i.extraPathLossDb;
+  const rxIsotropic = eirp - fspl - i.extraPathLossDb - (i.terrainLossDb ?? 0);
   const rsl = rxIsotropic + i.rxGainDbi - i.rxCableLossDb - i.rxOtherLossDb;
 
   // Everything except free-space loss is fixed, so solve for the free-space

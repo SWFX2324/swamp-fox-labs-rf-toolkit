@@ -59,6 +59,12 @@ describe("linkBudget", () => {
     expect(far.beyondHorizon).toBe(true);
   });
 
+  it("subtracts terrain loss from this path but not from the max range", () => {
+    const blocked = linkBudget({ ...inputs, terrainLossDb: 12 });
+    expect(r.marginDb - blocked.marginDb).toBeCloseTo(12, 9);
+    expect(blocked.maxRangeM).toBeCloseTo(r.maxRangeM, 6);
+  });
+
   it("subtracts extra path loss one for one", () => {
     const worse = linkBudget({ ...inputs, extraPathLossDb: 15 });
     expect(r.rslDbm - worse.rslDbm).toBeCloseTo(15, 9);

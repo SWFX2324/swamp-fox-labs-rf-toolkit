@@ -221,7 +221,7 @@ function saveState(state: Record<string, string>): void {
 
 const fmt = (value: number, digits = 2) =>
   value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
-const signed = (db: number) => `${db >= 0 ? "+" : "−"}${fmt(Math.abs(db))}`;
+const signed = (db: number) => (db === 0 ? fmt(0) : `${db > 0 ? "+" : "−"}${fmt(Math.abs(db))}`);
 const dbm = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dBm</span>`;
 const db = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dB</span>`;
 
@@ -377,6 +377,7 @@ export const linkBudgetCalculator: Calculator = {
         return;
       }
 
+      inputs.terrainLossDb = profile?.diffraction.lossDb ?? 0;
       const r = linkBudget(inputs);
       const rating = rateMargin(r.marginDb);
 
@@ -409,10 +410,9 @@ export const linkBudgetCalculator: Calculator = {
       out("barMargin").textContent = `${fmt(r.marginDb)} dB`;
       const pill = out("rating");
       pill.hidden = hf;
-      if (profile?.status === "blocked") {
-        pill.className = "pill s-fail";
-        pill.textContent = "Blocked by terrain";
-      } else if (!profile && r.beyondHorizon) {
+      // With a profile, terrain loss is in the margin, so the margin rating
+      // already says whether the path works.
+      if (!profile && r.beyondHorizon) {
         pill.className = "pill s-fail";
         pill.textContent = "Beyond horizon";
       } else {
@@ -437,6 +437,7 @@ export const linkBudgetCalculator: Calculator = {
       step("EIRP", null, true);
       step("Free-space loss", -r.fsplDb);
       if (inputs.extraPathLossDb) step("Extra path loss", -inputs.extraPathLossDb);
+      if (profile) step("Terrain diffraction", -inputs.terrainLossDb);
       step("RX antenna", inputs.rxGainDbi);
       if (inputs.rxCableLossDb) step("RX coax", -inputs.rxCableLossDb);
       if (inputs.rxOtherLossDb) step("RX other losses", -inputs.rxOtherLossDb);

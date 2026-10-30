@@ -17,6 +17,22 @@ export default defineConfig({
         display: "standalone",
         icons: [{ src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
       },
+      workbox: {
+        // Keep map tiles the user has looked at, so the map background still
+        // shows offline. Stale-while-revalidate refreshes them when online,
+        // and nothing is downloaded in bulk (per the OSM tile usage policy).
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/tile\.openstreetmap\.org\//,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "osm-tiles",
+              expiration: { maxEntries: 400, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
     }),
   ],
   test: {
