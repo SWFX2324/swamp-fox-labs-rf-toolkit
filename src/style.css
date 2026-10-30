@@ -96,6 +96,12 @@ main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
 .note:empty { display: none; }
 .note.warn { color: var(--serious); }
 .error { color: var(--critical); font-size: 13px; margin: 10px 0 0; }
+.callout {
+  margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; font-size: 13px; color: var(--text);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  border-left: 3px solid var(--warning);
+}
+.card-head + .callout { margin: 0 0 12px; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 4px 16px 24px; }
 .foot a { color: inherit; }
 
@@ -161,10 +167,14 @@ button.secondary:hover { border-color: var(--accent); }
 .ledger .num { text-align: right; white-space: nowrap; }
 .ledger td.mono { font-size: 12.5px; }
 .ledger tr.total td { font-weight: 600; color: var(--text); border-bottom-color: var(--border); }
+.ledger.geometry { margin-top: 12px; }
+.ledger.geometry tr:last-child td { border-bottom: none; }
 
 /* ------------------------------------------------------------ phone summary */
 .summary-bar { display: none; }
 @media (max-width: 900px) {
+  /* iOS Safari zooms into any field under 16px when it gets focus. */
+  input, select { font-size: 16px; }
   body { padding-bottom: 56px; }
   .summary-bar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;

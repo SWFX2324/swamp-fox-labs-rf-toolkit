@@ -10,7 +10,7 @@ It runs entirely in the browser. Once a page has loaded, it keeps working offlin
 
 | Calculator | Status | What it does |
 | --- | --- | --- |
-| Link Budget | Available | A full point-to-point link: TX power, coax loss and antenna gain to EIRP, free-space path loss, then RX antenna and coax to the received signal, link margin and max range. Coax loss covers LMR-100A to LMR-1700 plus typical RG-58, RG-8X and RG-213. |
+| Link Budget | Available | A full point-to-point link: TX power, coax loss and antenna gain to EIRP, free-space path loss, then RX antenna and coax to the received signal, link margin and max range. Antenna heights set the radio horizon, which caps max range, and a midpoint Fresnel zone clearance check. Warns when used on HF, where free-space math doesn't apply. Coax loss covers LMR-100A to LMR-1700 plus typical RG-58, RG-8X and RG-213. |
 | Antenna Length | Planned | Element lengths for dipoles, quarter-wave verticals and other common antennas at a given frequency. |
 | Coax Loss | Planned | A standalone coax comparison by frequency and run length (the math already lives in the link budget). |
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fsplDb } from "./fspl";
-import { type LinkInputs, linkBudget, rateMargin } from "./linkBudget";
+import { lineOfSightRangeM } from "./horizon";
+import { type LinkInputs, freeSpaceApplies, linkBudget, rateMargin } from "./linkBudget";
 import { dbmToWatts, toDbm, wattsToDbm } from "./units";
 
 const inputs: LinkInputs = {
@@ -16,6 +17,9 @@ const inputs: LinkInputs = {
   rxOtherLossDb: 1,
   rxSensitivityDbm: -100,
   fadeMarginDb: 10,
+  // High enough that the horizon (~260 km) is past the budget range.
+  txHeightM: 1000,
+  rxHeightM: 1000,
 };
 
 describe("linkBudget", () => {
@@ -38,6 +42,23 @@ describe("linkBudget", () => {
     expect(r.maxRangeM / 1000).toBeCloseTo(52.0, 1);
   });
 
+  it("says the budget sets the range when the horizon is farther", () => {
+    expect(r.rangeLimit).toBe("budget");
+    expect(r.beyondHorizon).toBe(false);
+  });
+
+  it("caps the range at the radio horizon for low antennas", () => {
+    const low = linkBudget({ ...inputs, txHeightM: 10, rxHeightM: 10 });
+    expect(low.rangeLimit).toBe("horizon");
+    expect(low.maxRangeM).toBeCloseTo(lineOfSightRangeM(10, 10), 6);
+    expect(low.maxRangeM / 1000).toBeCloseTo(26.1, 1);
+  });
+
+  it("flags a path longer than the horizon", () => {
+    const far = linkBudget({ ...inputs, distanceM: 40_000, txHeightM: 10, rxHeightM: 10 });
+    expect(far.beyondHorizon).toBe(true);
+  });
+
   it("subtracts extra path loss one for one", () => {
     const worse = linkBudget({ ...inputs, extraPathLossDb: 15 });
     expect(r.rslDbm - worse.rslDbm).toBeCloseTo(15, 9);
@@ -55,6 +76,15 @@ describe("rateMargin", () => {
     [-1, "fail"],
   ])("%d dB is %s", (db, rating) => {
     expect(rateMargin(db)).toBe(rating);
+  });
+});
+
+describe("freeSpaceApplies", () => {
+  it("is false on HF and true from 6 m up", () => {
+    expect(freeSpaceApplies(7.1e6)).toBe(false);
+    expect(freeSpaceApplies(28.4e6)).toBe(false);
+    expect(freeSpaceApplies(30e6)).toBe(true);
+    expect(freeSpaceApplies(50.1e6)).toBe(true);
   });
 });
 

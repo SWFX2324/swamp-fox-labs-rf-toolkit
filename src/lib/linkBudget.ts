@@ -4,8 +4,12 @@
 //   EIRP − free-space loss − extra path loss + RX antenna − RX cable − RX other
 //                                                 = received signal level
 //   received signal level − RX sensitivity        = link margin
+//
+// Max range is the shorter of what the budget allows and the radio horizon
+// for the two antenna heights.
 
 import { distanceForLossM, fsplDb } from "./fspl";
+import { lineOfSightRangeM } from "./horizon";
 
 export interface LinkInputs {
   freqHz: number;
@@ -22,6 +26,9 @@ export interface LinkInputs {
   rxSensitivityDbm: number;
   /** Margin the link must keep for fading, used for the max range. */
   fadeMarginDb: number;
+  /** Antenna heights above ground, metres. */
+  txHeightM: number;
+  rxHeightM: number;
 }
 
 export interface LinkResult {
@@ -31,8 +38,14 @@ export interface LinkResult {
   rxIsotropicDbm: number;
   rslDbm: number;
   marginDb: number;
-  /** Longest distance that still keeps fadeMarginDb, in metres. */
+  /** Longest distance that keeps fadeMarginDb and line of sight, in metres. */
   maxRangeM: number;
+  /** What sets maxRangeM. */
+  rangeLimit: "budget" | "horizon";
+  /** Smooth-earth line-of-sight range for the antenna heights, metres. */
+  horizonM: number;
+  /** True when distanceM is past the radio horizon. */
+  beyondHorizon: boolean;
 }
 
 export function eirpDbm(i: Pick<LinkInputs, "txPowerDbm" | "txCableLossDb" | "txOtherLossDb" | "txGainDbi">): number {
@@ -49,6 +62,8 @@ export function linkBudget(i: LinkInputs): LinkResult {
   // loss that leaves exactly the fade margin, then for its distance.
   const fixed = eirp - i.extraPathLossDb + i.rxGainDbi - i.rxCableLossDb - i.rxOtherLossDb;
   const allowedFspl = fixed - i.rxSensitivityDbm - i.fadeMarginDb;
+  const budgetRange = distanceForLossM(i.freqHz, allowedFspl);
+  const horizon = lineOfSightRangeM(i.txHeightM, i.rxHeightM);
 
   return {
     eirpDbm: eirp,
@@ -56,8 +71,21 @@ export function linkBudget(i: LinkInputs): LinkResult {
     rxIsotropicDbm: rxIsotropic,
     rslDbm: rsl,
     marginDb: rsl - i.rxSensitivityDbm,
-    maxRangeM: distanceForLossM(i.freqHz, allowedFspl),
+    maxRangeM: Math.min(budgetRange, horizon),
+    rangeLimit: horizon < budgetRange ? "horizon" : "budget",
+    horizonM: horizon,
+    beyondHorizon: i.distanceM > horizon,
   };
+}
+
+/**
+ * Below about 30 MHz, signals mostly travel by ground wave and by skywave off
+ * the ionosphere, so a free-space line-of-sight model says nothing useful.
+ */
+export const FREE_SPACE_MIN_HZ = 30e6;
+
+export function freeSpaceApplies(freqHz: number): boolean {
+  return freqHz >= FREE_SPACE_MIN_HZ;
 }
 
 export type MarginRating = "good" | "fair" | "marginal" | "fail";

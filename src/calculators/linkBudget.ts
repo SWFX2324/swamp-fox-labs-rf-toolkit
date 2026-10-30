@@ -1,6 +1,7 @@
 import type { Calculator } from ".";
 import { beyondCableRange, cableLossDb, cables, findCable, lossPer100Ft } from "../lib/coax";
-import { type LinkInputs, type MarginRating, linkBudget, rateMargin } from "../lib/linkBudget";
+import { midpointClearance } from "../lib/horizon";
+import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
 import {
   type DistanceUnit,
   type FrequencyUnit,
@@ -27,10 +28,14 @@ const defaults: Record<string, string> = {
   txCableUnit: "ft",
   txOther: "0.5",
   txGain: "3",
+  txHeight: "30",
+  txHeightUnit: "ft",
   dist: "5",
   distUnit: "km",
   extraLoss: "0",
   rxGain: "3",
+  rxHeight: "30",
+  rxHeightUnit: "ft",
   rxCable: "lmr-400",
   rxCableLen: "10",
   rxCableUnit: "ft",
@@ -38,6 +43,11 @@ const defaults: Record<string, string> = {
   rxSens: "-100",
   fadeMargin: "10",
 };
+
+const hfWarning =
+  "Below 30 MHz, signals travel by ground wave and skywave, not line of sight, so " +
+  "free-space loss, margin and range don't reflect real HF performance. Use an HF " +
+  "propagation tool such as VOACAP for these bands.";
 
 const ratingText: Record<MarginRating, string> = {
   good: "Solid",
@@ -97,6 +107,7 @@ const template = `
         ${cableFields("tx")}
         ${numberField("Other losses", "txOther", "dB", 'min="0" title="Connectors, lightning arrestor, filters"')}
         ${numberField("Antenna gain", "txGain", "dBi")}
+        ${unitField("Antenna height", "txHeight", ["ft", "m"], "txHeightUnit")}
       </div>
       <div class="tile subtotal">
         <span class="label">EIRP</span>
@@ -120,12 +131,23 @@ const template = `
         <span class="value" data-out="fspl"></span>
         <span class="sub" data-out="rxIso"></span>
       </div>
+      <table class="ledger geometry" data-out="geometry">
+        <tbody>
+          <tr><td>Radio horizon for these heights</td><td class="num mono" data-out="horizon"></td></tr>
+          <tr><td>Earth bulge at midpoint</td><td class="num mono" data-out="bulge"></td></tr>
+          <tr><td>Beam height above it</td><td class="num mono" data-out="clearance"></td></tr>
+          <tr><td>Needed (60% first Fresnel zone)</td><td class="num mono" data-out="fresnel"></td></tr>
+        </tbody>
+      </table>
+      <p class="callout" data-out="geoWarn" hidden></p>
+      <p class="callout" data-out="hfPath" hidden>${hfWarning}</p>
     </section>
 
     <section class="card">
       <div class="card-head"><h2>Receiver</h2><span class="meta">Sets the margin</span></div>
       <div class="fields">
         ${numberField("Antenna gain", "rxGain", "dBi")}
+        ${unitField("Antenna height", "rxHeight", ["ft", "m"], "rxHeightUnit")}
         ${cableFields("rx")}
         ${numberField("Other losses", "rxOther", "dB", 'min="0"')}
         ${numberField("Sensitivity", "rxSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
@@ -141,6 +163,7 @@ const template = `
         <span class="pill" data-out="rating"></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
+      <p class="callout" data-out="hfResult" hidden>${hfWarning}</p>
       <div class="tiles">
         <div class="tile">
           <span class="label">Received signal</span>
@@ -254,6 +277,36 @@ export const linkBudgetCalculator: Calculator = {
       return loss;
     };
 
+    // Smooth-earth horizon and midpoint Fresnel clearance, in the Path card.
+    const showGeometry = (i: LinkInputs, horizonM: number, beyond: boolean, distUnit: DistanceUnit) => {
+      const heightUnit = field("txHeightUnit").value as DistanceUnit;
+      const height = (m: number) => `${m < 0 ? "−" : ""}${fmt(fromMetres(Math.abs(m), heightUnit), 1)} ${heightUnit}`;
+      out("horizon").textContent = `${formatRange(horizonM, distUnit)} ${distUnit}`;
+
+      const warn = out("geoWarn");
+      if (beyond) {
+        for (const name of ["bulge", "clearance", "fresnel"]) out(name).textContent = dash;
+        warn.textContent =
+          `This path is past the ${formatRange(horizonM, distUnit)} ${distUnit} radio horizon, so the ` +
+          "earth blocks the direct signal. Raise the antennas or shorten the path.";
+        warn.hidden = false;
+        return;
+      }
+      const c = midpointClearance(i.freqHz, i.distanceM, i.txHeightM, i.rxHeightM);
+      out("bulge").textContent = height(c.bulgeM);
+      out("clearance").textContent = height(c.clearanceM);
+      out("fresnel").textContent = height(c.neededM);
+      if (c.clearanceM < c.neededM) {
+        warn.textContent =
+          `The beam is only ${height(c.clearanceM)} above smooth ground at the midpoint, ` +
+          `short of the ${height(c.neededM)} it needs, so the ground eats into the Fresnel ` +
+          "zone. Expect more loss than free space; add it as extra path loss, or raise the " +
+          "antennas. Terrain and trees along the path make this worse.";
+        warn.hidden = false;
+      }
+    };
+    const dash = "—";
+
     const update = () => {
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
       saveState(state);
@@ -273,6 +326,8 @@ export const linkBudgetCalculator: Calculator = {
         rxOtherLossDb: num("rxOther") || 0,
         rxSensitivityDbm: num("rxSens"),
         fadeMarginDb: num("fadeMargin") || 0,
+        txHeightM: toMetres(num("txHeight") || 0, field("txHeightUnit").value as DistanceUnit),
+        rxHeightM: toMetres(num("rxHeight") || 0, field("rxHeightUnit").value as DistanceUnit),
       };
 
       const problem =
@@ -284,7 +339,12 @@ export const linkBudgetCalculator: Calculator = {
 
       out("error").hidden = !problem;
       out("error").textContent = problem;
-      const dash = "—";
+      const hf = inputs.freqHz > 0 && !freeSpaceApplies(inputs.freqHz);
+      out("hfPath").hidden = !hf;
+      out("hfResult").hidden = !hf;
+      out("geometry").hidden = hf || !!problem;
+      out("geoWarn").hidden = true;
+
       if (problem) {
         for (const name of ["eirp", "eirpW", "fspl", "rxIso", "rsl", "margin", "range", "rangeSub", "barRsl", "barMargin"]) {
           out(name).textContent = dash;
@@ -303,14 +363,28 @@ export const linkBudgetCalculator: Calculator = {
       out("rxIso").textContent = `Arrives at ${fmt(r.rxIsotropicDbm)} dBm before RX antenna gain`;
       out("rsl").innerHTML = dbm(r.rslDbm);
       out("margin").innerHTML = db(r.marginDb);
-      out("range").innerHTML = `${formatRange(r.maxRangeM, distUnit)}<span class="unit">${distUnit}</span>`;
-      out("rangeSub").textContent = `Keeping ${fmt(inputs.fadeMarginDb, 0)} dB of fade margin`;
+      if (hf) {
+        out("range").textContent = dash;
+        out("rangeSub").textContent = "Not meaningful on HF";
+      } else {
+        out("range").innerHTML = `${formatRange(r.maxRangeM, distUnit)}<span class="unit">${distUnit}</span>`;
+        out("rangeSub").textContent =
+          r.rangeLimit === "horizon"
+            ? "Limited by the radio horizon at these antenna heights"
+            : `Limited by the budget, keeping ${fmt(inputs.fadeMarginDb, 0)} dB of fade margin`;
+        showGeometry(inputs, r.horizonM, r.beyondHorizon, distUnit);
+      }
       out("barRsl").textContent = `${fmt(r.rslDbm)} dBm`;
       out("barMargin").textContent = `${fmt(r.marginDb)} dB`;
       const pill = out("rating");
-      pill.hidden = false;
-      pill.className = `pill s-${rating}`;
-      pill.textContent = ratingText[rating];
+      pill.hidden = hf;
+      if (r.beyondHorizon) {
+        pill.className = "pill s-fail";
+        pill.textContent = "Beyond horizon";
+      } else {
+        pill.className = `pill s-${rating}`;
+        pill.textContent = ratingText[rating];
+      }
 
       let level = inputs.txPowerDbm;
       const rows: string[] = [];
