@@ -204,6 +204,7 @@ button.secondary:hover { border-color: var(--accent); }
 .antenna-diagram .radial.back { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 4 3; stroke-linecap: round; }
 .antenna-diagram .coax { fill: none; stroke: var(--muted); stroke-width: 4; stroke-linecap: round; }
 .antenna-diagram .tap { stroke: var(--accent); stroke-width: 2; }
+.antenna-diagram .ladder { fill: none; stroke: var(--muted); stroke-width: 1.5; }
 .antenna-diagram .feed { fill: var(--accent); }
 .antenna-diagram .feed-text { fill: #fff; font: 700 9px/1 system-ui, sans-serif; }
 .antenna-diagram .insulator { fill: var(--card-2); stroke: var(--text-2); stroke-width: 2; }

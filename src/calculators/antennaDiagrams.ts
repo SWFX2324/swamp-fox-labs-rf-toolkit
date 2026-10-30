@@ -31,20 +31,25 @@ const feed = (x: number, y: number, w = 14, h = 10) =>
 const note = (x: number, y: number, text: string, anchor: "start" | "middle" | "end" = "middle") =>
   `<text class="note-text" x="${x}" y="${y}" text-anchor="${anchor}">${text}</text>`;
 
-function dipole([leg, total]: ElementLength[]): string {
+/** A centre-fed dipole; a full-wave one is drawn with ladder line, not coax. */
+function dipole([leg, total]: ElementLength[], ladderLine = false): string {
+  const feedLine = ladderLine
+    ? `<path class="ladder" d="M166 96 V175 M174 96 V175"/>` +
+      Array.from({ length: 6 }, (_, i) => `<line class="ladder" x1="166" x2="174" y1="${104 + i * 13}" y2="${104 + i * 13}"/>`).join("")
+    : coax("M170 96 V175");
   return [
     wire("M30 90 H160 M180 90 H310"),
     insulator(30, 90),
     insulator(310, 90),
     feed(170, 90, 20, 12),
-    coax("M170 96 V175"),
+    feedLine,
     dim(30, 62, 160, 62),
     dim(180, 62, 310, 62),
     label(95, 40, leg.lengthM),
     label(245, 40, leg.lengthM),
     dim(30, 122, 310, 122),
     label(245, 142, total.lengthM),
-    note(178, 170, "coax to radio", "start"),
+    note(180, 170, ladderLine ? "ladder line to tuner" : "coax to radio", "start"),
   ].join("");
 }
 
@@ -142,6 +147,7 @@ function coaxStub([quarter, half]: ElementLength[]): string {
 export function drawAntenna(designId: string, lengths: ElementLength[]): string {
   const body =
     designId === "dipole" ? dipole(lengths)
+    : designId === "fullwave" ? dipole(lengths, true)
     : designId === "efhw" ? efhw(lengths)
     : designId === "groundplane" ? vertical(lengths, false)
     : designId === "fiveeighths" ? vertical(lengths, true)

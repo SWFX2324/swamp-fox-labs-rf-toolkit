@@ -17,6 +17,15 @@ describe("elementLengths", () => {
     expect(leg.count).toBe(2);
   });
 
+  it("makes a full-wave dipole twice a half-wave one", () => {
+    const f = toHz(14.2, "MHz");
+    const [, half] = elementLengths(design("dipole"), f, 0.95);
+    const [leg, total] = elementLengths(design("fullwave"), f, 0.95);
+    expect(total.lengthM).toBeCloseTo(2 * half.lengthM, 9);
+    expect(leg.lengthM).toBeCloseTo(half.lengthM, 9);
+    expect(leg.count).toBe(2);
+  });
+
   it("matches 234/f radiator and 246/f radials for a ground plane", () => {
     const [radiator, radials] = elementLengths(design("groundplane"), toHz(146, "MHz"), ARRL_WIRE);
     expect(feet(radiator.lengthM)).toBeCloseTo(234 / 146, 2);

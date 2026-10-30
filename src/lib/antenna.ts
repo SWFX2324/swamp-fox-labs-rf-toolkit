@@ -48,6 +48,21 @@ export const designs: AntennaDesign[] = [
     notes: ["Raising or lowering the ends into an inverted V lowers the impedance closer to 50 Ω."],
   },
   {
+    id: "fullwave",
+    name: "Full-wave dipole",
+    factorLabel: "Shortening factor",
+    defaultFactor: 0.95,
+    elements: [
+      { name: "Each leg", fraction: 0.5, count: 2 },
+      { name: "Total length", fraction: 1 },
+    ],
+    feed: "Several thousand ohms at the centre, not 50 Ω. Feed with ladder line to a tuner, or a quarter-wave matching section.",
+    notes: [
+      "The pattern splits into two main lobes broadside to the wire, with about 1.8 dB more gain than a half-wave dipole.",
+      "Stretching each leg to 0.64 λ makes an extended double Zepp, with a little more gain and an easier feed impedance.",
+    ],
+  },
+  {
     id: "efhw",
     name: "End-fed half-wave",
     factorLabel: "Shortening factor",

@@ -1,6 +1,6 @@
 // RF Converter: cards of linked fields. Each card keeps one canonical value
-// (dBm, reflection coefficient, dBi, dB, Hz); typing in any field converts it
-// to that value and refills the others.
+// (dBm, reflection coefficient, dBi, dB); typing in any field converts it to
+// that value and refills the others. Wavelengths live in Antenna Length.
 
 import type { Calculator } from ".";
 import {
@@ -19,8 +19,7 @@ import {
   sMeter,
   swrToGamma,
 } from "../lib/convert";
-import { wavelengthM } from "../lib/fspl";
-import { SPEED_OF_LIGHT, dbmToWatts, formatFeetInches, fromMetres, toMetres, wattsToDbm } from "../lib/units";
+import { dbmToWatts, wattsToDbm } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:converter";
 
@@ -112,22 +111,6 @@ const cards: Card[] = [
       { name: "pr", label: "Power ratio", unit: "×", to: positive((v) => 10 * Math.log10(v)), from: dbToPowerRatio },
       { name: "vr", label: "Voltage ratio", unit: "×", to: positive((v) => 20 * Math.log10(v)), from: dbToVoltageRatio },
     ],
-  },
-  {
-    id: "wave",
-    title: "Frequency and wavelength",
-    meta: "Free space",
-    initial: 146.52e6,
-    fields: [
-      { name: "mhz", label: "Frequency", unit: "MHz", to: positive((v) => v * 1e6), from: (c) => c / 1e6 },
-      { name: "lm", label: "Wavelength", unit: "m", to: positive((v) => SPEED_OF_LIGHT / v), from: wavelengthM },
-      { name: "lft", label: "Wavelength", unit: "ft", to: positive((v) => SPEED_OF_LIGHT / toMetres(v, "ft")), from: (c) => fromMetres(wavelengthM(c), "ft") },
-    ],
-    outputs: (c) => [
-      ["Half wave", `${formatFeetInches(wavelengthM(c) / 2)} · ${num(wavelengthM(c) / 2)} m`],
-      ["Quarter wave", `${formatFeetInches(wavelengthM(c) / 4)} · ${num(wavelengthM(c) / 4)} m`],
-    ],
-    note: "Free-space lengths. For a cut antenna use the Antenna Length tab, which applies a shortening factor.",
   },
 ];
 
