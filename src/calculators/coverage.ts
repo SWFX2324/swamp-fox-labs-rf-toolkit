@@ -1,5 +1,7 @@
 // Coverage Map: shade the area one site can reach, over terrain, on the map.
 
+import { enhanceFields } from "./fieldHelp";
+import { coverageGuide } from "./helpText";
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
@@ -480,6 +482,7 @@ export const coverageCalculator: Calculator = {
     syncHeightUnit();
 
     recompute();
+    enhanceFields(form, coverageGuide, defaults);
     return form;
   },
 };

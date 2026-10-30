@@ -2,6 +2,8 @@
 // (dBm, reflection coefficient, dBi, dB); typing in any field converts it to
 // that value and refills the others. Wavelengths live in Antenna Length.
 
+import { enhanceFields } from "./fieldHelp";
+import { converterGuide } from "./helpText";
 import type { Calculator } from ".";
 import {
   dbToPowerRatio,
@@ -203,6 +205,7 @@ export const converterCalculator: Calculator = {
       root.replaceWith(converterCalculator.render());
     });
     root.append(reset);
+    enhanceFields(root, converterGuide);
     return root;
   },
 };

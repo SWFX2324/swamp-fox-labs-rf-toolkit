@@ -1,6 +1,8 @@
 // Mesh Planner: drop nodes on a map and see every node-to-node link over
 // real terrain with identical radios, plus whether the mesh holds together.
 
+import { enhanceFields } from "./fieldHelp";
+import { meshGuide } from "./helpText";
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
@@ -488,6 +490,7 @@ export const meshCalculator: Calculator = {
     renderNodes();
     recompute();
     if (nodes.length >= 2) void loadTerrain();
+    enhanceFields(form, meshGuide, settingDefaults);
     return form;
   },
 };

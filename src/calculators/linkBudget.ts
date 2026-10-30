@@ -1,3 +1,5 @@
+import { enhanceFields } from "./fieldHelp";
+import { linkBudgetGuide } from "./helpText";
 import type { Calculator } from ".";
 import { beyondCableRange, cableLossDb, cables, findCable, lossPer100Ft } from "../lib/coax";
 import { midpointClearance } from "../lib/horizon";
@@ -460,6 +462,7 @@ export const linkBudgetCalculator: Calculator = {
       });
     }
     update();
+    enhanceFields(form, linkBudgetGuide, defaults);
     return form;
   },
 };

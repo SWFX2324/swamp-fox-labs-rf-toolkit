@@ -1,3 +1,5 @@
+import { enhanceFields, withoutKeys } from "./fieldHelp";
+import { antennaGuide } from "./helpText";
 import type { Calculator } from ".";
 import { bandPresets, designs, elementLengths, findDesign } from "../lib/antenna";
 import { cables, findCable } from "../lib/coax";
@@ -191,6 +193,7 @@ export const antennaLengthCalculator: Calculator = {
     form.addEventListener("input", update);
     form.addEventListener("change", update);
     update();
+    enhanceFields(form, antennaGuide, withoutKeys(defaults, "factor"));
     return form;
   },
 };

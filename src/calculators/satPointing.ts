@@ -2,6 +2,8 @@
 // to a geostationary orbital slot, with magnetic azimuth from the World
 // Magnetic Model and a bearing line on the map.
 
+import { enhanceFields } from "./fieldHelp";
+import { satPointingGuide } from "./helpText";
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
@@ -363,6 +365,7 @@ export const satPointingCalculator: Calculator = {
     form.addEventListener("input", update);
     form.addEventListener("change", update);
     update();
+    enhanceFields(form, satPointingGuide, defaults);
     return form;
   },
 };

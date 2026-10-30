@@ -1,6 +1,8 @@
 // Coax Loss: loss, delivered power and SWR at the radio for one cable, plus
 // every cable in the table compared side by side for the same run.
 
+import { enhanceFields } from "./fieldHelp";
+import { coaxGuide } from "./helpText";
 import type { Calculator } from ".";
 import { bandPresets } from "../lib/antenna";
 import {
@@ -289,6 +291,7 @@ export const coaxLossCalculator: Calculator = {
     form.addEventListener("input", update);
     form.addEventListener("change", update);
     update();
+    enhanceFields(form, coaxGuide, defaults);
     return form;
   },
 };

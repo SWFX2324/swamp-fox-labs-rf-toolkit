@@ -19,7 +19,7 @@ It runs entirely in the browser. Once a page has loaded, it keeps working offlin
 | Coax Loss | Available | Loss, power delivered and SWR at the radio for a coax run, including the extra loss a high SWR causes, with every cable compared side by side for the same frequency and length. |
 | RF Converter | Available | Linked converters for watts, dBm, dBW, microvolts and S-meter readings; SWR, return loss, reflection coefficient and mismatch loss; dBi and dBd; and decibel ratios. |
 
-Every location box accepts decimal lat/lon or MGRS, and a switch in the top bar sets which one the app shows. Maps have a recenter button and a Streets or Dark base map; the choice carries across every map.
+Every field has an ⓘ with a plain-language explanation and typical values. Tabs open in Simple mode with just the essentials; Advanced shows every setting, and hidden settings keep sensible defaults. Every location box accepts decimal lat/lon or MGRS, and a switch in the top bar sets which one the app shows. Maps have a recenter button and a Streets or Dark base map; the choice carries across every map.
 
 LMR coax figures use the k1/k2 coefficients published in the Times Microwave Communications Coax Selection Guide. The RG figures are fits to typical values from the same guide and vary by manufacturer.
 

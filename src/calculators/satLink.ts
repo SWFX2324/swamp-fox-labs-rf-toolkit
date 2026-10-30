@@ -1,6 +1,8 @@
 // Sat Link: uplink and downlink budget for a GEO terminal, ending in Es/N0
 // margin for a DVB-S2 MODCOD.
 
+import { enhanceFields, withoutKeys } from "./fieldHelp";
+import { satLinkGuide } from "./helpText";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { formatOrbitalSlot, lookAngles, parseOrbitalSlot } from "../lib/satPointing";
@@ -326,6 +328,7 @@ export const satLinkCalculator: Calculator = {
     form.addEventListener("input", update);
     form.addEventListener("change", update);
     update();
+    enhanceFields(form, satLinkGuide, withoutKeys(defaults, "upGHz", "downGHz"));
     return form;
   },
 };
