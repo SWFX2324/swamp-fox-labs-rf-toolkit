@@ -33,6 +33,16 @@ export function fromMetres(metres: number, unit: DistanceUnit): number {
   return metres / distanceUnits[unit];
 }
 
+/** Feet and inches to the nearest eighth of an inch, like 32′ 10¾″ for cutting. */
+export function formatFeetInches(metres: number): string {
+  const eighths = Math.round(metres / 0.0254 / 0.125);
+  const feet = Math.floor(eighths / 96);
+  const inches = Math.floor((eighths % 96) / 8);
+  const frac = ["", "⅛", "¼", "⅜", "½", "⅝", "¾", "⅞"][eighths % 8];
+  const inchPart = `${inches}${frac}″`;
+  return feet ? `${feet}′ ${inchPart}` : inchPart;
+}
+
 export const powerUnits = ["W", "mW", "dBm"] as const;
 
 export type PowerUnit = (typeof powerUnits)[number];

@@ -73,11 +73,11 @@ button, select, input { font: inherit; color: inherit; }
 /* ------------------------------------------------------------ layout */
 main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
 .calculator { display: grid; gap: 14px; }
-.link-budget { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; }
+.link-budget, .two-col { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; }
 .inputs { display: grid; gap: 14px; min-width: 0; }
 .results { position: sticky; top: 64px; min-width: 0; }
 @media (max-width: 900px) {
-  .link-budget { grid-template-columns: minmax(0, 1fr); }
+  .link-budget, .two-col { grid-template-columns: minmax(0, 1fr); }
   .results { position: static; }
 }
 .card {
@@ -169,6 +169,42 @@ button.secondary:hover { border-color: var(--accent); }
 .ledger tr.total td { font-weight: 600; color: var(--text); border-bottom-color: var(--border); }
 .ledger.geometry { margin-top: 12px; }
 .ledger.geometry tr:last-child td { border-bottom: none; }
+
+/* ------------------------------------------------------------ antenna length */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.chip {
+  border: 1px solid var(--border); background: var(--card); border-radius: 999px;
+  padding: 4px 11px; font-size: 12px; color: var(--text-2);
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.antenna-length .tiles { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.antenna-diagram { background: var(--card-2); border-radius: 10px; padding: 8px 6px 4px; margin-bottom: 12px; }
+.antenna-diagram:empty { display: none; }
+.antenna-diagram svg { display: block; width: 100%; height: auto; max-height: 300px; }
+.antenna-diagram .wire { fill: none; stroke: var(--text); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.antenna-diagram .coil { stroke-width: 2; }
+.antenna-diagram .radial.back { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 4 3; stroke-linecap: round; }
+.antenna-diagram .coax { fill: none; stroke: var(--muted); stroke-width: 4; stroke-linecap: round; }
+.antenna-diagram .tap { stroke: var(--accent); stroke-width: 2; }
+.antenna-diagram .feed { fill: var(--accent); }
+.antenna-diagram .feed-text { fill: #fff; font: 700 9px/1 system-ui, sans-serif; }
+.antenna-diagram .insulator { fill: var(--card-2); stroke: var(--text-2); stroke-width: 2; }
+.antenna-diagram .connector { fill: var(--muted); }
+.antenna-diagram .coax-body { fill: color-mix(in srgb, var(--muted) 35%, var(--card-2)); stroke: var(--muted); stroke-width: 1.5; }
+.antenna-diagram .coax-core { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.antenna-diagram .dim { stroke: var(--muted); stroke-width: 1; }
+.antenna-diagram .arrow { fill: var(--muted); }
+.antenna-diagram .label { fill: var(--text); font: 600 12px/1 var(--mono); }
+.antenna-diagram .sub { fill: var(--muted); font: 10px/1 system-ui, sans-serif; }
+.antenna-diagram .note-text { fill: var(--text-2); font: 10px/1 system-ui, sans-serif; }
+.antenna-diagram .scale-note { fill: var(--muted); font: italic 9px/1 system-ui, sans-serif; }
+.antenna-length .tile .value { font-size: 22px; }
+.tile .count { color: var(--muted); font-family: var(--mono); }
+.ledger td.feed { color: var(--text); white-space: normal; }
+.antenna-length .ledger td:first-child { white-space: nowrap; vertical-align: top; padding-right: 12px; }
+.notes { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); font-size: 12px; }
+.notes li + li { margin-top: 4px; }
 
 /* ------------------------------------------------------------ terrain */
 .terrain .note.top { margin: -4px 0 12px; }

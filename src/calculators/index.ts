@@ -1,3 +1,4 @@
+import { antennaLengthCalculator } from "./antennaLength";
 import { linkBudgetCalculator } from "./linkBudget";
 
 export interface Calculator {
@@ -9,4 +10,4 @@ export interface Calculator {
   render(): HTMLElement;
 }
 
-export const calculators: Calculator[] = [linkBudgetCalculator];
+export const calculators: Calculator[] = [linkBudgetCalculator, antennaLengthCalculator];
