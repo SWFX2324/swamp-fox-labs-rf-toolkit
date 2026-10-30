@@ -10,9 +10,11 @@ It runs entirely in the browser. Once a page has loaded, it keeps working offlin
 
 | Calculator | Status | What it does |
 | --- | --- | --- |
-| Free-Space Path Loss | Available | Signal loss over a line-of-sight distance at a given frequency, and the distance a loss budget allows. |
+| Link Budget | Available | A full point-to-point link: TX power, coax loss and antenna gain to EIRP, free-space path loss, then RX antenna and coax to the received signal, link margin and max range. Coax loss covers LMR-100A to LMR-1700 plus typical RG-58, RG-8X and RG-213. |
 | Antenna Length | Planned | Element lengths for dipoles, quarter-wave verticals and other common antennas at a given frequency. |
-| Coax Loss | Planned | Feed line loss for common coax types by frequency and run length. |
+| Coax Loss | Planned | A standalone coax comparison by frequency and run length (the math already lives in the link budget). |
+
+LMR coax figures use the k1/k2 coefficients published in the Times Microwave Communications Coax Selection Guide. The RG figures are fits to typical values from the same guide and vary by manufacturer.
 
 ## Development
 

@@ -1,187 +1,184 @@
+/* Tokens match the Swamp Fox Labs Ham Radio Dashboard. */
 :root {
-  --bg: #f4f2ec;
-  --surface: #ffffff;
-  --text: #1c211e;
-  --muted: #5b625d;
-  --border: #d7d3c8;
-  --accent: #b5741c;
-  --header-bg: #1f2a24;
-  --header-text: #f4f2ec;
   color-scheme: light;
+  --bg: #f4f4f2;
+  --card: #fcfcfb;
+  --card-2: #f0efec;
+  --border: #e2e1dc;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #6b6964;
+  --accent: #1f6bc4;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --grid-line: #e7e6e1;
+  --radius: 14px;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 }
-
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #141a17;
-    --surface: #1d2521;
-    --text: #e8e6df;
-    --muted: #a3aaa5;
-    --border: #34403a;
-    --accent: #e8a33d;
-    --header-bg: #0e1310;
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
+    --bg: #111110;
+    --card: #1a1a19;
+    --card-2: #232321;
+    --border: #2e2e2b;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --muted: #8f8d85;
+    --accent: #3987e5;
+    --grid-line: #2a2a27;
   }
 }
-
-* {
-  box-sizing: border-box;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111110; --card: #1a1a19; --card-2: #232321; --border: #2e2e2b;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8d85; --accent: #3987e5; --grid-line: #2a2a27;
 }
 
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+a { color: var(--accent); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+h1, h2 { margin: 0; font-weight: 600; }
+h1 { font-size: 17px; }
+h2 { font-size: 15px; }
+button, select, input { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
 
-.site-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--header-bg);
-  color: var(--header-text);
-}
-
-.site-header h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  line-height: 1.2;
-}
-
-.tagline {
-  margin: 0;
-  font-size: 0.8rem;
-  opacity: 0.75;
-}
-
-.tabs {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  padding: 8px 16px 0;
+/* ------------------------------------------------------------ top bar */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
-
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand svg { width: 22px; height: 22px; color: var(--accent); }
+.tabs { display: inline-flex; background: var(--card-2); border-radius: 9px; padding: 3px; gap: 2px; flex-wrap: wrap; }
 .tabs a {
-  padding: 8px 12px;
-  color: var(--muted);
-  text-decoration: none;
-  white-space: nowrap;
-  border-bottom: 3px solid transparent;
+  padding: 5px 12px; border-radius: 7px; color: var(--text-2); text-decoration: none;
 }
+.tabs a[aria-current] { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
 
-.tabs a[aria-current] {
-  color: var(--text);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
+/* ------------------------------------------------------------ layout */
+main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
+.calculator { display: grid; gap: 14px; }
+.link-budget { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; }
+.inputs { display: grid; gap: 14px; min-width: 0; }
+.results { position: sticky; top: 64px; min-width: 0; }
+@media (max-width: 900px) {
+  .link-budget { grid-template-columns: minmax(0, 1fr); }
+  .results { position: static; }
 }
-
-main {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 16px;
-}
-
-.calculator {
-  display: grid;
-  gap: 16px;
-}
-
 .card {
-  background: var(--surface);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
-}
-
-.card h2,
-.card h3 {
-  margin: 0 0 4px;
-}
-
-.hint {
-  margin: 0 0 16px;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.fields {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-}
-
-label {
-  display: grid;
-  gap: 4px;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.input-unit {
-  display: flex;
-}
-
-input,
-select {
-  font: inherit;
-  color: inherit;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  padding: 10px;
-  min-height: 44px;
-}
-
-input {
-  flex: 1;
+  border-radius: var(--radius);
+  padding: 14px 16px 16px;
   min-width: 0;
-  border-radius: 6px 0 0 6px;
 }
-
-select,
-.unit {
-  border-radius: 0 6px 6px 0;
-  border-left: none;
+.card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 12px;
 }
+.meta { color: var(--muted); font-size: 12px; }
+.note { color: var(--text-2); font-size: 12px; margin: 10px 0 0; }
+.note:empty { display: none; }
+.note.warn { color: var(--serious); }
+.error { color: var(--critical); font-size: 13px; margin: 10px 0 0; }
+.foot { text-align: center; color: var(--muted); font-size: 12px; padding: 4px 16px 24px; }
+.foot a { color: inherit; }
 
-.unit {
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-left: none;
-  color: var(--muted);
-  font-weight: 400;
+/* ------------------------------------------------------------ fields */
+.fields {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
-
-input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
+.fields > .note { grid-column: 1 / -1; margin-top: -4px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
+select, input {
+  background: var(--card); border: 1px solid var(--border); border-radius: 7px;
+  padding: 8px 10px; font-size: 14px; color: var(--text); min-height: 38px;
 }
-
-.result {
-  display: block;
-  margin-top: 16px;
-  font-size: 2rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
+input { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.input-unit { display: flex; }
+.input-unit input { flex: 1; min-width: 0; border-radius: 7px 0 0 7px; }
+.input-unit select, .input-unit .unit {
+  border-radius: 0 7px 7px 0; border-left: none; background: var(--card-2);
 }
-
-.sub-result {
-  margin: 4px 0 0;
-  color: var(--muted);
+.input-unit .unit {
+  display: flex; align-items: center; padding: 0 10px; min-width: 52px; justify-content: center;
+  border: 1px solid var(--border); border-left: none; color: var(--muted); font-size: 13px;
 }
+select:focus-visible, input:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button { cursor: pointer; border-radius: 8px; padding: 6px 14px; border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
+button.secondary:hover { border-color: var(--accent); }
+.card-head .pill { margin-left: auto; }
 
-.site-footer {
-  padding: 24px 16px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.85rem;
+/* ------------------------------------------------------------ stat tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.tile {
+  background: var(--card-2); border-radius: 10px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
 }
+.tile .label { font-size: 12px; color: var(--text-2); }
+.tile .value { font-size: 24px; font-weight: 650; font-family: var(--mono); line-height: 1.15; font-variant-numeric: tabular-nums; }
+.tile .unit { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 3px; font-family: system-ui, sans-serif; }
+.tile .sub { font-size: 12px; color: var(--muted); }
+.tile.subtotal { margin-top: 14px; border-left: 3px solid var(--accent); }
 
-.site-footer a {
-  color: inherit;
+/* ------------------------------------------------------------ status pills */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px 2px 6px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+  color: var(--text);
+}
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.pill.s-good { --c: var(--good); }
+.pill.s-fair { --c: var(--warning); }
+.pill.s-marginal { --c: var(--serious); }
+.pill.s-fail { --c: var(--critical); }
+.pill.s-fail::before { border-radius: 2px; }
+
+/* ------------------------------------------------------------ ledger */
+.ledger { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+.ledger th, .ledger td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--grid-line); }
+.ledger th { font-weight: 500; color: var(--muted); font-size: 12px; }
+.ledger td:first-child { color: var(--text-2); }
+.ledger .num { text-align: right; white-space: nowrap; }
+.ledger td.mono { font-size: 12.5px; }
+.ledger tr.total td { font-weight: 600; color: var(--text); border-bottom-color: var(--border); }
+
+/* ------------------------------------------------------------ phone summary */
+.summary-bar { display: none; }
+@media (max-width: 900px) {
+  body { padding-bottom: 56px; }
+  .summary-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    display: flex; justify-content: space-around; align-items: center; gap: 12px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .summary-bar .k { color: var(--muted); margin-right: 4px; }
+  .summary-bar b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+}
+@media (max-width: 600px) {
+  main { padding: 12px; }
+  .card { padding: 12px; }
 }

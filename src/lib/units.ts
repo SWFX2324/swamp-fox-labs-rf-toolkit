@@ -32,3 +32,26 @@ export function toMetres(value: number, unit: DistanceUnit): number {
 export function fromMetres(metres: number, unit: DistanceUnit): number {
   return metres / distanceUnits[unit];
 }
+
+export const powerUnits = ["W", "mW", "dBm"] as const;
+
+export type PowerUnit = (typeof powerUnits)[number];
+
+export function wattsToDbm(watts: number): number {
+  return 10 * Math.log10(watts * 1000);
+}
+
+export function dbmToWatts(dbm: number): number {
+  return 10 ** (dbm / 10) / 1000;
+}
+
+export function toDbm(value: number, unit: PowerUnit): number {
+  switch (unit) {
+    case "dBm":
+      return value;
+    case "W":
+      return wattsToDbm(value);
+    case "mW":
+      return wattsToDbm(value / 1000);
+  }
+}

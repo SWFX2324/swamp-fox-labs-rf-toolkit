@@ -17,7 +17,7 @@ for (const calc of calculators) {
 
 function show(): void {
   const id = location.hash.slice(1);
-  const calc = calculators.find((c) => c.id === id) ?? calculators[0];
+  const calc = calculators.find((c) => c.id === id || c.aliases?.includes(id)) ?? calculators[0];
   for (const link of tabs.querySelectorAll<HTMLAnchorElement>("a")) {
     link.toggleAttribute("aria-current", link.dataset.id === calc.id);
   }
