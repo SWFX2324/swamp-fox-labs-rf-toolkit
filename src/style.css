@@ -170,6 +170,54 @@ button.secondary:hover { border-color: var(--accent); }
 .ledger.geometry { margin-top: 12px; }
 .ledger.geometry tr:last-child td { border-bottom: none; }
 
+/* ------------------------------------------------------------ terrain */
+.terrain .note.top { margin: -4px 0 12px; }
+.terrain .map {
+  height: 300px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border);
+  background: var(--card-2); z-index: 0;
+}
+.terrain .coords { margin-top: 12px; }
+.terrain .note.warn { color: var(--serious); }
+.input-unit .unit-btn { border-radius: 0 7px 7px 0; border-left: none; padding: 0 12px; min-width: 52px; background: var(--card-2); }
+.terrain-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.attribution { color: var(--muted); }
+.attribution a { color: inherit; }
+.pin { background: none; border: none; }
+.pin span {
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: var(--accent); border: 2px solid #fff; box-shadow: 0 2px 6px rgb(0 0 0 / .35);
+  color: #fff; font: 700 10px/1 system-ui, sans-serif;
+}
+.pin b { transform: rotate(45deg); }
+.leaflet-container .path-line { stroke: var(--accent); stroke-width: 3; stroke-dasharray: 6 6; fill: none; }
+.leaflet-container .path-line.s-good { stroke: var(--good); stroke-dasharray: none; }
+.leaflet-container .path-line.s-marginal { stroke: var(--serious); stroke-dasharray: none; }
+.leaflet-container .path-line.s-fail { stroke: var(--critical); stroke-dasharray: none; }
+.leaflet-container { font: inherit; }
+.leaflet-control-attribution { font-size: 10px; }
+
+.profile-chart { margin-top: 12px; }
+.profile-chart svg { display: block; width: 100%; height: auto; }
+.profile-chart .gridline { stroke: var(--grid-line); stroke-width: 1; }
+.profile-chart .axis { fill: var(--muted); font-size: 11px; }
+.profile-chart .end-label { fill: var(--text-2); font-size: 11px; font-weight: 600; }
+.profile-chart .terrain-fill { fill: color-mix(in srgb, var(--muted) 45%, var(--card-2)); stroke: var(--muted); stroke-width: 1; }
+.profile-chart .zone { fill: color-mix(in srgb, var(--accent) 14%, transparent); }
+.profile-chart .zone60 { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; opacity: .7; }
+.profile-chart .los { fill: none; stroke: var(--accent); stroke-width: 2; }
+.profile-chart .mast { stroke: var(--text-2); stroke-width: 2; }
+.profile-chart .hit-fresnel { fill: var(--serious); }
+.profile-chart .hit-block { fill: var(--critical); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 12px; color: var(--text-2); }
+.legend .key { display: inline-flex; align-items: center; gap: 6px; }
+.legend .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.legend .ln { width: 16px; height: 0; border-top: 2px solid; display: inline-block; }
+.legend .ln.dash { border-top-style: dashed; border-top-width: 1px; }
+.legend .los-key, .legend .zone60-key { border-color: var(--accent); }
+.legend .zone-key { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+.legend .terrain-key { background: color-mix(in srgb, var(--muted) 45%, var(--card-2)); }
+
 /* ------------------------------------------------------------ phone summary */
 .summary-bar { display: none; }
 @media (max-width: 900px) {

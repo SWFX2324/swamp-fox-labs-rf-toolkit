@@ -40,6 +40,8 @@ export interface LinkResult {
   marginDb: number;
   /** Longest distance that keeps fadeMarginDb and line of sight, in metres. */
   maxRangeM: number;
+  /** Longest distance the budget alone allows, ignoring the horizon, metres. */
+  budgetRangeM: number;
   /** What sets maxRangeM. */
   rangeLimit: "budget" | "horizon";
   /** Smooth-earth line-of-sight range for the antenna heights, metres. */
@@ -72,6 +74,7 @@ export function linkBudget(i: LinkInputs): LinkResult {
     rslDbm: rsl,
     marginDb: rsl - i.rxSensitivityDbm,
     maxRangeM: Math.min(budgetRange, horizon),
+    budgetRangeM: budgetRange,
     rangeLimit: horizon < budgetRange ? "horizon" : "budget",
     horizonM: horizon,
     beyondHorizon: i.distanceM > horizon,

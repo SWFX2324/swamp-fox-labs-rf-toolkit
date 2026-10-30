@@ -1,6 +1,7 @@
 import type { Calculator } from ".";
 import { beyondCableRange, cableLossDb, cables, findCable, lossPer100Ft } from "../lib/coax";
 import { midpointClearance } from "../lib/horizon";
+import { createTerrainCard } from "./terrain";
 import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
 import {
   type DistanceUnit,
@@ -116,12 +117,15 @@ const template = `
       </div>
     </section>
 
-    <section class="card">
+    <section class="card" data-card="path">
       <div class="card-head"><h2>Path</h2><span class="meta">Line of sight</span></div>
       <div class="fields">
         ${unitField("Distance", "dist", Object.keys(distanceUnits), "distUnit")}
         ${numberField("Extra path loss", "extraLoss", "dB", 'min="0" title="Foliage, buildings, rain, partial Fresnel blockage"')}
       </div>
+      <p class="note" data-out="distNote" hidden>
+        Distance comes from the map pins in Terrain profile. Clear the pins to type one.
+      </p>
       <p class="note">
         Free-space loss is the best case with a clear line of sight. Use extra
         path loss for foliage, buildings or a blocked Fresnel zone.
@@ -255,6 +259,9 @@ export const linkBudgetCalculator: Calculator = {
     };
     fill(state);
 
+    const terrain = createTerrainCard(() => update());
+    form.querySelector('[data-card="path"]')!.after(terrain.element);
+
     // Cable loss for one side, plus the note under the cable picker.
     const sideCable = (side: "tx" | "rx", freqHz: number): number => {
       const cable = findCable(field(`${side}Cable`).value);
@@ -308,11 +315,18 @@ export const linkBudgetCalculator: Calculator = {
     const dash = "—";
 
     const update = () => {
+      const distUnit = field("distUnit").value as DistanceUnit;
+      // With both pins down, the map sets the distance.
+      const pinned = terrain.pathDistanceM();
+      const distInput = field("dist") as HTMLInputElement;
+      distInput.readOnly = pinned !== undefined;
+      out("distNote").hidden = pinned === undefined;
+      if (pinned !== undefined) distInput.value = String(Number(fromMetres(pinned, distUnit).toFixed(3)));
+
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
       saveState(state);
 
       const freqHz = toHz(num("freq"), field("freqUnit").value as FrequencyUnit);
-      const distUnit = field("distUnit").value as DistanceUnit;
       const inputs: LinkInputs = {
         freqHz,
         distanceM: toMetres(num("dist"), distUnit),
@@ -345,6 +359,15 @@ export const linkBudgetCalculator: Calculator = {
       out("geometry").hidden = hf || !!problem;
       out("geoWarn").hidden = true;
 
+      const profile = terrain.refresh({
+        freqHz: inputs.freqHz,
+        txHeightM: inputs.txHeightM,
+        rxHeightM: inputs.rxHeightM,
+        distUnit,
+        heightUnit: field("txHeightUnit").value as DistanceUnit,
+        applies: !hf && !problem,
+      });
+
       if (problem) {
         for (const name of ["eirp", "eirpW", "fspl", "rxIso", "rsl", "margin", "range", "rangeSub", "barRsl", "barMargin"]) {
           out(name).textContent = dash;
@@ -366,6 +389,14 @@ export const linkBudgetCalculator: Calculator = {
       if (hf) {
         out("range").textContent = dash;
         out("rangeSub").textContent = "Not meaningful on HF";
+      } else if (profile) {
+        // The smooth-earth horizon assumes both ends at the same ground level,
+        // which a real profile (a hilltop, say) overrules.
+        out("range").innerHTML = `${formatRange(r.budgetRangeM, distUnit)}<span class="unit">${distUnit}</span>`;
+        out("rangeSub").textContent =
+          `What the budget allows with ${fmt(inputs.fadeMarginDb, 0)} dB of fade margin. Terrain decides the rest.`;
+        showGeometry(inputs, r.horizonM, r.beyondHorizon, distUnit);
+        out("geometry").hidden = out("geoWarn").hidden = true;
       } else {
         out("range").innerHTML = `${formatRange(r.maxRangeM, distUnit)}<span class="unit">${distUnit}</span>`;
         out("rangeSub").textContent =
@@ -378,7 +409,10 @@ export const linkBudgetCalculator: Calculator = {
       out("barMargin").textContent = `${fmt(r.marginDb)} dB`;
       const pill = out("rating");
       pill.hidden = hf;
-      if (r.beyondHorizon) {
+      if (profile?.status === "blocked") {
+        pill.className = "pill s-fail";
+        pill.textContent = "Blocked by terrain";
+      } else if (!profile && r.beyondHorizon) {
         pill.className = "pill s-fail";
         pill.textContent = "Beyond horizon";
       } else {
@@ -419,7 +453,7 @@ export const linkBudgetCalculator: Calculator = {
     for (const button of form.querySelectorAll<HTMLButtonElement>('[data-action="reset"]')) {
       button.addEventListener("click", () => {
         fill(defaults);
-        update();
+        terrain.reset();
         window.scrollTo({ top: 0, behavior: "smooth" });
       });
     }

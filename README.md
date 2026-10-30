@@ -10,7 +10,7 @@ It runs entirely in the browser. Once a page has loaded, it keeps working offlin
 
 | Calculator | Status | What it does |
 | --- | --- | --- |
-| Link Budget | Available | A full point-to-point link: TX power, coax loss and antenna gain to EIRP, free-space path loss, then RX antenna and coax to the received signal, link margin and max range. Antenna heights set the radio horizon, which caps max range, and a midpoint Fresnel zone clearance check. Warns when used on HF, where free-space math doesn't apply. Coax loss covers LMR-100A to LMR-1700 plus typical RG-58, RG-8X and RG-213. |
+| Link Budget | Available | A full point-to-point link: TX power, coax loss and antenna gain to EIRP, free-space path loss, then RX antenna and coax to the received signal, link margin and max range. Antenna heights set the radio horizon, which caps max range, and a midpoint Fresnel zone clearance check. Drop TX and RX pins on a map for a real terrain profile: line of sight and Fresnel zone clearance along the whole path. Warns when used on HF, where free-space math doesn't apply. Coax loss covers LMR-100A to LMR-1700 plus typical RG-58, RG-8X and RG-213. |
 | Antenna Length | Planned | Element lengths for dipoles, quarter-wave verticals and other common antennas at a given frequency. |
 | Coax Loss | Planned | A standalone coax comparison by frequency and run length (the math already lives in the link budget). |
 
@@ -32,3 +32,8 @@ The formulas live in `src/lib` as plain functions with no UI code, each with tes
 ## License
 
 [MIT](LICENSE) © Swamp Fox Labs
+
+## Data and credits
+
+- Terrain elevation: [Copernicus DEM GLO-90](https://doi.org/10.5270/ESA-c5d3d65) (© DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA), served by the [Open-Meteo Elevation API](https://open-meteo.com/en/docs/elevation-api).
+- Map tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, drawn with [Leaflet](https://leafletjs.com/).
