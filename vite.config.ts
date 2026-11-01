@@ -7,15 +7,20 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg"],
+      includeAssets: ["icon.svg", "apple-touch-icon.png", "icon-192.png", "icon-512.png"],
       manifest: {
-        name: "Swamp Fox Labs RF Toolkit",
+        name: "RF Toolkit",
         short_name: "RF Toolkit",
         description: "Practical RF calculators for planning radio links in the field.",
         theme_color: "#111110",
         background_color: "#111110",
         display: "standalone",
-        icons: [{ src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
+        icons: [
+          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+          { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
       },
       workbox: {
         // Keep map tiles the user has looked at, so the map background still
