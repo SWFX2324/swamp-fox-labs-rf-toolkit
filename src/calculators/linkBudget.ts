@@ -7,8 +7,6 @@ import { createTerrainCard } from "./terrain";
 import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
 import {
   type DistanceUnit,
-  type FrequencyUnit,
-  type PowerUnit,
   dbmToWatts,
   distanceUnits,
   frequencyUnits,
@@ -17,6 +15,9 @@ import {
   toDbm,
   toHz,
   toMetres,
+  asDistanceUnit,
+  asFrequencyUnit,
+  asPowerUnit,
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:link-budget";
@@ -227,6 +228,14 @@ const signed = (db: number) => (db === 0 ? fmt(0) : `${db > 0 ? "+" : "−"}${fm
 const dbm = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dBm</span>`;
 const db = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dB</span>`;
 
+/** A value with a small unit after it, built as text nodes rather than HTML. */
+function setValueWithUnit(el: HTMLElement, value: string, unit: string): void {
+  const span = document.createElement("span");
+  span.className = "unit";
+  span.textContent = unit;
+  el.replaceChildren(value, span);
+}
+
 function formatWatts(watts: number): string {
   if (watts >= 1) return `${fmt(watts, watts >= 100 ? 0 : 2)} W`;
   if (watts >= 1e-3) return `${fmt(watts * 1e3, 1)} mW`;
@@ -274,7 +283,7 @@ export const linkBudgetCalculator: Calculator = {
         note.textContent = "";
         return 0;
       }
-      const lengthM = toMetres(num(`${side}CableLen`) || 0, field(`${side}CableUnit`).value as DistanceUnit);
+      const lengthM = toMetres(num(`${side}CableLen`) || 0, asDistanceUnit(field(`${side}CableUnit`).value));
       if (!(freqHz > 0) || lengthM < 0) {
         note.textContent = "";
         return 0;
@@ -289,7 +298,7 @@ export const linkBudgetCalculator: Calculator = {
 
     // Smooth-earth horizon and midpoint Fresnel clearance, in the Path card.
     const showGeometry = (i: LinkInputs, horizonM: number, beyond: boolean, distUnit: DistanceUnit) => {
-      const heightUnit = field("txHeightUnit").value as DistanceUnit;
+      const heightUnit = asDistanceUnit(field("txHeightUnit").value);
       const height = (m: number) => `${m < 0 ? "−" : ""}${fmt(fromMetres(Math.abs(m), heightUnit), 1)} ${heightUnit}`;
       out("horizon").textContent = `${formatRange(horizonM, distUnit)} ${distUnit}`;
 
@@ -318,7 +327,7 @@ export const linkBudgetCalculator: Calculator = {
     const dash = "—";
 
     const update = () => {
-      const distUnit = field("distUnit").value as DistanceUnit;
+      const distUnit = asDistanceUnit(field("distUnit").value);
       // With both pins down, the map sets the distance.
       const pinned = terrain.pathDistanceM();
       const distInput = field("dist") as HTMLInputElement;
@@ -329,11 +338,11 @@ export const linkBudgetCalculator: Calculator = {
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
       saveState(state);
 
-      const freqHz = toHz(num("freq"), field("freqUnit").value as FrequencyUnit);
+      const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
       const inputs: LinkInputs = {
         freqHz,
         distanceM: toMetres(num("dist"), distUnit),
-        txPowerDbm: toDbm(num("txPower"), field("txPowerUnit").value as PowerUnit),
+        txPowerDbm: toDbm(num("txPower"), asPowerUnit(field("txPowerUnit").value)),
         txCableLossDb: sideCable("tx", freqHz),
         txOtherLossDb: num("txOther") || 0,
         txGainDbi: num("txGain") || 0,
@@ -343,8 +352,8 @@ export const linkBudgetCalculator: Calculator = {
         rxOtherLossDb: num("rxOther") || 0,
         rxSensitivityDbm: num("rxSens"),
         fadeMarginDb: num("fadeMargin") || 0,
-        txHeightM: toMetres(num("txHeight") || 0, field("txHeightUnit").value as DistanceUnit),
-        rxHeightM: toMetres(num("rxHeight") || 0, field("rxHeightUnit").value as DistanceUnit),
+        txHeightM: toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value)),
+        rxHeightM: toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value)),
       };
 
       const problem =
@@ -367,7 +376,7 @@ export const linkBudgetCalculator: Calculator = {
         txHeightM: inputs.txHeightM,
         rxHeightM: inputs.rxHeightM,
         distUnit,
-        heightUnit: field("txHeightUnit").value as DistanceUnit,
+        heightUnit: asDistanceUnit(field("txHeightUnit").value),
         applies: !hf && !problem,
       });
 
@@ -396,13 +405,13 @@ export const linkBudgetCalculator: Calculator = {
       } else if (profile) {
         // The smooth-earth horizon assumes both ends at the same ground level,
         // which a real profile (a hilltop, say) overrules.
-        out("range").innerHTML = `${formatRange(r.budgetRangeM, distUnit)}<span class="unit">${distUnit}</span>`;
+        setValueWithUnit(out("range"), formatRange(r.budgetRangeM, distUnit), distUnit);
         out("rangeSub").textContent =
           `What the budget allows with ${fmt(inputs.fadeMarginDb, 0)} dB of fade margin. Terrain decides the rest.`;
         showGeometry(inputs, r.horizonM, r.beyondHorizon, distUnit);
         out("geometry").hidden = out("geoWarn").hidden = true;
       } else {
-        out("range").innerHTML = `${formatRange(r.maxRangeM, distUnit)}<span class="unit">${distUnit}</span>`;
+        setValueWithUnit(out("range"), formatRange(r.maxRangeM, distUnit), distUnit);
         out("rangeSub").textContent =
           r.rangeLimit === "horizon"
             ? "Limited by the radio horizon at these antenna heights"

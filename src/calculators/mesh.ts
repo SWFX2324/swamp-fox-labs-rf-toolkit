@@ -14,14 +14,15 @@ import { createPathStore, pathKey } from "../lib/pathStore";
 import { sampleCount } from "../lib/profile";
 import {
   type DistanceUnit,
-  type FrequencyUnit,
-  type PowerUnit,
   frequencyUnits,
   fromMetres,
   powerUnits,
   toDbm,
   toHz,
   toMetres,
+  asDistanceUnit,
+  asFrequencyUnit,
+  asPowerUnit,
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:mesh";
@@ -211,7 +212,7 @@ export const meshCalculator: Calculator = {
     let lines: L.Polyline[] = [];
 
     const heightM = (n: MeshNode) =>
-      toMetres(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, field("heightUnit").value as DistanceUnit);
+      toMetres(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, asDistanceUnit(field("heightUnit").value));
 
     const renderNodes = () => {
       out("nodeCount").textContent = `${nodes.length} of ${MAX_NODES}`;
@@ -282,8 +283,8 @@ export const meshCalculator: Calculator = {
       if (!ready) return;
 
       const radio = {
-        freqHz: toHz(num("freq"), field("freqUnit").value as FrequencyUnit),
-        txPowerDbm: toDbm(num("power"), field("powerUnit").value as PowerUnit),
+        freqHz: toHz(num("freq"), asFrequencyUnit(field("freqUnit").value)),
+        txPowerDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)),
         gainDbi: num("gain") || 0,
         cableLossDb: num("cable") || 0,
         sensitivityDbm: num("sens"),

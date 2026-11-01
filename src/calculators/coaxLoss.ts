@@ -16,15 +16,15 @@ import {
   totalLineLossDb,
 } from "../lib/coax";
 import {
-  type DistanceUnit,
-  type FrequencyUnit,
-  type PowerUnit,
   dbmToWatts,
   frequencyUnits,
   powerUnits,
   toDbm,
   toHz,
   toMetres,
+  asDistanceUnit,
+  asFrequencyUnit,
+  asPowerUnit,
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:coax-loss";
@@ -186,9 +186,9 @@ export const coaxLossCalculator: Calculator = {
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
       saveState(state);
 
-      const freqHz = toHz(num("freq"), field("freqUnit").value as FrequencyUnit);
-      const lengthM = toMetres(num("runLength"), field("lengthUnit").value as DistanceUnit);
-      const pinDbm = toDbm(num("power"), field("powerUnit").value as PowerUnit);
+      const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
+      const lengthM = toMetres(num("runLength"), asDistanceUnit(field("lengthUnit").value));
+      const pinDbm = toDbm(num("power"), asPowerUnit(field("powerUnit").value));
       const swr = num("swr");
       const connectors = num("connectors") || 0;
       const selected = findCable(field("cable").value) ?? cables[0];

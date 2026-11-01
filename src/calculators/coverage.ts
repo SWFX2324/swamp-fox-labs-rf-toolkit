@@ -14,14 +14,15 @@ import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
 import { loadTiles } from "./tileElevation";
 import {
   type DistanceUnit,
-  type FrequencyUnit,
-  type PowerUnit,
   frequencyUnits,
   fromMetres,
   powerUnits,
   toDbm,
   toHz,
   toMetres,
+  asDistanceUnit,
+  asFrequencyUnit,
+  asPowerUnit,
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:coverage";
@@ -216,8 +217,8 @@ export const coverageCalculator: Calculator = {
       out("status").textContent = text;
       out("status").classList.toggle("warn", warn);
     };
-    const heightUnit = () => field("heightUnit").value as DistanceUnit;
-    const radiusM = () => toMetres(num("radius"), field("radiusUnit").value as DistanceUnit);
+    const heightUnit = () => asDistanceUnit(field("heightUnit").value);
+    const radiusM = () => toMetres(num("radius"), asDistanceUnit(field("radiusUnit").value));
     const site = () => parseCoordinates(field("site").value);
 
     let map: L.Map | undefined;
@@ -260,8 +261,8 @@ export const coverageCalculator: Calculator = {
     };
 
     const radio = () => ({
-      freqHz: toHz(num("freq"), field("freqUnit").value as FrequencyUnit),
-      eirpDbm: toDbm(num("power"), field("powerUnit").value as PowerUnit) - (num("txCable") || 0) + (num("txGain") || 0),
+      freqHz: toHz(num("freq"), asFrequencyUnit(field("freqUnit").value)),
+      eirpDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)) - (num("txCable") || 0) + (num("txGain") || 0),
       rxGainDbi: num("rxGain") || 0,
       rxCableLossDb: num("rxCable") || 0,
       sensitivityDbm: num("sens"),
@@ -338,7 +339,7 @@ export const coverageCalculator: Calculator = {
       pill.className = `pill ${stats.solid >= 0.6 ? "s-good" : reach >= 0.3 ? "s-marginal" : "s-fail"}`;
       pill.textContent = `${fmt(reach * 100, 0)}% reachable`;
       out("solid").textContent = `${fmt(stats.solid * 100, 0)}%`;
-      out("solidSub").textContent = `of the ${fmt(fromMetres(samples.radiusM, field("radiusUnit").value as DistanceUnit), 1)} ${field("radiusUnit").value} circle`;
+      out("solidSub").textContent = `of the ${fmt(fromMetres(samples.radiusM, asDistanceUnit(field("radiusUnit").value)), 1)} ${asDistanceUnit(field("radiusUnit").value)} circle`;
       out("marginal").textContent = `${fmt(stats.marginal * 100, 0)}%`;
       const unit: DistanceUnit = field("radiusUnit").value === "mi" ? "mi" : "km";
       out("far").textContent = stats.farthestSolidM ? `${fmt(fromMetres(stats.farthestSolidM, unit))} ${unit}` : "—";

@@ -14,6 +14,7 @@ import {
   sMeter,
   swrToGamma,
 } from "./convert";
+import { asDistanceUnit, asFrequencyUnit, asPowerUnit } from "./units";
 
 describe("power", () => {
   it("puts 1 µV at −107 dBm and 50 µV at −73 dBm into 50 Ω", () => {
@@ -75,5 +76,19 @@ describe("ratios", () => {
   it("doubles power at 3 dB and voltage at 6 dB", () => {
     expect(dbToPowerRatio(3)).toBeCloseTo(1.995, 3);
     expect(dbToVoltageRatio(6)).toBeCloseTo(1.995, 3);
+  });
+});
+
+describe("unit names from the page", () => {
+  it("returns the app's own constant for a known unit", () => {
+    expect(asDistanceUnit("mi")).toBe("mi");
+    expect(asFrequencyUnit("GHz")).toBe("GHz");
+    expect(asPowerUnit("dBm")).toBe("dBm");
+  });
+
+  it("falls back for anything else, including markup", () => {
+    expect(asDistanceUnit('<img src=x onerror="alert(1)">', "km")).toBe("km");
+    expect(asFrequencyUnit("")).toBe("MHz");
+    expect(asPowerUnit("watts")).toBe("W");
   });
 });

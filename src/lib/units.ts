@@ -21,6 +21,17 @@ export const distanceUnits = {
 
 export type DistanceUnit = keyof typeof distanceUnits;
 
+// Unit names read back from the page (a <select>'s value) come back as one of
+// the app's own constants, never the page's string, so nothing typed or
+// tampered with can flow on into markup. Anything unknown takes the fallback.
+export function asFrequencyUnit(value: string, fallback: FrequencyUnit = "MHz"): FrequencyUnit {
+  return (Object.keys(frequencyUnits) as FrequencyUnit[]).find((u) => u === value) ?? fallback;
+}
+
+export function asDistanceUnit(value: string, fallback: DistanceUnit = "m"): DistanceUnit {
+  return (Object.keys(distanceUnits) as DistanceUnit[]).find((u) => u === value) ?? fallback;
+}
+
 export function toHz(value: number, unit: FrequencyUnit): number {
   return value * frequencyUnits[unit];
 }
@@ -46,6 +57,10 @@ export function formatFeetInches(metres: number): string {
 export const powerUnits = ["W", "mW", "dBm"] as const;
 
 export type PowerUnit = (typeof powerUnits)[number];
+
+export function asPowerUnit(value: string, fallback: PowerUnit = "W"): PowerUnit {
+  return powerUnits.find((u) => u === value) ?? fallback;
+}
 
 export function wattsToDbm(watts: number): number {
   return 10 * Math.log10(watts * 1000);

@@ -5,7 +5,12 @@ import { bandPresets, designs, elementLengths, findDesign } from "../lib/antenna
 import { cables, findCable } from "../lib/coax";
 import { wavelengthM } from "../lib/fspl";
 import { drawAntenna } from "./antennaDiagrams";
-import { type FrequencyUnit, formatFeetInches, frequencyUnits, toHz } from "../lib/units";
+import {
+  formatFeetInches,
+  frequencyUnits,
+  toHz,
+  asFrequencyUnit,
+} from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:antenna-length";
 
@@ -117,7 +122,7 @@ export const antennaLengthCalculator: Calculator = {
       saveState(state);
 
       const design = findDesign(field("design").value) ?? designs[0];
-      const freqHz = toHz(Number.parseFloat(field("freq").value), field("freqUnit").value as FrequencyUnit);
+      const freqHz = toHz(Number.parseFloat(field("freq").value), asFrequencyUnit(field("freqUnit").value));
       const factor = Number.parseFloat(field("factor").value);
       const isStub = design.id === "coaxstub";
 
