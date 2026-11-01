@@ -47,8 +47,9 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
   // so it needs no API key, no extra provider and shares the offline cache.
   const osm = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
   const layers: Record<LayerName, L.Layer> = {
-    Streets: L.tileLayer(osm, { maxZoom: 19, attribution: OSM_ATTRIBUTION }),
-    Dark: L.tileLayer(osm, { maxZoom: 19, attribution: OSM_ATTRIBUTION, className: "map-dark" }),
+    // CORS here too, because browsers count a cached no-CORS tile as several MB.
+    Streets: L.tileLayer(osm, { maxZoom: 19, crossOrigin: true, attribution: OSM_ATTRIBUTION }),
+    Dark: L.tileLayer(osm, { maxZoom: 19, crossOrigin: true, attribution: OSM_ATTRIBUTION, className: "map-dark" }),
     // Sentinel-2 covers the world at about 10 m. USGS aerial imagery sits on top
     // at about 1 m but only covers the US; elsewhere its tiles 404 and Sentinel
     // shows through. Both are keyless, and CORS keeps those 404s out of the cache.

@@ -46,17 +46,26 @@ function imageryReach(closer: number): string {
   return `This view is closer than the saved imagery: zoom out ${-closer} ${closer === -1 ? "step" : "steps"} to see it.`;
 }
 
+/** The real size of the kept tiles, viewed and saved. */
 async function storedText(): Promise<string> {
   try {
-    const { usage } = await navigator.storage.estimate();
-    return usage ? `The toolkit is using about ${formatMb(usage)} on this device.` : "";
+    let bytes = 0;
+    for (const name of [TERRAIN_CACHE, IMAGERY_CACHE]) {
+      for (const res of await (await caches.open(name)).matchAll()) bytes += (await res.blob()).size;
+    }
+    return bytes ? `Terrain and satellite tiles on this device: about ${formatMb(bytes)}.` : "";
   } catch {
     return "";
   }
 }
 
+// The cache for street tiles before they moved to CORS. Its copies can't be
+// used any more, and browsers count each as several MB.
+const OLD_STREET_CACHE = "osm-tiles";
+
 export function addOfflineControl(map: L.Map): void {
   if (typeof caches === "undefined") return;
+  void caches.delete(OLD_STREET_CACHE);
 
   const Control = L.Control.extend({
     onAdd() {

@@ -29,13 +29,14 @@ export default defineConfig({
         // policy); "save this view" stores only the imagery and terrain below.
         runtimeCaching: [
           {
-            // OpenStreetMap tiles, used by both the Streets and Dark maps.
+            // OpenStreetMap tiles, used by both the Streets and Dark maps. Fetched
+            // with CORS, so this can't share a cache with older no-CORS copies.
             urlPattern: /^https:\/\/tile\.openstreetmap\.org\//,
             handler: "StaleWhileRevalidate",
             options: {
-              cacheName: "osm-tiles",
+              cacheName: "street-tiles",
               expiration: { maxEntries: 400, maxAgeSeconds: 30 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {
