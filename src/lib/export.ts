@@ -34,9 +34,12 @@ const lineStyles: Record<ExportLine["status"], string> = {
   fail: "803b3bd0",
 };
 
-/** A point style using an icon inside the KMZ, so it shows offline; the icon's base marks the point. */
-const iconStyle = (id: string, iconFile: string, scale: number) =>
-  `    <Style id="${id}"><IconStyle><scale>${scale}</scale><Icon><href>${escapeXml(iconFile)}</href></Icon><hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/></IconStyle></Style>`;
+/**
+ * A point style using an icon inside the KMZ, so it shows offline. hotSpotY is
+ * the height on the icon that marks the point, from 0 (base) to 1 (top).
+ */
+const iconStyle = (id: string, iconFile: string, scale: number, hotSpotY: number) =>
+  `    <Style id="${id}"><IconStyle><scale>${scale}</scale><Icon><href>${escapeXml(iconFile)}</href></Icon><hotSpot x="0.5" y="${hotSpotY}" xunits="fraction" yunits="fraction"/></IconStyle></Style>`;
 
 const coordinate = (p: LatLon) => `${p.lon.toFixed(6)},${p.lat.toFixed(6)},0`;
 
@@ -51,7 +54,7 @@ function placemark(name: string, description: string | undefined, geometry: stri
 export function buildKml(title: string, points: ExportPoint[], lines: ExportLine[] = [], iconFile?: string): string {
   const styles = Object.entries(lineStyles)
     .map(([id, colour]) => `    <Style id="${id}"><LineStyle><color>${colour}</color><width>${id === "fail" ? 1 : 3}</width></LineStyle></Style>`)
-    .concat(iconFile ? [iconStyle("node", iconFile, 0.9)] : [])
+    .concat(iconFile ? [iconStyle("node", iconFile, 0.9, 0.5)] : [])
     .join("\n");
   const body = [
     ...lines.map((l) =>
@@ -94,7 +97,7 @@ export function buildOverlayKml(title: string, imageFile: string, bounds: Overla
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>${escapeXml(title)}</name>
-${[...(iconFile ? [iconStyle("site", iconFile, 1.2)] : []), overlay, ...marks].join("\n")}
+${[...(iconFile ? [iconStyle("site", iconFile, 1.2, 0)] : []), overlay, ...marks].join("\n")}
   </Document>
 </kml>
 `;

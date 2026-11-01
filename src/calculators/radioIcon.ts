@@ -23,13 +23,12 @@ export const RADIO_ANCHOR: [number, number] = [11, 31];
 
 /** The radio as a PNG data URL for exports. Fixed colours: it sits on any map. */
 export function radioIconUrl(): string {
-  const scale = 2;
-  // A margin keeps the white outline inside the image, with the base centred.
+  // Drawn at its display size, because WinTAK sizes the icon from the image.
+  // A margin keeps the white outline inside it.
   const canvas = document.createElement("canvas");
-  canvas.width = (WIDTH + 4) * scale;
-  canvas.height = (HEIGHT + 2) * scale;
+  canvas.width = WIDTH + 4;
+  canvas.height = HEIGHT + 2;
   const ctx = canvas.getContext("2d")!;
-  ctx.scale(scale, scale);
   ctx.translate(2, 0);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
