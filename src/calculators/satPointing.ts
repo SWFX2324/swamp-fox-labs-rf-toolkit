@@ -216,6 +216,7 @@ export const satPointingCalculator: Calculator = {
       } else {
         marker.setLatLng([site.lat, site.lon]);
       }
+      marker.setIcon(terminalMarker(azTrue));
       bearing?.remove();
       bearing = undefined;
       if (azTrue !== undefined) {
