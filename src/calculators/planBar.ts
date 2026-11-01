@@ -49,6 +49,9 @@ const ICONS = {
   export: icon('<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>'),
 };
 
+/** The bytes of a PNG data URL, for packing into a KMZ. */
+export const pngBytes = (dataUrl: string) => Uint8Array.from(atob(dataUrl.split(",")[1]), (c) => c.charCodeAt(0));
+
 export interface PlanBarOptions {
   toolId: string;
   settingNames: string[];

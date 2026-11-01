@@ -13,7 +13,7 @@ import { compassPoint } from "../lib/satPointing";
 import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
 import { type OverlayBounds, buildOverlayKml, buildZip, fileName } from "../lib/export";
 import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
-import { applySettings, createPlanBar, downloadFile } from "./planBar";
+import { applySettings, createPlanBar, downloadFile, pngBytes } from "./planBar";
 import { environmentNote, environmentOptions } from "./environmentField";
 import { loadTiles } from "./tileElevation";
 import {
@@ -182,6 +182,28 @@ function cssColor(name: string): [number, number, number] {
   return [Number(m[0]), Number(m[1]), Number(m[2])];
 }
 
+
+/** The TX pin for exports, with its tip at the bottom centre. Fixed colours: it sits on any map. */
+function txIconUrl(): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext("2d")!;
+  ctx.beginPath();
+  ctx.arc(32, 25, 21, Math.PI * 0.8, Math.PI * 0.2);
+  ctx.lineTo(32, 62);
+  ctx.closePath();
+  ctx.fillStyle = "#1f6bc4";
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#ffffff";
+  ctx.stroke();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 20px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("TX", 32, 26);
+  return canvas.toDataURL("image/png");
+}
 
 export const coverageCalculator: Calculator = {
   id: "coverage",
@@ -540,12 +562,12 @@ export const coverageCalculator: Calculator = {
         onExport: (name) => {
           const p = site();
           if (!p || !samples || sampledFor !== sampleKey() || !lastOverlay) return "Press Map coverage first.";
-          const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, [{ name: "TX site", lat: p.lat, lon: p.lon }]);
-          const png = Uint8Array.from(atob(lastOverlay.url.split(",")[1]), (c) => c.charCodeAt(0));
+          const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, [{ name: "TX site", lat: p.lat, lon: p.lon }], "tx.png");
           const encoder = new TextEncoder();
           const kmz = buildZip([
             { name: "doc.kml", data: encoder.encode(kml) },
-            { name: "coverage.png", data: png },
+            { name: "coverage.png", data: pngBytes(lastOverlay.url) },
+            { name: "tx.png", data: pngBytes(txIconUrl()) },
           ]);
           downloadFile(fileName(name, "kmz"), new Uint8Array(kmz), "application/vnd.google-earth.kmz");
           return undefined;

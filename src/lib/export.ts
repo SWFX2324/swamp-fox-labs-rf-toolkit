@@ -34,6 +34,10 @@ const lineStyles: Record<ExportLine["status"], string> = {
   fail: "803b3bd0",
 };
 
+/** A point style using an icon inside the KMZ, so it shows offline; the icon's base marks the point. */
+const iconStyle = (id: string, iconFile: string, scale: number) =>
+  `    <Style id="${id}"><IconStyle><scale>${scale}</scale><Icon><href>${escapeXml(iconFile)}</href></Icon><hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/></IconStyle></Style>`;
+
 const coordinate = (p: LatLon) => `${p.lon.toFixed(6)},${p.lat.toFixed(6)},0`;
 
 function placemark(name: string, description: string | undefined, geometry: string, style?: string): string {
@@ -44,15 +48,16 @@ function placemark(name: string, description: string | undefined, geometry: stri
 }
 
 /** A KML document of named points and rated link lines. */
-export function buildKml(title: string, points: ExportPoint[], lines: ExportLine[] = []): string {
+export function buildKml(title: string, points: ExportPoint[], lines: ExportLine[] = [], iconFile?: string): string {
   const styles = Object.entries(lineStyles)
     .map(([id, colour]) => `    <Style id="${id}"><LineStyle><color>${colour}</color><width>${id === "fail" ? 1 : 3}</width></LineStyle></Style>`)
+    .concat(iconFile ? [iconStyle("node", iconFile, 0.9)] : [])
     .join("\n");
   const body = [
     ...lines.map((l) =>
       placemark(l.name, l.description, `<LineString><tessellate>1</tessellate><coordinates>${coordinate(l.from)} ${coordinate(l.to)}</coordinates></LineString>`, l.status),
     ),
-    ...points.map((p) => placemark(p.name, p.description, `<Point><coordinates>${coordinate(p)}</coordinates></Point>`)),
+    ...points.map((p) => placemark(p.name, p.description, `<Point><coordinates>${coordinate(p)}</coordinates></Point>`, iconFile ? "node" : undefined)),
   ].join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
@@ -73,7 +78,7 @@ export interface OverlayBounds {
 }
 
 /** KML that drapes an image file over the map, plus optional points. */
-export function buildOverlayKml(title: string, imageFile: string, bounds: OverlayBounds, points: ExportPoint[] = []): string {
+export function buildOverlayKml(title: string, imageFile: string, bounds: OverlayBounds, points: ExportPoint[] = [], iconFile?: string): string {
   const overlay = `    <GroundOverlay>
       <name>${escapeXml(title)}</name>
       <Icon><href>${escapeXml(imageFile)}</href></Icon>
@@ -84,12 +89,12 @@ export function buildOverlayKml(title: string, imageFile: string, bounds: Overla
         <west>${bounds.west.toFixed(6)}</west>
       </LatLonBox>
     </GroundOverlay>`;
-  const marks = points.map((p) => placemark(p.name, p.description, `<Point><coordinates>${coordinate(p)}</coordinates></Point>`));
+  const marks = points.map((p) => placemark(p.name, p.description, `<Point><coordinates>${coordinate(p)}</coordinates></Point>`, iconFile ? "site" : undefined));
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>${escapeXml(title)}</name>
-${[overlay, ...marks].join("\n")}
+${[...(iconFile ? [iconStyle("site", iconFile, 1.2)] : []), overlay, ...marks].join("\n")}
   </Document>
 </kml>
 `;

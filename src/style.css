@@ -366,6 +366,8 @@ button.secondary:disabled:hover { border-color: var(--border); }
   color: #fff; font: 700 10px/1 system-ui, sans-serif;
 }
 .pin b { transform: rotate(45deg); }
+.radio-pin { background: none; border: none; }
+.radio-pin svg { display: block; overflow: visible; filter: drop-shadow(0 2px 3px rgb(0 0 0 / .4)); }
 .leaflet-container .path-line { stroke: var(--accent); stroke-width: 3; stroke-dasharray: 6 6; fill: none; }
 .leaflet-container .path-line.s-good { stroke: var(--good); stroke-dasharray: none; }
 .leaflet-container .path-line.s-marginal { stroke: var(--serious); stroke-dasharray: none; }

@@ -7,9 +7,10 @@ import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
-import { buildKml, fileName } from "../lib/export";
+import { buildKml, fileName, buildZip } from "../lib/export";
 import { findEnvironment } from "../lib/environment";
-import { applySettings, createPlanBar, downloadFile } from "./planBar";
+import { applySettings, createPlanBar, downloadFile, pngBytes } from "./planBar";
+import { RADIO_ANCHOR, RADIO_SIZE, radioIconUrl, radioMarkerHtml } from "./radioIcon";
 import { environmentOptions } from "./environmentField";
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, distanceBetweenM, samplePath } from "../lib/geo";
@@ -272,7 +273,7 @@ export const meshCalculator: Calculator = {
       for (const m of markers) m.remove();
       markers = nodes.map((n, idx) => {
         const m = L.marker([n.lat, n.lon], {
-          icon: L.divIcon({ className: "pin", html: `<span><b>${idx + 1}</b></span>`, iconSize: [30, 30], iconAnchor: [15, 30] }),
+          icon: L.divIcon({ className: "radio-pin", html: radioMarkerHtml(idx + 1), iconSize: RADIO_SIZE, iconAnchor: RADIO_ANCHOR }),
           draggable: true,
           title: n.name,
         }).addTo(map!);
@@ -543,7 +544,7 @@ export const meshCalculator: Calculator = {
           nodes = (plan.nodes ?? []).map((n) => ({ ...n }));
           nodesChanged();
         },
-        exportLabel: "Export KML",
+        exportLabel: "Export KMZ",
         onExport: (name) => {
           if (!nodes.length) return "Add some nodes first.";
           const kml = buildKml(
@@ -558,8 +559,13 @@ export const meshCalculator: Calculator = {
                 status: r.link.status,
                 description: `Margin ${fmt(r.link.marginDb)} dB, ${statusText[r.link.status][0]}`,
               })),
+            "radio.png",
           );
-          downloadFile(fileName(name, "kml"), kml, "application/vnd.google-earth.kml+xml");
+          const kmz = buildZip([
+            { name: "doc.kml", data: new TextEncoder().encode(kml) },
+            { name: "radio.png", data: pngBytes(radioIconUrl()) },
+          ]);
+          downloadFile(fileName(name, "kmz"), new Uint8Array(kmz), "application/vnd.google-earth.kmz");
           return undefined;
         },
       }),

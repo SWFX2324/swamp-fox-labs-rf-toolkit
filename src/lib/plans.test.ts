@@ -87,10 +87,26 @@ describe("KML", () => {
     expect(kml).toContain("-80.800000,35.200000,0 -80.700000,35.300000,0");
   });
 
+  it("styles points with an icon from the KMZ, and leaves plain KML unstyled", () => {
+    const point = { name: "A", lat: 1, lon: 2 };
+    const kml = buildKml("T", [point], [], "radio.png");
+    expect(kml).toContain("<href>radio.png</href>");
+    expect(kml).toContain("<styleUrl>#node</styleUrl>");
+    expect(buildKml("T", [point])).not.toContain("<IconStyle>");
+  });
+
   it("writes a ground overlay with its bounds", () => {
     const kml = buildOverlayKml("Cov", "coverage.png", { north: 1, south: -1, east: 2, west: -2 });
     expect(kml).toContain("<href>coverage.png</href>");
     expect(kml).toContain("<north>1.000000</north>");
+    expect(kml).not.toContain("<Style");
+  });
+
+  it("styles overlay points with an icon from the KMZ", () => {
+    const kml = buildOverlayKml("Cov", "coverage.png", { north: 1, south: -1, east: 2, west: -2 }, [{ name: "TX site", lat: 1, lon: 2 }], "tx.png");
+    expect(kml).toContain("<href>tx.png</href>");
+    expect(kml).toContain("<styleUrl>#site</styleUrl>");
+    expect(kml.indexOf("<Style")).toBeLessThan(kml.indexOf("<GroundOverlay>"));
   });
 });
 
