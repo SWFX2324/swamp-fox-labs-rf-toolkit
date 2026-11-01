@@ -15,8 +15,8 @@ export default defineConfig({
         theme_color: "#111110",
         background_color: "#111110",
         display: "standalone",
+        // PNG only: iOS can pick an SVG entry here, fail to use it and draw a letter instead.
         icons: [
-          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
           { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
           { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
           { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
