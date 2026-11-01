@@ -25,6 +25,8 @@ export interface LinkInputs {
    * path loss it is left out of the max range, which is about other distances.
    */
   terrainLossDb?: number;
+  /** Environment (clutter) loss at both ends. Applies at any distance. */
+  clutterLossDb?: number;
   rxGainDbi: number;
   rxCableLossDb: number;
   rxOtherLossDb: number;
@@ -62,12 +64,13 @@ export function eirpDbm(i: Pick<LinkInputs, "txPowerDbm" | "txCableLossDb" | "tx
 export function linkBudget(i: LinkInputs): LinkResult {
   const eirp = eirpDbm(i);
   const fspl = fsplDb(i.freqHz, i.distanceM);
-  const rxIsotropic = eirp - fspl - i.extraPathLossDb - (i.terrainLossDb ?? 0);
+  const clutter = i.clutterLossDb ?? 0;
+  const rxIsotropic = eirp - fspl - i.extraPathLossDb - clutter - (i.terrainLossDb ?? 0);
   const rsl = rxIsotropic + i.rxGainDbi - i.rxCableLossDb - i.rxOtherLossDb;
 
   // Everything except free-space loss is fixed, so solve for the free-space
   // loss that leaves exactly the fade margin, then for its distance.
-  const fixed = eirp - i.extraPathLossDb + i.rxGainDbi - i.rxCableLossDb - i.rxOtherLossDb;
+  const fixed = eirp - i.extraPathLossDb - clutter + i.rxGainDbi - i.rxCableLossDb - i.rxOtherLossDb;
   const allowedFspl = fixed - i.rxSensitivityDbm - i.fadeMarginDb;
   const budgetRange = distanceForLossM(i.freqHz, allowedFspl);
   const horizon = lineOfSightRangeM(i.txHeightM, i.rxHeightM);

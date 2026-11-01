@@ -11,6 +11,8 @@ import { bearingDeg, distanceBetweenM } from "../lib/geo";
 import { EARTH_RADIUS_M } from "../lib/horizon";
 import { compassPoint } from "../lib/satPointing";
 import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
+import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
+import { environmentNote, environmentOptions } from "./environmentField";
 import { loadTiles } from "./tileElevation";
 import {
   type DistanceUnit,
@@ -42,6 +44,7 @@ const defaults: Record<string, string> = {
   rxCable: "0",
   sens: "-100",
   fade: "10",
+  environment: "none",
   radius: "6",
   radiusUnit: "mi",
   detail: "standard",
@@ -125,6 +128,9 @@ const template = `
         ${numberField("RX cable loss", "rxCable", "dB", 'min="0"')}
         ${numberField("RX sensitivity", "sens", "dBm")}
         ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
+        <label>Environment
+          <select name="environment">${environmentOptions()}</select>
+        </label>
       </div>
     </section>
   </div>
@@ -144,6 +150,7 @@ const template = `
           <div class="tile"><span class="label">Marginal</span><span class="value" data-out="marginal"></span><span class="sub">Connects, under the fade margin</span></div>
           <div class="tile"><span class="label">Farthest solid point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
         </div>
+        <p class="note" data-out="envNote" hidden></p>
         <p class="note" data-out="probe"></p>
       </div>
       <p class="note">
@@ -326,11 +333,16 @@ export const coverageCalculator: Calculator = {
       }
       const r = radio();
       if (!(r.freqHz > 0) || !Number.isFinite(r.eirpDbm) || !Number.isFinite(r.sensitivityDbm)) return;
+      const env = findEnvironment(field("environment").value);
+      const txH = toMetres(num("txHeight") || 0, heightUnit());
+      const rxH = toMetres(num("rxHeight") || 0, heightUnit());
+      out("envNote").hidden = env.id === "none";
+      out("envNote").textContent = environmentNote(env, r.freqHz, txH, rxH);
       margins = coverageMargins(
         samples,
-        r,
-        toMetres(num("txHeight") || 0, heightUnit()),
-        toMetres(num("rxHeight") || 0, heightUnit()),
+        { ...r, clutterLossDb: clutterLossDb(env, r.freqHz, txH) + clutterLossDb(env, r.freqHz, rxH) },
+        effectiveHeightM(env, txH),
+        effectiveHeightM(env, rxH),
       );
       const fade = num("fade") || 0;
       const stats = coverageStats(samples, margins, fade);

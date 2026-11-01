@@ -3,6 +3,7 @@
 // reach each other through usable links.
 
 import { bullingtonLoss } from "./diffraction";
+import { type Environment, clutterLossDb, effectiveHeightM } from "./environment";
 import { linkBudget } from "./linkBudget";
 import { type ProfileStatus, analyzeProfile } from "./profile";
 
@@ -15,6 +16,8 @@ export interface MeshRadio {
   sensitivityDbm: number;
   /** Margin a link needs to count as solid, dB. */
   fadeMarginDb: number;
+  /** What surrounds the nodes; adds clutter loss at both ends of each link. */
+  environment?: Environment;
 }
 
 export type MeshLinkStatus = "good" | "marginal" | "fail";
@@ -22,6 +25,7 @@ export type MeshLinkStatus = "good" | "marginal" | "fail";
 export interface MeshLink {
   fsplDb: number;
   terrainLossDb: number;
+  clutterLossDb: number;
   rslDbm: number;
   marginDb: number;
   status: MeshLinkStatus;
@@ -36,10 +40,15 @@ export function meshLink(
   bHeightM: number,
   elevationsM?: number[],
 ): MeshLink {
+  // The path runs from the top of the clutter; the clutter loss covers the rest.
+  const env = radio.environment;
+  const clutter = env ? clutterLossDb(env, radio.freqHz, aHeightM) + clutterLossDb(env, radio.freqHz, bHeightM) : 0;
+  const pathA = env ? effectiveHeightM(env, aHeightM) : aHeightM;
+  const pathB = env ? effectiveHeightM(env, bHeightM) : bHeightM;
   let terrainLossDb = 0;
   let profile: ProfileStatus | undefined;
   if (elevationsM && elevationsM.length >= 3) {
-    const path = { freqHz: radio.freqHz, distanceM, elevationsM, txHeightM: aHeightM, rxHeightM: bHeightM };
+    const path = { freqHz: radio.freqHz, distanceM, elevationsM, txHeightM: pathA, rxHeightM: pathB };
     terrainLossDb = bullingtonLoss(path).lossDb;
     profile = analyzeProfile(path).status;
   }
@@ -52,16 +61,17 @@ export function meshLink(
     txGainDbi: radio.gainDbi,
     extraPathLossDb: 0,
     terrainLossDb,
+    clutterLossDb: clutter,
     rxGainDbi: radio.gainDbi,
     rxCableLossDb: radio.cableLossDb,
     rxOtherLossDb: 0,
     rxSensitivityDbm: radio.sensitivityDbm,
     fadeMarginDb: radio.fadeMarginDb,
-    txHeightM: aHeightM,
-    rxHeightM: bHeightM,
+    txHeightM: pathA,
+    rxHeightM: pathB,
   });
   const status: MeshLinkStatus = r.marginDb >= radio.fadeMarginDb ? "good" : r.marginDb >= 0 ? "marginal" : "fail";
-  return { fsplDb: r.fsplDb, terrainLossDb, rslDbm: r.rslDbm, marginDb: r.marginDb, status, profile };
+  return { fsplDb: r.fsplDb, terrainLossDb, clutterLossDb: clutter, rslDbm: r.rslDbm, marginDb: r.marginDb, status, profile };
 }
 
 /** Every unordered pair of n items, as index pairs. */

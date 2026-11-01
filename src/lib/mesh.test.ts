@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { clutterLossDb, findEnvironment } from "./environment";
 import { fsplDb } from "./fspl";
 import { connectedGroups, hopCounts, meshLink, pairs } from "./mesh";
 
@@ -37,6 +38,26 @@ describe("meshLink", () => {
     expect(blocked.profile).toBe("blocked");
     expect(blocked.terrainLossDb).toBeGreaterThan(20);
     expect(blocked.marginDb).toBeCloseTo(clear.marginDb - blocked.terrainLossDb + clear.terrainLossDb, 6);
+  });
+});
+
+describe("meshLink with an environment", () => {
+  it("charges clutter at both ends and lowers the margin", () => {
+    const urban = findEnvironment("urban");
+    const bare = meshLink(radio, 5000, 2, 2);
+    const inTown = meshLink({ ...radio, environment: urban }, 5000, 2, 2);
+    expect(inTown.clutterLossDb).toBeCloseTo(2 * clutterLossDb(urban, 915e6, 2), 9);
+    expect(inTown.marginDb).toBeCloseTo(bare.marginDb - inTown.clutterLossDb, 9);
+  });
+
+  it("checks terrain from the top of the clutter, not the antenna", () => {
+    // A 20 m rise at the midpoint of flat ground blocks 2 m antennas more
+    // deeply than the line between 15 m clutter tops.
+    const ridge = Array.from({ length: 101 }, () => 100);
+    ridge[50] = 120;
+    const bare = meshLink(radio, 5000, 2, 2, ridge);
+    const inTown = meshLink({ ...radio, environment: findEnvironment("urban") }, 5000, 2, 2, ridge);
+    expect(inTown.terrainLossDb).toBeLessThan(bare.terrainLossDb);
   });
 });
 

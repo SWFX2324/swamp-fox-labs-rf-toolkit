@@ -2,6 +2,8 @@ import { enhanceFields } from "./fieldHelp";
 import { linkBudgetGuide } from "./helpText";
 import type { Calculator } from ".";
 import { beyondCableRange, cableLossDb, cables, findCable, lossPer100Ft } from "../lib/coax";
+import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
+import { environmentNote, environmentOptions } from "./environmentField";
 import { midpointClearance } from "../lib/horizon";
 import { createTerrainCard } from "./terrain";
 import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
@@ -36,6 +38,7 @@ const defaults: Record<string, string> = {
   txHeightUnit: "ft",
   dist: "3",
   distUnit: "mi",
+  environment: "none",
   extraLoss: "0",
   rxGain: "3",
   rxHeight: "30",
@@ -124,14 +127,18 @@ const template = `
       <div class="card-head"><h2>Path</h2><span class="meta">Line of sight</span></div>
       <div class="fields">
         ${unitField("Distance", "dist", Object.keys(distanceUnits), "distUnit")}
+        <label>Environment
+          <select name="environment">${environmentOptions()}</select>
+        </label>
         ${numberField("Extra path loss", "extraLoss", "dB", 'min="0" title="Foliage, buildings, rain, partial Fresnel blockage"')}
       </div>
+      <p class="note" data-out="envNote" hidden></p>
       <p class="note" data-out="distNote" hidden>
         Distance comes from the map pins in Terrain profile. Clear the pins to type one.
       </p>
       <p class="note">
-        Free-space loss is the best case with a clear line of sight. Use extra
-        path loss for foliage, buildings or a blocked Fresnel zone.
+        Free-space loss is the best case with a clear line of sight. Environment
+        estimates what trees, buildings and low antennas add on top of it.
       </p>
       <div class="tile subtotal">
         <span class="label">Free-space path loss</span>
@@ -339,6 +346,9 @@ export const linkBudgetCalculator: Calculator = {
       saveState(state);
 
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
+      const env = findEnvironment(field("environment").value);
+      const txHeightM = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
+      const rxHeightM = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
       const inputs: LinkInputs = {
         freqHz,
         distanceM: toMetres(num("dist"), distUnit),
@@ -352,8 +362,10 @@ export const linkBudgetCalculator: Calculator = {
         rxOtherLossDb: num("rxOther") || 0,
         rxSensitivityDbm: num("rxSens"),
         fadeMarginDb: num("fadeMargin") || 0,
-        txHeightM: toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value)),
-        rxHeightM: toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value)),
+        // The path runs from the top of the clutter; the clutter loss covers the rest.
+        txHeightM: effectiveHeightM(env, txHeightM),
+        rxHeightM: effectiveHeightM(env, rxHeightM),
+        clutterLossDb: clutterLossDb(env, freqHz, txHeightM) + clutterLossDb(env, freqHz, rxHeightM),
       };
 
       const problem =
@@ -389,6 +401,8 @@ export const linkBudgetCalculator: Calculator = {
         return;
       }
 
+      out("envNote").hidden = env.id === "none";
+      out("envNote").textContent = environmentNote(env, freqHz, txHeightM, rxHeightM);
       inputs.terrainLossDb = profile?.diffraction.lossDb ?? 0;
       const r = linkBudget(inputs);
       const rating = rateMargin(r.marginDb);
@@ -449,6 +463,7 @@ export const linkBudgetCalculator: Calculator = {
       step("EIRP", null, true);
       step("Free-space loss", -r.fsplDb);
       if (inputs.extraPathLossDb) step("Extra path loss", -inputs.extraPathLossDb);
+      if (inputs.clutterLossDb) step(env.name, -inputs.clutterLossDb);
       if (profile) step("Terrain diffraction", -inputs.terrainLossDb);
       step("RX antenna", inputs.rxGainDbi);
       if (inputs.rxCableLossDb) step("RX coax", -inputs.rxCableLossDb);

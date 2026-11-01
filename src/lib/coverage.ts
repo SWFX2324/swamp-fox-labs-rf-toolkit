@@ -49,11 +49,13 @@ export interface CoverageRadio {
   rxGainDbi: number;
   rxCableLossDb: number;
   sensitivityDbm: number;
+  /** Environment (clutter) loss at both ends, dB. */
+  clutterLossDb?: number;
 }
 
 /** Margin in dB at every radial point (index 0, the site itself, is NaN). */
 export function coverageMargins(s: RadialSamples, radio: CoverageRadio, txHeightM: number, rxHeightM: number): Float32Array[] {
-  const fixed = radio.eirpDbm + radio.rxGainDbi - radio.rxCableLossDb - radio.sensitivityDbm;
+  const fixed = radio.eirpDbm + radio.rxGainDbi - radio.rxCableLossDb - radio.sensitivityDbm - (radio.clutterLossDb ?? 0);
   return s.elevations.map((e) => {
     const out = new Float32Array(e.length);
     out[0] = Number.NaN;

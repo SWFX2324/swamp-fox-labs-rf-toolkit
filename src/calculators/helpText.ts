@@ -20,7 +20,9 @@ const shared = {
     "Height of the antenna above the ground where it stands, not above sea level. Higher antennas see farther and clear more terrain.",
   distance: "Straight-line distance between the two antennas.",
   extraLoss:
-    "Loss beyond clear line of sight: trees, buildings, or being inside a vehicle or building. Rough guide: light woods 5–10 dB, dense forest 15–25 dB, inside a building 10–20 dB.",
+    "Any known loss you want to add on top, such as being inside a vehicle or building (roughly 10–20 dB). If you've picked an Environment, it already covers the general surroundings, so don't count those again.",
+  environment:
+    "A rough estimate of the loss from what surrounds your antennas, applied at both ends: open water, fields or desert (low antennas lose signal to ground reflections), light vegetation or suburbs, cities, or dense forest and jungle. It grows with frequency and fades away once an antenna clears the clutter. It can't see that a path runs through forest then open field, and it's less reliable under about 800 ft. Based on ITU-R P.2108; Open Water, Open Fields and Desert use the same ITU category, as do Light Vegetation and Suburban.",
   sensitivity:
     "The weakest signal the receiver can still decode, from its datasheet, as a negative number in dBm. More negative is more sensitive. A VHF handheld is often around −120 dBm; a HaLow node around −95 to −105 dBm depending on data rate.",
   fade:
@@ -41,6 +43,7 @@ export const linkBudgetGuide: FieldGuide = {
     txGain: shared.gain,
     txHeight: `${shared.height} Used for the radio horizon and the terrain check.`,
     dist: `${shared.distance} Dropping both map pins in Terrain profile fills this in.`,
+    environment: shared.environment,
     extraLoss: shared.extraLoss,
     rxGain: shared.gain,
     rxHeight: shared.height,
@@ -74,6 +77,7 @@ export const meshGuide: FieldGuide = {
     cable: `Cable, connector and adapter loss at each node. ${shared.otherLoss}`,
     sens: shared.sensitivity,
     fade: `${shared.fade} Links that keep it count as solid.`,
+    environment: shared.environment,
     height: `${shared.height} Each node can override it in the node list.`,
   },
   advanced: ["cable", "fade"],
@@ -96,6 +100,7 @@ export const coverageGuide: FieldGuide = {
     rxCable: "Cable loss at the receiving stations. Leave 0 for handhelds.",
     sens: shared.sensitivity,
     fade: `${shared.fade} Areas that keep it show as solid.`,
+    environment: shared.environment,
   },
   advanced: ["detail", "txCable", "rxGain", "rxCable", "fade"],
 };

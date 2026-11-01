@@ -7,6 +7,8 @@ import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
+import { findEnvironment } from "../lib/environment";
+import { environmentOptions } from "./environmentField";
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, distanceBetweenM, samplePath } from "../lib/geo";
 import { type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
@@ -43,6 +45,7 @@ const settingDefaults: Record<string, string> = {
   cable: "1",
   sens: "-100",
   fade: "10",
+  environment: "none",
   height: "30",
   heightUnit: "ft",
 };
@@ -84,6 +87,9 @@ const template = `
         ${numberField("Cable loss at each node", "cable", "dB", 'min="0"')}
         ${numberField("RX sensitivity", "sens", "dBm")}
         ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
+        <label>Environment
+          <select name="environment">${environmentOptions()}</select>
+        </label>
         <label>Default antenna height
           <span class="input-unit">
             <input name="height" type="number" inputmode="decimal" step="any" min="0" />
@@ -122,6 +128,7 @@ const template = `
       <p class="note" data-out="empty">Add at least two nodes to see the links between them.</p>
       <div data-out="results" hidden>
         <p class="callout" data-out="split" hidden></p>
+        <p class="note" data-out="envNote" hidden></p>
         <div class="tiles">
           <div class="tile"><span class="label">Links up</span><span class="value" data-out="up"></span><span class="sub" data-out="upSub"></span></div>
           <div class="tile"><span class="label">Most hops</span><span class="value" data-out="hops"></span><span class="sub" data-out="hopsSub"></span></div>
@@ -289,6 +296,7 @@ export const meshCalculator: Calculator = {
         cableLossDb: num("cable") || 0,
         sensitivityDbm: num("sens"),
         fadeMarginDb: num("fade") || 0,
+        environment: findEnvironment(field("environment").value),
       };
       if (!(radio.freqHz > 0) || !Number.isFinite(radio.txPowerDbm) || !Number.isFinite(radio.sensitivityDbm)) {
         out("pill").hidden = true;
@@ -333,6 +341,12 @@ export const meshCalculator: Calculator = {
         const named = groups.map((g) => (g.length === 1 ? `node ${g[0] + 1} on its own` : `nodes ${g.map((i) => i + 1).join(", ")}`));
         split.textContent = `The mesh splits into ${groups.length} groups that can't reach each other: ${named.join("; ")}. A relay between groups, or taller antennas, would join them.`;
       }
+      const envLoss = results.map((r) => r.link.clutterLossDb);
+      const envLow = Math.min(...envLoss);
+      const envHigh = Math.max(...envLoss);
+      const env = radio.environment;
+      out("envNote").hidden = env.id === "none" || !(envHigh > 0);
+      out("envNote").textContent = `${env.name} adds about ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB to each link, included in the margins below. An estimate; the Terrain column is checked from the top of the clutter.`;
       out("up").textContent = `${up.length} of ${results.length}`;
       out("upSub").textContent = `${solid.length} solid, ${up.length - solid.length} marginal`;
       out("hops").textContent = groups.length === 1 ? String(maxHops) : "—";

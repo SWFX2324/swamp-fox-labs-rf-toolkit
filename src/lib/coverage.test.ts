@@ -35,6 +35,13 @@ describe("coverageMargins", () => {
     expect(m[0][0]).toBeNaN();
   });
 
+  it("lowers every point by the environment loss", () => {
+    const s = sampleRadials(site, 3000, 4, 30, flat);
+    const bare = coverageMargins(s, radio, 300, 300);
+    const inClutter = coverageMargins(s, { ...radio, clutterLossDb: 25 }, 300, 300);
+    expect(bare[2][20] - inClutter[2][20]).toBeCloseTo(25, 3);
+  });
+
   it("falls off with distance over flat ground", () => {
     const s = sampleRadials(site, 10_000, 4, 50, flat);
     const m = coverageMargins(s, radio, 10, 1.5);

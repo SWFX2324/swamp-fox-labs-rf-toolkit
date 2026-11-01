@@ -65,6 +65,12 @@ describe("linkBudget", () => {
     expect(blocked.maxRangeM).toBeCloseTo(r.maxRangeM, 6);
   });
 
+  it("subtracts environment loss from the margin and the max range", () => {
+    const urban = linkBudget({ ...inputs, clutterLossDb: 20 });
+    expect(r.marginDb - urban.marginDb).toBeCloseTo(20, 9);
+    expect(urban.budgetRangeM).toBeLessThan(r.budgetRangeM);
+  });
+
   it("subtracts extra path loss one for one", () => {
     const worse = linkBudget({ ...inputs, extraPathLossDb: 15 });
     expect(r.rslDbm - worse.rslDbm).toBeCloseTo(15, 9);
