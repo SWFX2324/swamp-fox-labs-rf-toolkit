@@ -74,7 +74,9 @@ send to the web server. Anyone you send a link to can read those locations, and
 the same goes for exported KML and KMZ files. Nothing is shared unless you do it.
 
 **Offline copies.** The service worker keeps the app's files, and the map,
-satellite and elevation tiles you've viewed, so the toolkit works without a connection. They
+satellite and elevation tiles you've viewed, so the toolkit works without a connection.
+The download button on a map also saves satellite and elevation tiles for the area on
+screen, which tells those tile providers what area you requested, as viewing it would. They
 live in your browser's cache and are removed with the site's data.
 
 **Code.** Libraries are installed from npm at exact versions recorded in

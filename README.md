@@ -4,7 +4,7 @@ Practical RF calculators for planning radio links in the field: antenna lengths,
 
 **Use it:** <https://swfx2324.github.io/swamp-fox-labs-rf-toolkit/>
 
-It runs entirely in the browser. Once a page has loaded, it keeps working offline, and you can install it to a phone or desktop from the browser menu.
+It runs entirely in the browser. Once a page has loaded, it keeps working offline, and you can install it to a phone or desktop from the browser menu. Before losing signal, use the download button on any map to save the terrain and satellite imagery for what's on screen. Street maps can't be saved this way, because OpenStreetMap's tile policy doesn't allow it.
 
 ## Calculators
 

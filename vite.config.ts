@@ -19,8 +19,9 @@ export default defineConfig({
       },
       workbox: {
         // Keep map tiles the user has looked at, so the map background still
-        // shows offline. Stale-while-revalidate refreshes them when online,
-        // and nothing is downloaded in bulk (per the OSM tile usage policy).
+        // shows offline. Stale-while-revalidate refreshes them when online.
+        // OpenStreetMap tiles are never downloaded in bulk (per its tile usage
+        // policy); "save this view" stores only the imagery and terrain below.
         runtimeCaching: [
           {
             // OpenStreetMap tiles, used by both the Streets and Dark maps.
@@ -33,13 +34,13 @@ export default defineConfig({
             },
           },
           {
-            // Satellite imagery tiles you've viewed. Fetched with CORS, so only
-            // real images are kept (USGS answers 404 outside the US).
+            // Satellite imagery tiles you've viewed or saved. Fetched with CORS,
+            // so only real images are kept (USGS answers 404 outside the US).
             urlPattern: /^https:\/\/(tiles\.maps\.eox\.at|basemap\.nationalmap\.gov)\//,
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "imagery-tiles",
-              expiration: { maxEntries: 400, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              expiration: { maxEntries: 5000, maxAgeSeconds: 180 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [200] },
             },
           },
@@ -49,7 +50,7 @@ export default defineConfig({
             handler: "CacheFirst",
             options: {
               cacheName: "elevation-tiles",
-              expiration: { maxEntries: 500, maxAgeSeconds: 180 * 24 * 60 * 60 },
+              expiration: { maxEntries: 3000, maxAgeSeconds: 180 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

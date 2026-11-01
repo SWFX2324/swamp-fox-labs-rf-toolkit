@@ -4,11 +4,12 @@
 
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
+import { addOfflineControl } from "./offlineControl";
 
 const LAYER_KEY = "rf-toolkit:map-layer";
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-const SENTINEL_YEAR = 2024;
 const SENTINEL_ATTRIBUTION = `<a href="https://cloudless.eox.at">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${SENTINEL_YEAR})`;
 const USGS_ATTRIBUTION = '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map">USGS The National Map</a>';
 
@@ -52,15 +53,15 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     // at about 1 m but only covers the US; elsewhere its tiles 404 and Sentinel
     // shows through. Both are keyless, and CORS keeps those 404s out of the cache.
     Satellite: L.layerGroup([
-      L.tileLayer(`https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-${SENTINEL_YEAR}_3857/default/g/{z}/{y}/{x}.jpg`, {
+      L.tileLayer(SENTINEL_URL, {
         maxZoom: 19,
-        maxNativeZoom: 14,
+        maxNativeZoom: SENTINEL_MAX_ZOOM,
         crossOrigin: true,
         attribution: SENTINEL_ATTRIBUTION,
       }),
-      L.tileLayer("https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}", {
+      L.tileLayer(USGS_URL, {
         maxZoom: 19,
-        maxNativeZoom: 16,
+        maxNativeZoom: USGS_MAX_ZOOM,
         crossOrigin: true,
         attribution: USGS_ATTRIBUTION,
       }),
@@ -89,6 +90,7 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     },
   });
   new Recenter({ position: "topleft" }).addTo(map);
+  addOfflineControl(map);
 
   // A page opened out of sight has no width yet, and Leaflet's fit jumps to full
   // zoom without one. Frame the page again once the map has a real size.

@@ -380,6 +380,19 @@ main .leaflet-container { background: var(--card-2); }
 .leaflet-layer.map-dark { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.88) saturate(0.55); }
 .recenter-control a { display: grid; place-items: center; }
 .recenter-control svg { width: 18px; height: 18px; }
+.offline-panel {
+  position: absolute; z-index: 1001; top: 10px; left: 56px; width: min(250px, calc(100% - 66px)); max-height: calc(100% - 20px); overflow-y: auto;
+  box-sizing: border-box; padding: 10px 12px;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / .25); font-size: 12px; line-height: 1.4;
+}
+.offline-panel[hidden] { display: none; }
+.offline-panel p { margin: 6px 0 0; color: var(--text-2); font-size: 12px; }
+.offline-panel p:empty { display: none; }
+.offline-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.offline-panel .offline-stored { margin-top: 8px; }
+.offline-panel button[hidden] { display: none; }
+.offline-panel button.link { padding: 0; border: 0; background: none; color: var(--accent); text-decoration: underline; font-size: 12px; }
 /* Leaflet's layers icon is a dark PNG, unreadable on a dark card: draw it in the
    text colour instead. */
 .leaflet-container .leaflet-control-layers-toggle { background-image: none; display: grid; place-items: center; }
@@ -465,6 +478,7 @@ main .leaflet-container { background: var(--card-2); }
   .help-btn::after { inset: -11px; }
   /* !important: Leaflet's stylesheet loads after this one at equal specificity. */
   .leaflet-container .leaflet-bar a { width: 44px !important; height: 44px !important; line-height: 44px !important; }
+  .offline-panel { left: 64px; width: min(250px, calc(100% - 74px)); }
   .leaflet-container .leaflet-control-layers-toggle { width: 44px !important; height: 44px !important; }
 }
 
