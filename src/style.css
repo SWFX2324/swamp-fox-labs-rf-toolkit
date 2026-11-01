@@ -71,7 +71,9 @@ button, select, input { font: inherit; color: inherit; }
 .seg { display: inline-flex; background: var(--card-2); border-radius: 9px; padding: 3px; gap: 2px; }
 .seg button { background: transparent; border: 0; color: var(--text-2); padding: 5px 10px; border-radius: 7px; font-size: 12px; }
 .seg button[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
-.coord-toggle { margin-left: auto; }
+.top-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.theme-toggle { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; color: var(--text-2); }
+.theme-toggle svg { width: 18px; height: 18px; }
 .tabs .short { display: none; }
 @media (max-width: 600px) {
   .tabs .long { display: none; }
@@ -80,7 +82,7 @@ button, select, input { font: inherit; color: inherit; }
      and the whole bar scrolls away so it doesn't eat the screen. */
   .topbar { position: static; gap: 8px; }
   .brand { order: 1; }
-  .coord-toggle { order: 2; }
+  .top-actions { order: 2; }
   .tabs { order: 3; width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
   .tabs a { flex: none; }
@@ -259,7 +261,7 @@ button.secondary:hover { border-color: var(--accent); }
 .coverage-legend .cov-strong { background: color-mix(in srgb, var(--good) 65%, transparent); }
 .coverage-legend .cov-solid { background: color-mix(in srgb, var(--good) 40%, transparent); }
 .coverage-legend .cov-marginal { background: color-mix(in srgb, var(--warning) 47%, transparent); }
-.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--card); color: var(--text); }
+.leaflet-container .leaflet-popup-content-wrapper, .leaflet-container .leaflet-popup-tip { background: var(--card); color: var(--text); }
 .leaflet-popup-content { font: 13px/1.4 system-ui, sans-serif; margin: 10px 14px; }
 @media (max-width: 600px) { .coverage-map { height: 340px; } }
 
@@ -370,17 +372,28 @@ button.secondary:disabled:hover { border-color: var(--border); }
 .leaflet-container .path-line.s-fail { stroke: var(--critical); stroke-dasharray: none; }
 .leaflet-container { font: inherit; }
 /* Map controls in the app's colours (zoom, recenter, layers, attribution). */
-.leaflet-bar a, .leaflet-bar a:hover {
-  background: var(--card); color: var(--text); border-bottom-color: var(--border);
+/* The .leaflet-container prefix: Leaflet's stylesheet loads after this one, so
+   these would lose at equal specificity. */
+main .leaflet-container { background: var(--card-2); }
+.leaflet-container .leaflet-bar a, .leaflet-container .leaflet-bar a:hover {
+  background-color: var(--card); color: var(--text); border-bottom-color: var(--border);
 }
-.leaflet-bar a:hover { background: var(--card-2); }
+.leaflet-container .leaflet-bar a:hover { background-color: var(--card-2); }
+.leaflet-container .leaflet-bar a.leaflet-disabled { background-color: var(--card-2); color: var(--muted); }
 .leaflet-bar { border: 1px solid var(--border) !important; box-shadow: 0 1px 4px rgb(0 0 0 / .25) !important; }
 /* Dark base map: invert OpenStreetMap, then turn the hues back so water stays
    blue and parks green, and soften it to sit with the dark theme. */
 .leaflet-layer.map-dark { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.88) saturate(0.55); }
 .recenter-control a { display: grid; place-items: center; }
 .recenter-control svg { width: 18px; height: 18px; }
-.leaflet-control-layers {
+/* Leaflet's layers icon is a dark PNG, unreadable on a dark card: draw it in the
+   text colour instead. */
+.leaflet-container .leaflet-control-layers-toggle { background-image: none; display: grid; place-items: center; }
+.leaflet-container .leaflet-control-layers-toggle::before {
+  content: ""; width: 22px; height: 22px; background: var(--text);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 1.5 8 12 14l10.5-6zM4.8 11.9 1.5 13.8 12 19.8l10.5-6-3.3-1.9L12 16z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.leaflet-container .leaflet-control-layers {
   background: var(--card); color: var(--text);
   border: 1px solid var(--border) !important; border-radius: 8px !important;
   box-shadow: 0 1px 4px rgb(0 0 0 / .25) !important;
@@ -462,14 +475,19 @@ button.secondary:disabled:hover { border-color: var(--border); }
 }
 
 /* ------------------------------------------------------------ plans, chart */
-.plan-bar { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--grid-line); }
-.plan-bar summary { cursor: pointer; color: var(--text-2); font-size: 13px; min-height: 28px; }
-.plan-bar[open] summary { margin-bottom: 8px; }
-@media (pointer: coarse), (max-width: 900px) { .plan-bar summary { min-height: 44px; display: flex; align-items: center; } }
+.plan-bar { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grid-line); }
+.plan-bar .fields:has(> :not([hidden])) { margin-top: 12px; }
 .plan-bar .input-unit select { flex: 1; min-width: 0; border-radius: 7px 0 0 7px; border-left: 1px solid var(--border); background: var(--card); }
-.plan-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.plan-actions .note { margin: 0; flex-basis: 100%; }
-.plan-actions .note:empty { display: none; }
+.plan-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.plan-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 6px 8px;
+  font-weight: 600; color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent);
+}
+.plan-btn:hover { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.plan-btn svg { flex: none; width: 18px; height: 18px; color: var(--accent); }
+.plan-status { margin: 10px 0 0; }
+.plan-status:empty { display: none; }
 .terrain-actions { gap: 8px; }
 .add-node { flex-wrap: wrap; }
 .profile-chart svg { touch-action: pan-y; cursor: crosshair; }

@@ -41,8 +41,8 @@ These belong with their own projects, though it helps to hear if one affects
 the toolkit:
 
 - GitHub Pages, which hosts the site
-- OpenStreetMap's tile servers and AWS Open Data Terrain Tiles, which supply
-  the map and elevation tiles
+- OpenStreetMap's tile servers, USGS The National Map, EOX and AWS Open Data
+  Terrain Tiles, which supply the map, satellite and elevation tiles
 - The libraries the app is built with, such as Leaflet and mgrs
 - Your browser, or anything that needs someone who already controls your device
 
@@ -60,8 +60,10 @@ paths, mesh plans, locations and preferences are kept in your browser's local
 storage for this site. They're never uploaded. Clearing the site's data in your
 browser removes them. Your location is read from GPS only when you press **Me**.
 
-**What other services see.** Maps load tiles from `tile.openstreetmap.org`, and
-the terrain features load elevation tiles from AWS (`s3.amazonaws.com`, the
+**What other services see.** Maps load tiles from `tile.openstreetmap.org`. The
+Satellite layer, only when you choose it, loads tiles from
+`tiles.maps.eox.at` and `basemap.nationalmap.gov`. The terrain features load
+elevation tiles from AWS (`s3.amazonaws.com`, the
 Terrain Tiles dataset). As with any web map, those servers see your IP address
 and which tiles your browser asks for, which reveals the area you're looking
 at. No coordinates, names or settings are sent with those requests.
@@ -71,8 +73,8 @@ and locations in the link itself, in the part after the `#`, which browsers don'
 send to the web server. Anyone you send a link to can read those locations, and
 the same goes for exported KML and KMZ files. Nothing is shared unless you do it.
 
-**Offline copies.** The service worker keeps the app's files, map tiles and
-elevation tiles you've viewed, so the toolkit works without a connection. They
+**Offline copies.** The service worker keeps the app's files, and the map,
+satellite and elevation tiles you've viewed, so the toolkit works without a connection. They
 live in your browser's cache and are removed with the site's data.
 
 **Code.** Libraries are installed from npm at exact versions recorded in

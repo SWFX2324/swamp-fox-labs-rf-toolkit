@@ -7,6 +7,13 @@
     <meta name="theme-color" content="#111110" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <title>RF Toolkit</title>
+    <script>
+      // Apply a saved theme before the first paint, so it doesn't flash.
+      try {
+        const theme = localStorage.getItem("rf-toolkit:theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+      } catch {}
+    </script>
   </head>
   <body>
     <header class="topbar">
@@ -15,9 +22,12 @@
         <h1>RF Toolkit</h1>
       </div>
       <nav class="tabs" id="tabs" aria-label="Calculators"></nav>
-      <div class="seg coord-toggle" id="coordToggle" role="group" aria-label="Coordinate format">
-        <button type="button" data-format="latlon">Lat/Lon</button>
-        <button type="button" data-format="mgrs">MGRS</button>
+      <div class="top-actions">
+        <div class="seg" id="coordToggle" role="group" aria-label="Coordinate format">
+          <button type="button" data-format="latlon">Lat/Lon</button>
+          <button type="button" data-format="mgrs">MGRS</button>
+        </div>
+        <button type="button" class="secondary theme-toggle" id="themeToggle"></button>
       </div>
     </header>
     <main id="app"></main>

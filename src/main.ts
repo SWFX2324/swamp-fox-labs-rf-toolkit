@@ -51,5 +51,38 @@ coordToggle.addEventListener("click", (e) => {
 });
 markFormat();
 
+// Light or dark. Follows the device until the user picks one.
+const THEME_KEY = "rf-toolkit:theme";
+const themeToggle = document.querySelector<HTMLButtonElement>("#themeToggle")!;
+const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
+const SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1"/></svg>';
+const isDark = () => {
+  const picked = document.documentElement.dataset.theme;
+  return picked ? picked === "dark" : deviceTheme.matches;
+};
+const markTheme = () => {
+  const dark = isDark();
+  // The icon shows the theme a press switches to.
+  themeToggle.innerHTML = dark ? SUN : MOON;
+  const label = dark ? "Switch to light mode" : "Switch to dark mode";
+  themeToggle.title = label;
+  themeToggle.setAttribute("aria-label", label);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#111110" : "#f4f4f2");
+  window.dispatchEvent(new Event("rf-toolkit:theme"));
+};
+themeToggle.addEventListener("click", () => {
+  const next = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch {
+    // Storage blocked: the choice lasts until the page reloads.
+  }
+  markTheme();
+});
+deviceTheme.addEventListener("change", markTheme);
+markTheme();
+
 window.addEventListener("hashchange", show);
 show();

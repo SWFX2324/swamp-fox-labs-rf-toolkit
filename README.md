@@ -46,3 +46,4 @@ The formulas live in `src/lib` as plain functions with no UI code, each with tes
 - Magnetic declination: [World Magnetic Model WMM2025](https://www.ncei.noaa.gov/products/world-magnetic-model) by NOAA NCEI and the British Geological Survey, a U.S. Government work not subject to copyright. The implementation is tested against NOAA's 100 official WMM2025 test values.
 - MGRS conversion: [mgrs](https://github.com/proj4js/mgrs) by the proj4js project (MIT).
 - Map tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, drawn with [Leaflet](https://leafletjs.com/).
+- Satellite layer: [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map) imagery in the US (public domain), and worldwide [EOxCloudless](https://cloudless.eox.at) by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2024), used under its non-commercial CC BY-NC-SA 4.0 license.

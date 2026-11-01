@@ -102,7 +102,7 @@ const template = `
         <span class="key"><span class="sw cov-solid"></span>Solid (meets fade margin)</span>
         <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
       </div>
-      <p class="note">Before mapping, tap the map to place the site. After, tap anywhere to read the margin there.</p>
+      <p class="note">Tap the map to place the site, then drag the TX pin to move it. Once mapped, tap anywhere to read the margin there.</p>
     </section>
 
     <section class="card">
@@ -231,6 +231,7 @@ export const coverageCalculator: Calculator = {
     let margins: Float32Array[] | undefined;
     let running: AbortController | undefined;
     let lastOverlay: { url: string; bounds: OverlayBounds } | undefined;
+    let runWhenReady = false;
 
     const sampleKey = () => `${field("site").value}|${radiusM()}|${field("detail").value}`;
 
@@ -439,11 +440,28 @@ export const coverageCalculator: Calculator = {
             : "";
           return;
         }
+        // Only an empty site is placed by tapping: a stray tap while panning
+        // shouldn't silently move a site someone chose or was sent.
+        if (site()) {
+          setStatus("Drag the TX pin to move the site.");
+          return;
+        }
         field("site").value = formatCoordinates(q);
+        setStatus("");
         inputsChanged();
       });
       placeSite(!!p);
+      if (runWhenReady) {
+        runWhenReady = false;
+        void run();
+      }
     };
+    // The shading uses theme colours, so redraw it when the theme changes.
+    const onTheme = () => {
+      if (form.isConnected) drawOverlay();
+      else window.removeEventListener("rf-toolkit:theme", onTheme);
+    };
+    window.addEventListener("rf-toolkit:theme", onTheme);
     const waitForPage = () => (form.isConnected ? initMap() : setTimeout(waitForPage, 50));
     setTimeout(waitForPage, 0);
 
@@ -506,9 +524,17 @@ export const coverageCalculator: Calculator = {
         },
         applyPlan: (plan) => {
           applySettings(form, plan.settings);
+          // Show the location in this reader's coordinate format.
+          const planned = site();
+          if (planned) field("site").value = formatCoordinates(planned);
           syncHeightUnit();
           inputsChanged();
           placeSite(true);
+          // A plan carries settings, not the finished map, so draw it now. A
+          // shared link opens before the map exists; initMap picks that up.
+          if (!planned) return;
+          if (map) void run();
+          else runWhenReady = true;
         },
         exportLabel: "Export KMZ",
         onExport: (name) => {

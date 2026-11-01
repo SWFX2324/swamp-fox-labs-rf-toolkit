@@ -42,6 +42,13 @@ export function applySettings(form: HTMLFormElement, settings: Record<string, st
   }
 }
 
+const icon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const ICONS = {
+  save: icon('<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>'),
+  share: icon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/>'),
+  export: icon('<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>'),
+};
+
 export interface PlanBarOptions {
   toolId: string;
   settingNames: string[];
@@ -54,28 +61,28 @@ export interface PlanBarOptions {
 
 export function createPlanBar(o: PlanBarOptions): HTMLElement {
   const store = createPlanStore(storage, o.toolId, o.settingNames);
-  const bar = document.createElement("details");
+  const bar = document.createElement("div");
   bar.className = "plan-bar";
   bar.innerHTML = `
-    <summary>Save, share or export</summary>
+    <div class="plan-actions">
+      <button type="button" class="plan-btn" data-p="save">${ICONS.save}Save</button>
+      <button type="button" class="plan-btn" data-p="share">${ICONS.share}Share</button>
+      <button type="button" class="plan-btn" data-p="export">${ICONS.export}${o.exportLabel}</button>
+    </div>
+    <p class="note plan-status" data-p="status" role="status"></p>
     <div class="fields">
-      <label>Saved plans
+      <label data-p="nameRow" hidden>Plan name
+        <span class="input-unit">
+          <input data-p="name" type="text" autocomplete="off" placeholder="Plan name" />
+          <button type="button" class="secondary unit-btn" data-p="saveName">Save plan</button>
+        </span>
+      </label>
+      <label data-p="listRow" hidden>Saved plans
         <span class="input-unit">
           <select data-p="list"></select>
           <button type="button" class="secondary unit-btn" data-p="delete">Delete</button>
         </span>
       </label>
-      <label>Save this plan as
-        <span class="input-unit">
-          <input data-p="name" type="text" autocomplete="off" placeholder="Plan name" />
-          <button type="button" class="secondary unit-btn" data-p="save">Save</button>
-        </span>
-      </label>
-    </div>
-    <div class="plan-actions">
-      <button type="button" class="secondary" data-p="share">Share link</button>
-      <button type="button" class="secondary" data-p="export">${o.exportLabel}</button>
-      <span class="note" data-p="status"></span>
     </div>`;
   const el = <T extends HTMLElement>(name: string) => bar.querySelector<T>(`[data-p="${name}"]`)!;
   const list = el<HTMLSelectElement>("list");
@@ -93,6 +100,7 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
     // Option() sets names as text, so plan names can't become markup.
     for (const p of plans) list.append(new Option(p.name, p.name, false, p.name === selected));
     el<HTMLButtonElement>("delete").disabled = !selected;
+    el("listRow").hidden = !plans.length;
   };
   refresh();
 
@@ -101,10 +109,11 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
     el<HTMLButtonElement>("delete").disabled = !plan;
     if (!plan) return;
     nameInput.value = plan.name;
+    el("nameRow").hidden = true;
     o.applyPlan(plan);
     status(`Opened "${plan.name}".`);
   });
-  el("save").addEventListener("click", () => {
+  const savePlan = () => {
     const name = nameInput.value.trim();
     if (!name) {
       status("Give the plan a name first.");
@@ -115,8 +124,20 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
       status("This browser wouldn't save it. Storage may be full or blocked.");
       return;
     }
+    el("nameRow").hidden = true;
     refresh(name);
     status(`Saved "${name}".`);
+  };
+  el("save").addEventListener("click", () => {
+    el("nameRow").hidden = false;
+    status("");
+    nameInput.focus();
+  });
+  el("saveName").addEventListener("click", savePlan);
+  nameInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    savePlan();
   });
   el("delete").addEventListener("click", () => {
     const name = list.value;
@@ -151,10 +172,8 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
     history.replaceState(null, "", `#${o.toolId}`);
     if (plan) {
       o.applyPlan(plan);
-      bar.open = true;
       status("Opened a shared plan. Save it to keep it.");
     } else {
-      bar.open = true;
       status("That share link couldn't be read.");
     }
   }

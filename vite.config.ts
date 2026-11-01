@@ -33,6 +33,17 @@ export default defineConfig({
             },
           },
           {
+            // Satellite imagery tiles you've viewed. Fetched with CORS, so only
+            // real images are kept (USGS answers 404 outside the US).
+            urlPattern: /^https:\/\/(tiles\.maps\.eox\.at|basemap\.nationalmap\.gov)\//,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "imagery-tiles",
+              expiration: { maxEntries: 400, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
             // Terrain elevation tiles never change, so keep them until evicted.
             urlPattern: /^https:\/\/s3\.amazonaws\.com\/elevation-tiles-prod\//,
             handler: "CacheFirst",

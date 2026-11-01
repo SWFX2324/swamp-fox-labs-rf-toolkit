@@ -1,5 +1,5 @@
-// Shared Leaflet setup: a Streets or Dark base map (the choice is remembered
-// across every map in the app) and a recenter button that frames whatever
+// Shared Leaflet setup: a Streets, Dark or Satellite base map (the choice is
+// remembered across every map in the app) and a recenter button that frames whatever
 // the page cares about.
 
 import * as L from "leaflet";
@@ -8,11 +8,16 @@ import "leaflet/dist/leaflet.css";
 const LAYER_KEY = "rf-toolkit:map-layer";
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-type LayerName = "Streets" | "Dark";
+const SENTINEL_YEAR = 2024;
+const SENTINEL_ATTRIBUTION = `<a href="https://cloudless.eox.at">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${SENTINEL_YEAR})`;
+const USGS_ATTRIBUTION = '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map">USGS The National Map</a>';
+
+type LayerName = "Streets" | "Dark" | "Satellite";
 
 function readLayer(): LayerName {
   try {
-    return localStorage.getItem(LAYER_KEY) === "Dark" ? "Dark" : "Streets";
+    const saved = localStorage.getItem(LAYER_KEY);
+    return saved === "Dark" || saved === "Satellite" ? saved : "Streets";
   } catch {
     return "Streets";
   }
@@ -40,9 +45,26 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
   // Dark is the same OpenStreetMap tiles recoloured in CSS (see .map-dark),
   // so it needs no API key, no extra provider and shares the offline cache.
   const osm = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-  const layers: Record<LayerName, L.TileLayer> = {
+  const layers: Record<LayerName, L.Layer> = {
     Streets: L.tileLayer(osm, { maxZoom: 19, attribution: OSM_ATTRIBUTION }),
     Dark: L.tileLayer(osm, { maxZoom: 19, attribution: OSM_ATTRIBUTION, className: "map-dark" }),
+    // Sentinel-2 covers the world at about 10 m. USGS aerial imagery sits on top
+    // at about 1 m but only covers the US; elsewhere its tiles 404 and Sentinel
+    // shows through. Both are keyless, and CORS keeps those 404s out of the cache.
+    Satellite: L.layerGroup([
+      L.tileLayer(`https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-${SENTINEL_YEAR}_3857/default/g/{z}/{y}/{x}.jpg`, {
+        maxZoom: 19,
+        maxNativeZoom: 14,
+        crossOrigin: true,
+        attribution: SENTINEL_ATTRIBUTION,
+      }),
+      L.tileLayer("https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        maxNativeZoom: 16,
+        crossOrigin: true,
+        attribution: USGS_ATTRIBUTION,
+      }),
+    ]),
   };
   layers[readLayer()].addTo(map);
   L.control.layers(layers, undefined, { position: "topright" }).addTo(map);
@@ -68,7 +90,16 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
   });
   new Recenter({ position: "topleft" }).addTo(map);
 
-  new ResizeObserver(() => map.invalidateSize()).observe(container);
+  // A page opened out of sight has no width yet, and Leaflet's fit jumps to full
+  // zoom without one. Frame the page again once the map has a real size.
+  const hasSize = () => container.clientWidth > 0 && container.clientHeight > 0;
+  let sized = hasSize();
+  new ResizeObserver(() => {
+    map.invalidateSize();
+    if (sized || !hasSize()) return;
+    sized = true;
+    recenter(map);
+  }).observe(container);
   recenter(map);
   return map;
 }
