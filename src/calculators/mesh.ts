@@ -9,8 +9,8 @@ import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { buildKml, fileName, buildZip } from "../lib/export";
 import { findEnvironment } from "../lib/environment";
-import { applySettings, createPlanBar, downloadFile, pngBytes } from "./planBar";
-import { RADIO_ANCHOR, RADIO_SIZE, radioIconUrl, radioMarkerHtml } from "./radioIcon";
+import { applySettings, createPlanBar, downloadFile } from "./planBar";
+import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { environmentOptions } from "./environmentField";
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, distanceBetweenM, samplePath } from "../lib/geo";
@@ -273,7 +273,7 @@ export const meshCalculator: Calculator = {
       for (const m of markers) m.remove();
       markers = nodes.map((n, idx) => {
         const m = L.marker([n.lat, n.lon], {
-          icon: L.divIcon({ className: "radio-pin", html: radioMarkerHtml(idx + 1), iconSize: RADIO_SIZE, iconAnchor: RADIO_ANCHOR }),
+          icon: radioMarker(idx + 1),
           draggable: true,
           title: n.name,
         }).addTo(map!);
@@ -559,11 +559,11 @@ export const meshCalculator: Calculator = {
                 status: r.link.status,
                 description: `Margin ${fmt(r.link.marginDb)} dB, ${statusText[r.link.status][0]}`,
               })),
-            "radio.png",
+            RADIO_FILE,
           );
           const kmz = buildZip([
             { name: "doc.kml", data: new TextEncoder().encode(kml) },
-            { name: "radio.png", data: pngBytes(radioIconUrl()) },
+            radioIconFile(),
           ]);
           downloadFile(fileName(name, "kmz"), new Uint8Array(kmz), "application/vnd.google-earth.kmz");
           return undefined;

@@ -358,14 +358,6 @@ button:disabled { opacity: .45; cursor: default; }
 button.secondary:disabled:hover { border-color: var(--border); }
 .attribution { color: var(--muted); }
 .attribution a { color: inherit; }
-.pin { background: none; border: none; }
-.pin span {
-  display: grid; place-items: center; width: 30px; height: 30px;
-  border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
-  background: var(--accent); border: 2px solid #fff; box-shadow: 0 2px 6px rgb(0 0 0 / .35);
-  color: #fff; font: 700 10px/1 system-ui, sans-serif;
-}
-.pin b { transform: rotate(45deg); }
 .radio-pin { background: none; border: none; }
 .radio-pin svg { display: block; overflow: visible; filter: drop-shadow(0 2px 3px rgb(0 0 0 / .4)); }
 .leaflet-container .path-line { stroke: var(--accent); stroke-width: 3; stroke-dasharray: 6 6; fill: none; }

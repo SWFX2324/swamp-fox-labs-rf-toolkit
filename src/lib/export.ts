@@ -35,11 +35,11 @@ const lineStyles: Record<ExportLine["status"], string> = {
 };
 
 /**
- * A point style using an icon inside the KMZ, so it shows offline. hotSpotY is
- * the height on the icon that marks the point, from 0 (base) to 1 (top).
+ * A point style using an icon inside the KMZ, so it shows offline. The icon's
+ * centre marks the point, because WinTAK centres icons whatever the file says.
  */
-const iconStyle = (id: string, iconFile: string, scale: number, hotSpotY: number) =>
-  `    <Style id="${id}"><IconStyle><scale>${scale}</scale><Icon><href>${escapeXml(iconFile)}</href></Icon><hotSpot x="0.5" y="${hotSpotY}" xunits="fraction" yunits="fraction"/></IconStyle></Style>`;
+const iconStyle = (iconFile: string) =>
+  `    <Style id="node"><IconStyle><scale>0.9</scale><Icon><href>${escapeXml(iconFile)}</href></Icon><hotSpot x="0.5" y="0.5" xunits="fraction" yunits="fraction"/></IconStyle></Style>`;
 
 const coordinate = (p: LatLon) => `${p.lon.toFixed(6)},${p.lat.toFixed(6)},0`;
 
@@ -54,7 +54,7 @@ function placemark(name: string, description: string | undefined, geometry: stri
 export function buildKml(title: string, points: ExportPoint[], lines: ExportLine[] = [], iconFile?: string): string {
   const styles = Object.entries(lineStyles)
     .map(([id, colour]) => `    <Style id="${id}"><LineStyle><color>${colour}</color><width>${id === "fail" ? 1 : 3}</width></LineStyle></Style>`)
-    .concat(iconFile ? [iconStyle("node", iconFile, 0.9, 0.5)] : [])
+    .concat(iconFile ? [iconStyle(iconFile)] : [])
     .join("\n");
   const body = [
     ...lines.map((l) =>
@@ -92,12 +92,12 @@ export function buildOverlayKml(title: string, imageFile: string, bounds: Overla
         <west>${bounds.west.toFixed(6)}</west>
       </LatLonBox>
     </GroundOverlay>`;
-  const marks = points.map((p) => placemark(p.name, p.description, `<Point><coordinates>${coordinate(p)}</coordinates></Point>`, iconFile ? "site" : undefined));
+  const marks = points.map((p) => placemark(p.name, p.description, `<Point><coordinates>${coordinate(p)}</coordinates></Point>`, iconFile ? "node" : undefined));
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>${escapeXml(title)}</name>
-${[...(iconFile ? [iconStyle("site", iconFile, 1.2, 0)] : []), overlay, ...marks].join("\n")}
+${[...(iconFile ? [iconStyle(iconFile)] : []), overlay, ...marks].join("\n")}
   </Document>
 </kml>
 `;

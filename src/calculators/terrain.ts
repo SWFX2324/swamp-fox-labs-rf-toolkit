@@ -3,8 +3,9 @@
 
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
-import { buildKml } from "../lib/export";
+import { buildKml, buildZip } from "../lib/export";
 import { downloadFile } from "./planBar";
+import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
 import { fetchPathElevations } from "./tileElevation";
 import { createPathStore } from "../lib/pathStore";
@@ -67,7 +68,7 @@ const template = `
   <div class="profile-chart" data-t="chart" hidden></div>
   <table class="ledger geometry" data-t="facts" hidden><tbody></tbody></table>
   <div class="terrain-actions">
-    <button type="button" class="secondary" data-t="export">Export KML</button>
+    <button type="button" class="secondary" data-t="export">Export KMZ</button>
     <button type="button" class="secondary" data-t="clear">Clear pins</button>
   </div>
   <div class="fields saved-paths">
@@ -104,9 +105,6 @@ function savePins(tx?: LatLon, rx?: LatLon): void {
     // Storage blocked: pins just won't be remembered.
   }
 }
-
-const pinIcon = (label: string) =>
-  L.divIcon({ className: "pin", html: `<span><b>${label}</b></span>`, iconSize: [30, 30], iconAnchor: [15, 30] });
 
 const fmt = (value: number, digits: number) =>
   value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
@@ -154,7 +152,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
         return undefined;
       }
       if (marker) return marker.setLatLng([at.lat, at.lon]);
-      const m = L.marker([at.lat, at.lon], { icon: pinIcon(label.toUpperCase()), draggable: true }).addTo(map!);
+      const m = L.marker([at.lat, at.lon], { icon: radioMarker(label.toUpperCase()), draggable: true }).addTo(map!);
       m.on("dragend", () => {
         const p = m.getLatLng();
         if (label === "tx") tx = { lat: p.lat, lon: p.lng };
@@ -389,8 +387,10 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
         { name: "RX", lat: rx.lat, lon: rx.lon },
       ],
       [{ name: "TX to RX", from: tx, to: rx, status }],
+      RADIO_FILE,
     );
-    downloadFile("rf-toolkit-path.kml", kml, "application/vnd.google-earth.kml+xml");
+    const kmz = buildZip([{ name: "doc.kml", data: new TextEncoder().encode(kml) }, radioIconFile()]);
+    downloadFile("rf-toolkit-path.kmz", new Uint8Array(kmz), "application/vnd.google-earth.kmz");
     setStatus("Exported. Import the file in ATAK, WinTAK or Google Earth.");
   });
 

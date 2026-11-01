@@ -103,9 +103,9 @@ describe("KML", () => {
   });
 
   it("styles overlay points with an icon from the KMZ", () => {
-    const kml = buildOverlayKml("Cov", "coverage.png", { north: 1, south: -1, east: 2, west: -2 }, [{ name: "TX site", lat: 1, lon: 2 }], "tx.png");
-    expect(kml).toContain("<href>tx.png</href>");
-    expect(kml).toContain("<styleUrl>#site</styleUrl>");
+    const kml = buildOverlayKml("Cov", "coverage.png", { north: 1, south: -1, east: 2, west: -2 }, [{ name: "TX site", lat: 1, lon: 2 }], "radio.png");
+    expect(kml).toContain("<href>radio.png</href>");
+    expect(kml).toContain("<styleUrl>#node</styleUrl>");
     expect(kml.indexOf("<Style")).toBeLessThan(kml.indexOf("<GroundOverlay>"));
   });
 });

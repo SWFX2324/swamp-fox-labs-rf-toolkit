@@ -5,6 +5,7 @@
 import { enhanceFields } from "./fieldHelp";
 import { satPointingGuide } from "./helpText";
 import * as L from "leaflet";
+import { terminalMarker } from "./terminalIcon";
 import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
@@ -204,7 +205,7 @@ export const satPointingCalculator: Calculator = {
       }
       if (!marker) {
         marker = L.marker([site.lat, site.lon], {
-          icon: L.divIcon({ className: "pin", html: "<span><b>ME</b></span>", iconSize: [30, 30], iconAnchor: [15, 30] }),
+          icon: terminalMarker(),
           draggable: true,
         }).addTo(map);
         marker.on("dragend", () => {
