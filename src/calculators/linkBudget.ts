@@ -136,10 +136,6 @@ const template = `
       <p class="note" data-out="distNote" hidden>
         Distance comes from the map pins in Terrain profile. Clear the pins to type one.
       </p>
-      <p class="note">
-        Free-space loss is the best case with a clear line of sight. Environment
-        estimates what trees, buildings and low antennas add on top of it.
-      </p>
       <div class="tile subtotal">
         <span class="label">Free-space path loss</span>
         <span class="value" data-out="fspl"></span>
@@ -198,10 +194,7 @@ const template = `
         <thead><tr><th>Stage</th><th class="num">Change</th><th class="num">Level</th></tr></thead>
         <tbody data-out="ledger"></tbody>
       </table>
-      <p class="note">
-        Cable loss assumes a well-matched antenna. High SWR adds more. Margin
-        guide: 20 dB+ solid, 10–20 workable, 0–10 marginal.
-      </p>
+      <details class="about"><summary>About this calculation</summary><p>Margin guide: 20 dB or more is solid, 10–20 workable, 0–10 marginal. Free-space loss is the best case with a clear line of sight. Cable loss assumes a well-matched antenna; high SWR adds more.</p></details>
     </section>
   </aside>
 
@@ -230,7 +223,7 @@ function saveState(state: Record<string, string>): void {
 }
 
 const fmt = (value: number, digits = 2) =>
-  value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 const signed = (db: number) => (db === 0 ? fmt(0) : `${db > 0 ? "+" : "−"}${fmt(Math.abs(db))}`);
 const dbm = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dBm</span>`;
 const db = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dB</span>`;
@@ -322,7 +315,8 @@ export const linkBudgetCalculator: Calculator = {
       out("bulge").textContent = height(c.bulgeM);
       out("clearance").textContent = height(c.clearanceM);
       out("fresnel").textContent = height(c.neededM);
-      if (c.clearanceM < c.neededM) {
+      // An Environment already charges for this, so don't suggest adding it again.
+      if (c.clearanceM < c.neededM && field("environment").value === "none") {
         warn.textContent =
           `The beam is only ${height(c.clearanceM)} above smooth ground at the midpoint, ` +
           `short of the ${height(c.neededM)} it needs, so the ground eats into the Fresnel ` +
@@ -362,9 +356,8 @@ export const linkBudgetCalculator: Calculator = {
         rxOtherLossDb: num("rxOther") || 0,
         rxSensitivityDbm: num("rxSens"),
         fadeMarginDb: num("fadeMargin") || 0,
-        // The path runs from the top of the clutter; the clutter loss covers the rest.
-        txHeightM: effectiveHeightM(env, txHeightM),
-        rxHeightM: effectiveHeightM(env, rxHeightM),
+        txHeightM,
+        rxHeightM,
         clutterLossDb: clutterLossDb(env, freqHz, txHeightM) + clutterLossDb(env, freqHz, rxHeightM),
       };
 
@@ -385,8 +378,10 @@ export const linkBudgetCalculator: Calculator = {
 
       const profile = terrain.refresh({
         freqHz: inputs.freqHz,
-        txHeightM: inputs.txHeightM,
-        rxHeightM: inputs.rxHeightM,
+        // The terrain path runs from the top of the clutter; the clutter loss
+        // covers the rest. The horizon above stays on the real antennas.
+        txHeightM: effectiveHeightM(env, txHeightM),
+        rxHeightM: effectiveHeightM(env, rxHeightM),
         distUnit,
         heightUnit: asDistanceUnit(field("txHeightUnit").value),
         applies: !hf && !problem,

@@ -33,6 +33,7 @@ show a problem just as well.
 - The app's code in this repository (`src/`), for example script injection
   through a name you type (mesh nodes, saved paths) or through saved data, or a
   crafted link that makes the toolkit run code or change what you've saved.
+  Share links are untrusted input and are validated when opened.
 - The build and deployment: the Vite and service worker configuration and the
   GitHub Actions workflow that tests and publishes the site.
 
@@ -64,6 +65,11 @@ the terrain features load elevation tiles from AWS (`s3.amazonaws.com`, the
 Terrain Tiles dataset). As with any web map, those servers see your IP address
 and which tiles your browser asks for, which reveals the area you're looking
 at. No coordinates, names or settings are sent with those requests.
+
+**Share links and exports.** Pressing **Share link** puts that plan's settings
+and locations in the link itself, in the part after the `#`, which browsers don't
+send to the web server. Anyone you send a link to can read those locations, and
+the same goes for exported KML and KMZ files. Nothing is shared unless you do it.
 
 **Offline copies.** The service worker keeps the app's files, map tiles and
 elevation tiles you've viewed, so the toolkit works without a connection. They

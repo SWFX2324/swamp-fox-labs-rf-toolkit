@@ -171,7 +171,7 @@ button.secondary:hover { border-color: var(--accent); }
   grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   padding: 8px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--border);
 }
-.mode-note { color: var(--text-2); font-size: 12.5px; }
+.mode-note { color: var(--text-2); font-size: 12.5px; flex-basis: 100%; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 .mode-hidden { display: none !important; }
 
@@ -435,3 +435,43 @@ button.secondary:disabled:hover { border-color: var(--border); }
   main { padding: 12px; }
   .card { padding: 12px; }
 }
+
+/* ------------------------------------------------------------ about, jump, touch */
+.about { margin-top: 12px; color: var(--text-2); font-size: 12.5px; }
+.about summary { cursor: pointer; color: var(--muted); min-height: 24px; }
+.about p { margin: 6px 0 0; }
+.jump-btn { display: none; margin-left: auto; }
+.terrain .card-head button { margin-left: 0; }
+.terrain .card-head h2 { margin-right: auto; }
+.terrain .card-head .pill { margin-left: 0; }
+@media (max-width: 900px) {
+  .jump-btn { display: inline-block; }
+  /* The pinned bar already has Reset on the Link Budget. */
+  .link-budget .results [data-action="reset"] { display: none; }
+}
+/* Comfortable targets for fingers and gloves. */
+@media (pointer: coarse), (max-width: 900px) {
+  .tabs a { min-height: 44px; display: inline-flex; align-items: center; }
+  .seg button, .chip, button.secondary, button[data-action="run"] { min-height: 44px; }
+  .about summary { min-height: 44px; display: flex; align-items: center; }
+  .help-btn { width: 22px; height: 22px; font-size: 13px; }
+  .help-btn::after { inset: -11px; }
+  /* !important: Leaflet's stylesheet loads after this one at equal specificity. */
+  .leaflet-container .leaflet-bar a { width: 44px !important; height: 44px !important; line-height: 44px !important; }
+  .leaflet-container .leaflet-control-layers-toggle { width: 44px !important; height: 44px !important; }
+}
+
+/* ------------------------------------------------------------ plans, chart */
+.plan-bar { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--grid-line); }
+.plan-bar summary { cursor: pointer; color: var(--text-2); font-size: 13px; min-height: 28px; }
+.plan-bar[open] summary { margin-bottom: 8px; }
+@media (pointer: coarse), (max-width: 900px) { .plan-bar summary { min-height: 44px; display: flex; align-items: center; } }
+.plan-bar .input-unit select { flex: 1; min-width: 0; border-radius: 7px 0 0 7px; border-left: 1px solid var(--border); background: var(--card); }
+.plan-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.plan-actions .note { margin: 0; flex-basis: 100%; }
+.plan-actions .note:empty { display: none; }
+.terrain-actions { gap: 8px; }
+.add-node { flex-wrap: wrap; }
+.profile-chart svg { touch-action: pan-y; cursor: crosshair; }
+.profile-chart .crosshair { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-readout { color: var(--text); font-variant-numeric: tabular-nums; }

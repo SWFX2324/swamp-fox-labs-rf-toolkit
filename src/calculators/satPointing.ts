@@ -49,14 +49,9 @@ const template = `
           </span>
         </label>
       </div>
-      <p class="note">
-        Orbital slot as on your access documents. Offset angle is 0 for a
-        prime-focus dish; offset-fed VSAT dishes are often 17–25°, so check the
-        reflector's datasheet.
-      </p>
       <p class="note warn" data-out="status"></p>
       <div class="map sat-map" data-out="map"></div>
-      <p class="note">Tap the map to set your location, or drag the pin. The blue line runs along the true azimuth.</p>
+      <p class="note">Tap the map or drag the pin. The blue line is the true azimuth.</p>
     </section>
   </div>
 
@@ -84,10 +79,8 @@ const template = `
           <li>Sweep azimuth slowly a few degrees either side while watching the beacon or signal meter, then peak elevation.</li>
           <li>Set the feed skew, peak again, and call the satellite controller to fine-tune cross-pol.</li>
         </ol>
-        <p class="note">
-          Compass azimuth uses the NOAA/BGS World Magnetic Model (WMM2025).
-          Keep the compass away from the vehicle, mount and other steel.
-        </p>
+        <p class="note">Keep the compass away from the vehicle, mount and other steel.</p>
+        <details class="about"><summary>About this calculation</summary><p>Compass azimuth uses the NOAA/BGS World Magnetic Model (WMM2025), built in so it works offline.</p></details>
       </div>
     </section>
   </aside>
@@ -111,7 +104,7 @@ function saveState(state: Record<string, string>): void {
 }
 
 const fmt = (v: number, digits = 1) =>
-  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 const angle = (v: number) => `${fmt(v)}°`;
 const signedAngle = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmt(Math.abs(v))}°`;
 

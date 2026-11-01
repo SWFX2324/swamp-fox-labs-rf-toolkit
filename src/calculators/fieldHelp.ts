@@ -109,8 +109,10 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
       <button type="button" data-mode="simple">Simple</button>
       <button type="button" data-mode="advanced">Advanced</button>
     </div>
-    <span class="mode-note"></span>`;
+    ${root.querySelector(".results") ? '<button type="button" class="secondary jump-btn">Results ↓</button>' : ""}
+    <span class="mode-note" hidden></span>`;
   root.prepend(bar);
+  bar.querySelector(".jump-btn")?.addEventListener("click", () => root.querySelector(".results")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   const note = bar.querySelector<HTMLElement>(".mode-note")!;
 
   const changedAdvanced = () =>
@@ -134,9 +136,8 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
       b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
     }
     const changed = mode === "simple" ? changedAdvanced() : [];
-    if (mode === "advanced") {
-      note.textContent = "Showing every setting.";
-    } else if (changed.length) {
+    note.hidden = !changed.length;
+    if (changed.length) {
       note.innerHTML = "";
       note.append(
         `${changed.length} hidden ${changed.length === 1 ? "setting is" : "settings are"} changed from the default and still ${changed.length === 1 ? "applies" : "apply"}: ${changed.join(", ")}. `,
@@ -147,8 +148,6 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
       show.textContent = "Show them";
       show.addEventListener("click", () => setMode("advanced"));
       note.append(show);
-    } else {
-      note.textContent = "Showing the essentials. Advanced shows every setting.";
     }
   };
 

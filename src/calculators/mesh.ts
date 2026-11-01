@@ -7,7 +7,9 @@ import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
+import { buildKml, fileName } from "../lib/export";
 import { findEnvironment } from "../lib/environment";
+import { applySettings, createPlanBar, downloadFile } from "./planBar";
 import { environmentOptions } from "./environmentField";
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, distanceBetweenM, samplePath } from "../lib/geo";
@@ -46,6 +48,7 @@ const settingDefaults: Record<string, string> = {
   sens: "-100",
   fade: "10",
   environment: "none",
+  distUnit: "mi",
   height: "30",
   heightUnit: "ft",
 };
@@ -87,14 +90,14 @@ const template = `
         ${numberField("Cable loss at each node", "cable", "dB", 'min="0"')}
         ${numberField("RX sensitivity", "sens", "dBm")}
         ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
-        <label>Environment
-          <select name="environment">${environmentOptions()}</select>
-        </label>
         <label>Default antenna height
           <span class="input-unit">
             <input name="height" type="number" inputmode="decimal" step="any" min="0" />
             <select name="heightUnit"><option>ft</option><option>m</option></select>
           </span>
+        </label>
+        <label>Show distances in
+          <select name="distUnit"><option>mi</option><option>km</option></select>
         </label>
       </div>
     </section>
@@ -102,10 +105,16 @@ const template = `
     <section class="card">
       <div class="card-head"><h2>Nodes</h2><span class="meta" data-out="nodeCount"></span></div>
       <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it.</p>
+      <div class="fields">
+        <label>Environment
+          <select name="environment">${environmentOptions()}</select>
+        </label>
+      </div>
       <div class="map mesh-map" data-out="map"></div>
       <div class="add-node">
         <input name="addLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <button type="button" class="secondary" data-action="add">Add node</button>
+        <button type="button" class="secondary" data-action="locate" title="Add a node at my location">Me</button>
       </div>
       <p class="note warn" data-out="status"></p>
       <div class="table-wrap">
@@ -114,7 +123,7 @@ const template = `
           <tbody data-out="nodes"></tbody>
         </table>
       </div>
-      <div class="terrain-actions"><button type="button" class="secondary" data-action="clear">Remove all nodes</button></div>
+      <div class="terrain-actions"><button type="button" class="secondary" data-action="clear">Clear nodes</button></div>
     </section>
   </div>
 
@@ -123,7 +132,7 @@ const template = `
       <div class="card-head">
         <h2>Mesh</h2>
         <span class="pill" data-out="pill" hidden></span>
-        <button type="button" class="secondary" data-action="reset">Reset radios</button>
+        <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
       <p class="note" data-out="empty">Add at least two nodes to see the links between them.</p>
       <div data-out="results" hidden>
@@ -139,11 +148,7 @@ const template = `
             <tbody data-out="links"></tbody>
           </table>
         </div>
-        <p class="note">
-          Solid links keep your fade margin; marginal ones connect with less.
-          Terrain loss uses ITU-R P.526 Bullington diffraction on bare-earth
-          elevation (Terrain Tiles, USGS in the US), so trees and buildings aren't counted.
-        </p>
+        <details class="about"><summary>About this calculation</summary><p>Solid links keep your fade margin; marginal ones connect with less. Terrain loss uses ITU-R P.526 Bullington diffraction on bare-earth elevation (Terrain Tiles, USGS in the US), so trees and buildings aren't counted unless you pick an Environment.</p></details>
       </div>
     </section>
   </aside>
@@ -162,7 +167,7 @@ function loadState(): { settings: Record<string, string>; nodes: MeshNode[] } {
 }
 
 const fmt = (v: number, digits = 1) =>
-  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
 export const meshCalculator: Calculator = {
   id: "mesh",
@@ -217,6 +222,7 @@ export const meshCalculator: Calculator = {
     let map: L.Map | undefined;
     let markers: L.Marker[] = [];
     let lines: L.Polyline[] = [];
+    let lastLinks: { a: number; b: number; link: MeshLink; distanceM: number }[] = [];
 
     const heightM = (n: MeshNode) =>
       toMetres(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, asDistanceUnit(field("heightUnit").value));
@@ -316,6 +322,7 @@ export const meshCalculator: Calculator = {
         return { a, b, link, distanceM: distanceBetweenM(nodes[a], nodes[b]), terrainState: elev === undefined ? "pending" : elev === "error" ? "error" : "ok" };
       });
 
+      lastLinks = results;
       const up = results.filter((r) => r.link.status !== "fail");
       const solid = results.filter((r) => r.link.status === "good");
       const groups = connectedGroups(nodes.length, up.map((r) => [r.a, r.b]));
@@ -352,7 +359,7 @@ export const meshCalculator: Calculator = {
       out("hops").textContent = groups.length === 1 ? String(maxHops) : "—";
       out("hopsSub").textContent = groups.length === 1 ? "Between the farthest two nodes" : "The mesh is split";
 
-      const distUnit: DistanceUnit = field("heightUnit").value === "m" ? "km" : "mi";
+      const distUnit: DistanceUnit = asDistanceUnit(field("distUnit").value, "mi");
       const label = (i: number) => `${i + 1}${nodes[i].name ? ` ${nodes[i].name}` : ""}`;
       out("links").innerHTML = [...results]
         .sort((x, y) => y.link.marginDb - x.link.marginDb)
@@ -479,6 +486,22 @@ export const meshCalculator: Calculator = {
       map?.setView([p.lat, p.lon], Math.max(map.getZoom(), 12));
     });
     for (const type of ["input", "change"]) field("addLoc").addEventListener(type, (e) => e.stopPropagation());
+    form.querySelector('[data-action="locate"]')!.addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        setStatus("This browser can't share its location.", true);
+        return;
+      }
+      setStatus("Finding your location…");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const p = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          addNode(p);
+          map?.setView([p.lat, p.lon], Math.max(map.getZoom(), 12));
+        },
+        (err) => setStatus(`Couldn't get your location: ${err.message}`, true),
+        { enableHighAccuracy: true, timeout: 15000 },
+      );
+    });
     form.querySelector('[data-action="clear"]')!.addEventListener("click", () => {
       nodes = [];
       setStatus("");
@@ -505,6 +528,42 @@ export const meshCalculator: Calculator = {
     renderNodes();
     recompute();
     if (nodes.length >= 2) void loadTerrain();
+    const nodeLabel = (i: number) => `${i + 1}${nodes[i].name ? ` ${nodes[i].name}` : ""}`;
+    out("nodes").closest(".card")!.append(
+      createPlanBar({
+        toolId: "mesh",
+        settingNames: Object.keys(settingDefaults),
+        getPlan: () => {
+          const settings: Record<string, string> = {};
+          for (const name of Object.keys(settingDefaults)) settings[name] = field(name).value;
+          return { settings, nodes: nodes.map((n) => ({ ...n })) };
+        },
+        applyPlan: (plan) => {
+          applySettings(form, plan.settings);
+          nodes = (plan.nodes ?? []).map((n) => ({ ...n }));
+          nodesChanged();
+        },
+        exportLabel: "Export KML",
+        onExport: (name) => {
+          if (!nodes.length) return "Add some nodes first.";
+          const kml = buildKml(
+            name,
+            nodes.map((n, i) => ({ name: nodeLabel(i), lat: n.lat, lon: n.lon })),
+            lastLinks
+              .filter((r) => r.a < nodes.length && r.b < nodes.length)
+              .map((r) => ({
+                name: `${nodeLabel(r.a)} to ${nodeLabel(r.b)}`,
+                from: nodes[r.a],
+                to: nodes[r.b],
+                status: r.link.status,
+                description: `Margin ${fmt(r.link.marginDb)} dB, ${statusText[r.link.status][0]}`,
+              })),
+          );
+          downloadFile(fileName(name, "kml"), kml, "application/vnd.google-earth.kml+xml");
+          return undefined;
+        },
+      }),
+    );
     enhanceFields(form, meshGuide, settingDefaults);
     return form;
   },

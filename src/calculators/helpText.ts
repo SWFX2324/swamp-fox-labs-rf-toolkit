@@ -58,11 +58,13 @@ export const linkBudgetGuide: FieldGuide = {
   advanced: [
     "txCable",
     "txCableLen",
+    '[data-show="txCable"]',
     '[data-out="txCableNote"]',
     "txOther",
     "extraLoss",
     "rxCable",
     "rxCableLen",
+    '[data-show="rxCable"]',
     '[data-out="rxCableNote"]',
     "rxOther",
     "fadeMargin",
@@ -80,7 +82,7 @@ export const meshGuide: FieldGuide = {
     environment: shared.environment,
     height: `${shared.height} Each node can override it in the node list.`,
   },
-  advanced: ["cable", "fade"],
+  advanced: ["cable", "fade", "distUnit"],
 };
 
 export const coverageGuide: FieldGuide = {
@@ -141,7 +143,7 @@ export const satPointingGuide: FieldGuide = {
 
 export const satLinkGuide: FieldGuide = {
   help: {
-    site: shared.location,
+    site: `${shared.location} Filled in from Sat Pointing if you've used it.`,
     slot: shared.slot,
     band: "The satellite band. Picking one fills in typical uplink and downlink frequencies and clear-sky losses.",
     upGHz: "Your transmit (uplink) frequency from the access plan.",
@@ -163,7 +165,7 @@ export const satLinkGuide: FieldGuide = {
     modcod:
       "Modulation and coding from the access plan, such as QPSK 3/4. Higher orders carry more data but need a stronger signal.",
     implLoss: "How far a real modem falls short of the ideal. 0.5–1 dB is typical.",
-    upLoss: "Atmosphere and rain loss on the uplink. Add rain fade here to plan for bad weather: heavy rain can take 3–6 dB at Ku.",
+    upLoss: "Atmosphere and rain loss on the uplink. Add rain fade here to plan for bad weather: heavy rain can take 3–6 dB at Ku and 10 dB or more at Ka.",
     downLoss: "Atmosphere and rain loss on the downlink. Rain also raises the noise the dish sees, which is included.",
   },
   advanced: ["upGHz", "downGHz", "efficiency", "txFeed", "pointing", "lnbK", "antK", "rxFeed", "implLoss"],

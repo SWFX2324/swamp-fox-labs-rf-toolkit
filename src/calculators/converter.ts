@@ -162,7 +162,7 @@ export const converterCalculator: Calculator = {
             .join("")}
         </div>
         ${card.outputs ? `<table class="ledger geometry"><tbody data-out="${card.id}-outputs"></tbody></table>` : ""}
-        ${card.note ? `<p class="note">${card.note}</p>` : ""}`;
+        ${card.note ? `<details class="about"><summary>About this</summary><p>${card.note}</p></details>` : ""}`;
       root.append(section);
 
       const input = (f: Field) => section.querySelector<HTMLInputElement>(`input[name="${card.id}-${f.name}"]`)!;
@@ -198,7 +198,7 @@ export const converterCalculator: Calculator = {
 
     const reset = document.createElement("div");
     reset.className = "converter-actions";
-    reset.innerHTML = `<button type="button" class="secondary">Reset all</button>`;
+    reset.innerHTML = `<button type="button" class="secondary">Reset</button>`;
     reset.querySelector("button")!.addEventListener("click", () => {
       for (const key of Object.keys(state)) delete state[key];
       saveState(state);

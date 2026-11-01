@@ -114,11 +114,7 @@ const template = `
         <div class="tile"><span class="label">SWR at the radio</span><span class="value" data-out="swrIn"></span><span class="sub" data-out="swrInSub"></span></div>
         <div class="tile"><span class="label">Velocity factor</span><span class="value" data-out="vf"></span><span class="sub" data-out="vfSub"></span></div>
       </div>
-      <p class="note">
-        Matched loss uses Times Microwave k1/k2 coefficients for LMR cable and
-        typical values for RG types. High SWR adds loss because reflected power
-        crosses the line twice (ARRL Antenna Book formula).
-      </p>
+      <details class="about"><summary>About this calculation</summary><p>Matched loss uses Times Microwave k1/k2 coefficients for LMR cable and typical values for RG types. High SWR adds loss because reflected power crosses the line twice (ARRL Antenna Book formula).</p></details>
     </section>
   </aside>
 `;
@@ -141,7 +137,7 @@ function saveState(state: Record<string, string>): void {
 }
 
 const fmt = (v: number, digits = 2) =>
-  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
 function formatWatts(w: number): string {
   if (w >= 1) return `${fmt(w, w >= 100 ? 0 : 1)} W`;

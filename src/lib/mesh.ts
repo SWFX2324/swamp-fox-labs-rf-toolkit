@@ -67,8 +67,8 @@ export function meshLink(
     rxOtherLossDb: 0,
     rxSensitivityDbm: radio.sensitivityDbm,
     fadeMarginDb: radio.fadeMarginDb,
-    txHeightM: pathA,
-    rxHeightM: pathB,
+    txHeightM: aHeightM,
+    rxHeightM: bHeightM,
   });
   const status: MeshLinkStatus = r.marginDb >= radio.fadeMarginDb ? "good" : r.marginDb >= 0 ? "marginal" : "fail";
   return { fsplDb: r.fsplDb, terrainLossDb, clutterLossDb: clutter, rslDbm: r.rslDbm, marginDb: r.marginDb, status, profile };

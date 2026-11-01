@@ -57,7 +57,6 @@ const template = `
           <input name="slot" type="text" placeholder="101W or 28.2E" autocomplete="off" />
         </label>
       </div>
-      <p class="note">Filled in from Sat Pointing if you've used it. The distance to the satellite sets the path loss.</p>
     </section>
 
     <section class="card">
@@ -90,11 +89,6 @@ const template = `
         </label>
         ${field("Modem implementation loss", "implLoss", "dB", 'min="0"')}
       </div>
-      <p class="note">
-        Use the downlink EIRP your carrier gets, not the transponder's
-        saturated figure from the footprint map; the satellite controller can
-        give it to you.
-      </p>
     </section>
 
     <section class="card">
@@ -103,11 +97,6 @@ const template = `
         ${field("Uplink loss", "upLoss", "dB", 'min="0"')}
         ${field("Downlink loss", "downLoss", "dB", 'min="0"')}
       </div>
-      <p class="note">
-        Defaults are clear sky for the band. Add rain fade to plan for bad
-        weather: heavy rain can take 3–6 dB at Ku and 10 dB or more at Ka.
-        Downlink rain also raises the noise the dish sees, which is included.
-      </p>
     </section>
   </div>
 
@@ -135,11 +124,7 @@ const template = `
           <tbody data-out="down"></tbody>
           <tbody data-out="total"></tbody>
         </table>
-        <p class="note">
-          Interference from adjacent satellites and transponder intermodulation
-          aren't included, so real margins run a little lower. Required Es/N0 is
-          the ETSI DVB-S2 ideal plus the implementation loss.
-        </p>
+        <details class="about"><summary>About this calculation</summary><p>Interference from adjacent satellites and transponder intermodulation aren't included, so real margins run a little lower. Required Es/N0 is the ETSI DVB-S2 ideal plus the implementation loss.</p></details>
       </div>
     </section>
   </aside>
@@ -174,7 +159,7 @@ function saveState(state: Record<string, string>): void {
 }
 
 const fmt = (v: number, digits = 1) =>
-  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 const sdb = (v: number) => `${v < 0 ? "−" : ""}${fmt(Math.abs(v))}`;
 
 function formatRate(bps: number): string {

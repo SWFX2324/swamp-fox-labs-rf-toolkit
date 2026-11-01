@@ -3,6 +3,8 @@
 
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
+import { buildKml } from "../lib/export";
+import { downloadFile } from "./planBar";
 import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
 import { fetchPathElevations } from "./tileElevation";
 import { createPathStore } from "../lib/pathStore";
@@ -45,11 +47,10 @@ const template = `
   <div class="card-head">
     <h2>Terrain profile</h2>
     <span class="pill" data-t="pill" hidden></span>
+    <button type="button" class="secondary" data-t="toggle" aria-expanded="false">Show</button>
   </div>
-  <p class="note top">
-    Tap the map to drop the TX pin, then the RX pin, or type coordinates. Drag
-    a pin to move it. The path distance then comes from the pins.
-  </p>
+  <div class="terrain-body" data-t="body" hidden>
+  <p class="note top">Tap the map for TX, then RX. Drag a pin to move it.</p>
   <div class="map" data-t="map"></div>
   <div class="fields coords">
     <label>TX location
@@ -66,6 +67,7 @@ const template = `
   <div class="profile-chart" data-t="chart" hidden></div>
   <table class="ledger geometry" data-t="facts" hidden><tbody></tbody></table>
   <div class="terrain-actions">
+    <button type="button" class="secondary" data-t="export">Export KML</button>
     <button type="button" class="secondary" data-t="clear">Clear pins</button>
   </div>
   <div class="fields saved-paths">
@@ -82,13 +84,8 @@ const template = `
       </span>
     </label>
   </div>
-  <p class="note attribution">
-    Terrain loss uses the Bullington method of ITU-R P.526-16, which can read
-    low on paths over several ridges. Elevation: Terrain Tiles (Mapzen, AWS Open
-    Data), bare earth at up to about 30 m; US data courtesy of the U.S.
-    Geological Survey. Saved and recent paths work offline, as do areas you've
-    viewed before.
-  </p>
+  <details class="about"><summary>About this calculation</summary><p>Terrain loss uses the Bullington method of ITU-R P.526-16, which can read low on paths over several ridges. Elevation: Terrain Tiles (Mapzen, AWS Open Data), bare earth at up to about 30 m; US data courtesy of the U.S. Geological Survey. Saved and recent paths work offline, as do areas you've viewed before.</p></details>
+  </div>
 `;
 
 function loadPins(): { tx?: LatLon; rx?: LatLon } {
@@ -112,7 +109,7 @@ const pinIcon = (label: string) =>
   L.divIcon({ className: "pin", html: `<span><b>${label}</b></span>`, iconSize: [30, 30], iconAnchor: [15, 30] });
 
 const fmt = (value: number, digits: number) =>
-  value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
 export function createTerrainCard(onPathChange: () => void): TerrainCard {
   const card = document.createElement("section");
@@ -218,7 +215,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   };
 
   const initMap = () => {
-    if (map || !card.isConnected) return;
+    if (map || !card.isConnected || el("body").hidden) return;
     map = createMap(el("map"), (m) => {
       if (tx && rx) m.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
       else if (tx) m.setView([tx.lat, tx.lon], 11);
@@ -344,6 +341,59 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   });
   listSaved();
 
+  // Tap or drag on the chart to read any point along the path.
+  let lastResult: ProfileResult | undefined;
+  let lastParams: TerrainParams | undefined;
+  const readPoint = (e: PointerEvent) => {
+    const svg = el("chart").querySelector("svg");
+    if (!svg || !lastResult || !lastParams) return;
+    const box = svg.getBoundingClientRect();
+    const width = svg.viewBox.baseVal.width;
+    const left = Number(svg.dataset.left);
+    const right = Number(svg.dataset.right);
+    const x = ((e.clientX - box.left) / box.width) * width;
+    const pts = lastResult.points;
+    const i = Math.round((Math.max(0, Math.min(1, (x - left) / (width - left - right)))) * (pts.length - 1));
+    const q = pts[i];
+    const at = left + (i / (pts.length - 1)) * (width - left - right);
+    const cross = svg.querySelector<SVGLineElement>(".crosshair")!;
+    cross.setAttribute("x1", String(at));
+    cross.setAttribute("x2", String(at));
+    cross.style.display = "";
+    const { distUnit, heightUnit } = lastParams;
+    const h = (m: number) => `${fmt(fromMetres(Math.abs(m), heightUnit), 0)} ${heightUnit}`;
+    const status =
+      i === 0 || i === pts.length - 1
+        ? "at the antenna"
+        : q.clearanceM < 0
+          ? `terrain is ${h(q.clearanceM)} above the line of sight`
+          : `${h(q.clearanceM)} clear, ${fmt(Math.max(0, q.clearanceRatio) * 100, 0)}% of the Fresnel zone`;
+    el("chart").querySelector(".chart-readout")!.textContent =
+      `${fmt(fromMetres(q.distanceM, distUnit), 2)} ${distUnit} from TX: terrain ${h(q.terrainM)}, ${status}`;
+  };
+  el("chart").addEventListener("pointerdown", readPoint);
+  el("chart").addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse" || e.buttons) readPoint(e);
+  });
+
+  el("export").addEventListener("click", () => {
+    if (!tx || !rx) {
+      setStatus("Drop both pins before exporting.", true);
+      return;
+    }
+    const status = lastResult?.status === "blocked" ? "fail" : lastResult?.status === "fresnel" ? "marginal" : "good";
+    const kml = buildKml(
+      "RF Toolkit path",
+      [
+        { name: "TX", lat: tx.lat, lon: tx.lon },
+        { name: "RX", lat: rx.lat, lon: rx.lon },
+      ],
+      [{ name: "TX to RX", from: tx, to: rx, status }],
+    );
+    downloadFile("rf-toolkit-path.kml", kml, "application/vnd.google-earth.kml+xml");
+    setStatus("Exported. Import the file in ATAK, WinTAK or Google Earth.");
+  });
+
   const hfNote = "A line-of-sight terrain profile doesn't apply below 30 MHz.";
   const refresh = (params: TerrainParams): TerrainAnalysis | undefined => {
     const pill = el("pill");
@@ -376,6 +426,8 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     chart.hidden = false;
     // Draw at the real width so the axis text stays its CSS size on phones.
     chart.innerHTML = drawProfile(result, params, chart.clientWidth || 640);
+    lastResult = result;
+    lastParams = params;
 
     const h = (m: number) => `${fmt(fromMetres(m, params.heightUnit), 0)} ${params.heightUnit}`;
     const d = (m: number) => `${fmt(fromMetres(m, params.distUnit), 2)} ${params.distUnit}`;
@@ -396,6 +448,18 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       .join("");
     return { ...result, diffraction };
   };
+
+  // Closed until wanted, so it doesn't push the results down; open if pins exist.
+  const setOpen = (open: boolean) => {
+    el("body").hidden = !open;
+    el("toggle").textContent = open ? "Hide" : "Show";
+    el("toggle").setAttribute("aria-expanded", String(open));
+    if (open) initMap();
+  };
+  el("toggle").addEventListener("click", () => setOpen(el("body").hidden !== false));
+  if (tx || rx) el("body").hidden = false;
+  el("toggle").textContent = el("body").hidden ? "Show" : "Hide";
+  el("toggle").setAttribute("aria-expanded", String(!el("body").hidden));
 
   syncPins();
   if (tx && rx) void loadProfile();
@@ -450,7 +514,7 @@ function drawProfile(r: ProfileResult, p: TerrainParams, width: number): string 
   const xTicks = [0, total / 2, total];
 
   return `
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Terrain profile between TX and RX">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Terrain profile between TX and RX" data-left="${pad.l}" data-right="${pad.r}">
       ${yTicks.map((m) => `<line class="gridline" x1="${pad.l}" x2="${W - pad.r}" y1="${y(m)}" y2="${y(m)}"/><text class="axis" x="${pad.l - 6}" y="${y(m) + 4}" text-anchor="end">${hLabel(m)}</text>`).join("")}
       <path class="zone" d="${zone}"/>
       <path class="zone60" d="${zone60}"/>
@@ -461,7 +525,9 @@ function drawProfile(r: ProfileResult, p: TerrainParams, width: number): string 
       ${xTicks.map((d, i) => `<text class="axis" x="${x(d)}" y="${H - 8}" text-anchor="${["start", "middle", "end"][i]}">${dLabel(d)}${i === 2 ? ` ${p.distUnit}` : ""}</text>`).join("")}
       <text class="end-label" x="${x(0) + 4}" y="${y(first.losM) - 6}">TX</text>
       <text class="end-label" x="${x(total) - 4}" y="${y(last.losM) - 6}" text-anchor="end">RX</text>
+      <line class="crosshair" x1="0" x2="0" y1="${pad.t}" y2="${H - pad.b}" style="display:none"/>
     </svg>
+    <p class="note chart-readout">Tap the chart to read any point.</p>
     <div class="legend">
       <span class="key"><span class="ln los-key"></span>Line of sight</span>
       <span class="key"><span class="sw zone-key"></span>First Fresnel zone</span>

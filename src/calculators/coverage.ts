@@ -11,7 +11,9 @@ import { bearingDeg, distanceBetweenM } from "../lib/geo";
 import { EARTH_RADIUS_M } from "../lib/horizon";
 import { compassPoint } from "../lib/satPointing";
 import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
+import { type OverlayBounds, buildOverlayKml, buildZip, fileName } from "../lib/export";
 import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
+import { applySettings, createPlanBar, downloadFile } from "./planBar";
 import { environmentNote, environmentOptions } from "./environmentField";
 import { loadTiles } from "./tileElevation";
 import {
@@ -83,6 +85,9 @@ const template = `
             <select name="radiusUnit"><option>mi</option><option>km</option></select>
           </span>
         </label>
+        <label>Environment
+          <select name="environment">${environmentOptions()}</select>
+        </label>
         <label>Detail
           <select name="detail">${Object.entries(detailLevels).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select>
         </label>
@@ -128,9 +133,6 @@ const template = `
         ${numberField("RX cable loss", "rxCable", "dB", 'min="0"')}
         ${numberField("RX sensitivity", "sens", "dBm")}
         ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
-        <label>Environment
-          <select name="environment">${environmentOptions()}</select>
-        </label>
       </div>
     </section>
   </div>
@@ -140,7 +142,7 @@ const template = `
       <div class="card-head">
         <h2>Coverage</h2>
         <span class="pill" data-out="pill" hidden></span>
-        <button type="button" class="secondary" data-action="reset">Reset radios</button>
+        <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
       <p class="note" data-out="empty">Place the site, set the radius and press Map coverage.</p>
       <p class="callout" data-out="stale" hidden>The site, radius or detail changed. Press Map coverage to update.</p>
@@ -153,15 +155,7 @@ const template = `
         <p class="note" data-out="envNote" hidden></p>
         <p class="note" data-out="probe"></p>
       </div>
-      <p class="note">
-        Free-space loss plus ITU-R P.526 Bullington diffraction over bare-earth
-        terrain, sampled along radials from the site. Trees and buildings
-        aren't counted, so real coverage in woods or town is smaller.
-      </p>
-      <p class="note attribution">
-        Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of
-        the U.S. Geological Survey. Tiles you've loaded work offline.
-      </p>
+      <details class="about"><summary>About this calculation</summary><p>Free-space loss plus ITU-R P.526 Bullington diffraction over bare-earth terrain, sampled along radials from the site. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. Tiles you've loaded work offline.</p></details>
     </section>
   </aside>
 `;
@@ -176,7 +170,7 @@ function loadState(): Record<string, string> {
 }
 
 const fmt = (v: number, digits = 1) =>
-  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
 /** "#0ca30c" or "rgb(...)" from a CSS custom property, as [r, g, b]. */
 function cssColor(name: string): [number, number, number] {
@@ -236,6 +230,7 @@ export const coverageCalculator: Calculator = {
     let sampledFor = "";
     let margins: Float32Array[] | undefined;
     let running: AbortController | undefined;
+    let lastOverlay: { url: string; bounds: OverlayBounds } | undefined;
 
     const sampleKey = () => `${field("site").value}|${radiusM()}|${field("detail").value}`;
 
@@ -313,7 +308,12 @@ export const coverageCalculator: Calculator = {
         }
       }
       ctx.putImageData(img, 0, 0);
-      overlay = L.imageOverlay(canvas.toDataURL(), [
+      const url = canvas.toDataURL();
+      lastOverlay = {
+        url,
+        bounds: { north: s.site.lat + dLat, south: s.site.lat - dLat, east: s.site.lon + dLon, west: s.site.lon - dLon },
+      };
+      overlay = L.imageOverlay(url, [
         [s.site.lat - dLat, s.site.lon - dLon],
         [s.site.lat + dLat, s.site.lon + dLon],
       ], { interactive: false, className: "coverage-overlay" }).addTo(map);
@@ -495,6 +495,37 @@ export const coverageCalculator: Calculator = {
     syncHeightUnit();
 
     recompute();
+    out("map").closest(".card")!.append(
+      createPlanBar({
+        toolId: "coverage",
+        settingNames: Object.keys(defaults),
+        getPlan: () => {
+          const settings: Record<string, string> = {};
+          for (const name of Object.keys(defaults)) settings[name] = field(name).value;
+          return { settings };
+        },
+        applyPlan: (plan) => {
+          applySettings(form, plan.settings);
+          syncHeightUnit();
+          inputsChanged();
+          placeSite(true);
+        },
+        exportLabel: "Export KMZ",
+        onExport: (name) => {
+          const p = site();
+          if (!p || !samples || sampledFor !== sampleKey() || !lastOverlay) return "Press Map coverage first.";
+          const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, [{ name: "TX site", lat: p.lat, lon: p.lon }]);
+          const png = Uint8Array.from(atob(lastOverlay.url.split(",")[1]), (c) => c.charCodeAt(0));
+          const encoder = new TextEncoder();
+          const kmz = buildZip([
+            { name: "doc.kml", data: encoder.encode(kml) },
+            { name: "coverage.png", data: png },
+          ]);
+          downloadFile(fileName(name, "kmz"), new Uint8Array(kmz), "application/vnd.google-earth.kmz");
+          return undefined;
+        },
+      }),
+    );
     enhanceFields(form, coverageGuide, defaults);
     return form;
   },
