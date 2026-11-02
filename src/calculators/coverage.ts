@@ -73,6 +73,37 @@ function numberField(label: string, name: string, unit: string, attrs = ""): str
 const template = `
   <div class="inputs">
     <section class="card">
+      <div class="card-head"><h2>Radios</h2><span class="meta">Changes recalculate instantly</span></div>
+      <div class="fields">
+        <label>Frequency
+          <span class="input-unit">
+            <input name="freq" type="number" inputmode="decimal" step="any" min="0" />
+            <select name="freqUnit">${Object.keys(frequencyUnits).map((u) => `<option>${u}</option>`).join("")}</select>
+          </span>
+        </label>
+        <label>TX power
+          <span class="input-unit">
+            <input name="power" type="number" inputmode="decimal" step="any" />
+            <select name="powerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
+          </span>
+        </label>
+        ${numberField("TX antenna gain", "txGain", "dBi")}
+        ${numberField("TX cable loss", "txCable", "dB", 'min="0"')}
+        <label>TX antenna height
+          <span class="input-unit">
+            <input name="txHeight" type="number" inputmode="decimal" step="any" min="0" />
+            <select name="heightUnit"><option>ft</option><option>m</option></select>
+          </span>
+        </label>
+        ${numberField("RX antenna height", "rxHeight", "", 'min="0" title="About 5 ft for a handheld, 8 ft on a vehicle"')}
+        ${numberField("RX antenna gain", "rxGain", "dBi")}
+        ${numberField("RX cable loss", "rxCable", "dB", 'min="0"')}
+        ${numberField("RX sensitivity", "sens", "dBm")}
+        ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
+      </div>
+    </section>
+
+    <section class="card">
       <div class="card-head"><h2>Site</h2><span class="meta">Transmitter or repeater</span></div>
       <div class="fields">
         <label>Location
@@ -105,37 +136,6 @@ const template = `
         <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
       </div>
       <p class="note">Tap the map to place the site, then drag the TX pin to move it. Once mapped, tap anywhere to read the margin there.</p>
-    </section>
-
-    <section class="card">
-      <div class="card-head"><h2>Radios</h2><span class="meta">Changes recalculate instantly</span></div>
-      <div class="fields">
-        <label>Frequency
-          <span class="input-unit">
-            <input name="freq" type="number" inputmode="decimal" step="any" min="0" />
-            <select name="freqUnit">${Object.keys(frequencyUnits).map((u) => `<option>${u}</option>`).join("")}</select>
-          </span>
-        </label>
-        <label>TX power
-          <span class="input-unit">
-            <input name="power" type="number" inputmode="decimal" step="any" />
-            <select name="powerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
-          </span>
-        </label>
-        ${numberField("TX antenna gain", "txGain", "dBi")}
-        ${numberField("TX cable loss", "txCable", "dB", 'min="0"')}
-        <label>TX antenna height
-          <span class="input-unit">
-            <input name="txHeight" type="number" inputmode="decimal" step="any" min="0" />
-            <select name="heightUnit"><option>ft</option><option>m</option></select>
-          </span>
-        </label>
-        ${numberField("RX antenna height", "rxHeight", "", 'min="0" title="About 5 ft for a handheld, 8 ft on a vehicle"')}
-        ${numberField("RX antenna gain", "rxGain", "dBi")}
-        ${numberField("RX cable loss", "rxCable", "dB", 'min="0"')}
-        ${numberField("RX sensitivity", "sens", "dBm")}
-        ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
-      </div>
     </section>
   </div>
 

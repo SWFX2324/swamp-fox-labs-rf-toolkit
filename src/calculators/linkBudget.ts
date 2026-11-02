@@ -123,6 +123,18 @@ const template = `
       </div>
     </section>
 
+    <section class="card">
+      <div class="card-head"><h2>Receiver</h2><span class="meta">Sets the margin</span></div>
+      <div class="fields">
+        ${numberField("Antenna gain", "rxGain", "dBi")}
+        ${unitField("Antenna height", "rxHeight", ["ft", "m"], "rxHeightUnit")}
+        ${cableFields("rx")}
+        ${numberField("Other losses", "rxOther", "dB", 'min="0"')}
+        ${numberField("Sensitivity", "rxSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
+        ${numberField("Fade margin wanted", "fadeMargin", "dB", 'min="0" title="Used for the max range"')}
+      </div>
+    </section>
+
     <section class="card" data-card="path">
       <div class="card-head"><h2>Path</h2><span class="meta">Line of sight</span></div>
       <div class="fields">
@@ -151,18 +163,6 @@ const template = `
       </table>
       <p class="callout" data-out="geoWarn" hidden></p>
       <p class="callout" data-out="hfPath" hidden>${hfWarning}</p>
-    </section>
-
-    <section class="card">
-      <div class="card-head"><h2>Receiver</h2><span class="meta">Sets the margin</span></div>
-      <div class="fields">
-        ${numberField("Antenna gain", "rxGain", "dBi")}
-        ${unitField("Antenna height", "rxHeight", ["ft", "m"], "rxHeightUnit")}
-        ${cableFields("rx")}
-        ${numberField("Other losses", "rxOther", "dB", 'min="0"')}
-        ${numberField("Sensitivity", "rxSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
-        ${numberField("Fade margin wanted", "fadeMargin", "dB", 'min="0" title="Used for the max range"')}
-      </div>
     </section>
   </div>
 
