@@ -107,6 +107,7 @@ const template = `
         <span class="pill" data-out="pill" hidden></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
+      <p class="note" data-out="prompt"></p>
       <p class="error" data-out="error" hidden></p>
       <div data-out="results">
         <div class="tiles">
@@ -219,18 +220,23 @@ export const satLinkCalculator: Calculator = {
         txPowerW: num("power"),
         symbolRate: num("symbolRate") * 1e6,
       };
-      const problem =
+      // Something still to fill in is a prompt. Only a value that can't work is an error.
+      const invalid =
+        look && look.elevation <= 0 ? `${formatOrbitalSlot(slot!)} is below your horizon.`
+        : !(v.efficiency > 0 && v.efficiency <= 1) ? "Dish efficiency is between 1 and 100%."
+        : "";
+      const missing =
         !look ? "Enter your location and the orbital slot."
-        : look.elevation <= 0 ? `${formatOrbitalSlot(slot!)} is below your horizon.`
         : !(v.uplinkHz > 0 && v.downlinkHz > 0) ? "Enter the uplink and downlink frequencies."
         : !(v.dishM > 0) ? "Enter the dish diameter."
-        : !(v.efficiency > 0 && v.efficiency <= 1) ? "Dish efficiency is between 1 and 100%."
         : !(v.txPowerW > 0) ? "Enter the BUC power."
         : !(v.symbolRate > 0) ? "Enter the symbol rate."
         : !Number.isFinite(num("satGt")) || !Number.isFinite(num("satEirp")) ? "Enter the satellite's G/T and your carrier's downlink EIRP."
         : "";
-      out("error").hidden = !problem;
-      out("error").textContent = problem;
+      const problem = invalid || missing;
+      out("error").hidden = !invalid;
+      out("error").textContent = invalid;
+      out("prompt").textContent = invalid ? "" : missing;
       out("results").hidden = !!problem;
       out("pill").hidden = !!problem;
       if (problem || !look) return;

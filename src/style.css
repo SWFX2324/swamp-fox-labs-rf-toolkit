@@ -173,6 +173,7 @@ button.secondary:hover { border-color: var(--accent); }
   grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   padding: 8px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--border);
 }
+.mode-bar [data-action="reset"] { margin-left: auto; }
 .mode-note { color: var(--text-2); font-size: 12.5px; flex-basis: 100%; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 .mode-hidden { display: none !important; }
@@ -295,7 +296,6 @@ button.secondary:hover { border-color: var(--accent); }
 /* ------------------------------------------------------------ converter */
 .converter { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); align-items: start; }
 .converter .fields { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-.converter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
 input.invalid { border-color: var(--critical); }
 @media (max-width: 400px) { .converter { grid-template-columns: minmax(0, 1fr); } }
 
@@ -466,8 +466,7 @@ main .leaflet-container { background: var(--card-2); }
 .terrain .card-head .pill { margin-left: 0; }
 @media (max-width: 900px) {
   .jump-btn { display: inline-block; }
-  /* The pinned bar already has Reset on the Link Budget. */
-  .link-budget .results [data-action="reset"] { display: none; }
+  .jump-btn + [data-action="reset"] { margin-left: 0; }
 }
 /* Comfortable targets for fingers and gloves. */
 @media (pointer: coarse), (max-width: 900px) {

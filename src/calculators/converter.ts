@@ -196,10 +196,12 @@ export const converterCalculator: Calculator = {
       refill(state[card.id] ?? card.initial);
     }
 
-    const reset = document.createElement("div");
-    reset.className = "converter-actions";
-    reset.innerHTML = `<button type="button" class="secondary">Reset</button>`;
-    reset.querySelector("button")!.addEventListener("click", () => {
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "secondary";
+    reset.dataset.action = "reset";
+    reset.textContent = "Reset";
+    reset.addEventListener("click", () => {
       for (const key of Object.keys(state)) delete state[key];
       saveState(state);
       root.replaceWith(converterCalculator.render());

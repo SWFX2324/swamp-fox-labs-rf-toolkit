@@ -5,6 +5,8 @@
 // - Fields listed in guide.advanced are hidden in Simple mode. They keep
 //   their values, so results don't change; if any differ from the page's
 //   defaults, the mode bar says so and offers to show them.
+// - The page's Reset button moves to the right of the mode bar, so it's in the
+//   same place on every tool.
 // The mode is one setting for the whole app.
 
 export interface FieldGuide {
@@ -95,7 +97,8 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
 
   // Simple/Advanced.
   const keys = guide.advanced ?? [];
-  if (!keys.length) return;
+  const reset = root.querySelector<HTMLElement>('[data-action="reset"]');
+  if (!keys.length && !reset) return;
   const hideable = keys.flatMap((key) =>
     isSelector(key)
       ? [...root.querySelectorAll<HTMLElement>(key)]
@@ -105,15 +108,16 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
   const bar = document.createElement("div");
   bar.className = "mode-bar";
   bar.innerHTML = `
-    <div class="seg" role="group" aria-label="Fields to show">
+    ${keys.length ? `<div class="seg" role="group" aria-label="Fields to show">
       <button type="button" data-mode="simple">Simple</button>
       <button type="button" data-mode="advanced">Advanced</button>
-    </div>
+    </div>` : ""}
     ${root.querySelector(".results") ? '<button type="button" class="secondary jump-btn">Results ↓</button>' : ""}
     <span class="mode-note" hidden></span>`;
   root.prepend(bar);
   bar.querySelector(".jump-btn")?.addEventListener("click", () => root.querySelector(".results")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   const note = bar.querySelector<HTMLElement>(".mode-note")!;
+  if (reset) note.before(reset);
 
   const changedAdvanced = () =>
     keys

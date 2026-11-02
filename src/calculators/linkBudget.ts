@@ -201,7 +201,6 @@ const template = `
   <div class="summary-bar">
     <span aria-hidden="true"><span class="k">RX</span> <b data-out="barRsl"></b></span>
     <span aria-hidden="true"><span class="k">Margin</span> <b data-out="barMargin"></b></span>
-    <button type="button" class="secondary" data-action="reset">Reset</button>
   </div>
 `;
 
@@ -473,13 +472,11 @@ export const linkBudgetCalculator: Calculator = {
 
     form.addEventListener("input", update);
     form.addEventListener("change", update);
-    for (const button of form.querySelectorAll<HTMLButtonElement>('[data-action="reset"]')) {
-      button.addEventListener("click", () => {
-        fill(defaults);
-        terrain.reset();
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
-    }
+    form.querySelector('[data-action="reset"]')!.addEventListener("click", () => {
+      fill(defaults);
+      terrain.reset();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
     update();
     enhanceFields(form, linkBudgetGuide, defaults);
     return form;
