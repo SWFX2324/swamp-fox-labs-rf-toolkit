@@ -146,6 +146,7 @@ export const converterCalculator: Calculator = {
     for (const card of cards) {
       const section = document.createElement("section");
       section.className = "card";
+      section.dataset.card = card.id;
       section.innerHTML = `
         <div class="card-head"><h2>${card.title}</h2><span class="meta">${card.meta}</span></div>
         <div class="fields">

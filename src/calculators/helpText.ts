@@ -180,4 +180,5 @@ export const converterGuide: FieldGuide = {
     "mismatch-gamma": "Reflection coefficient: the share of voltage reflected, from 0 (none) to 1 (all).",
     "gain-dbd": "Gain compared with a half-wave dipole instead of an ideal isotropic antenna. dBi = dBd + 2.15.",
   },
+  advanced: ["power-dbw", "power-uv", "[data-card=\"power\"] .ledger", "[data-card=\"power\"] .about", "mismatch-gamma", "[data-card=\"gain\"] .ledger", "ratio-vr"],
 };
