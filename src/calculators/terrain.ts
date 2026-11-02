@@ -5,6 +5,7 @@ import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
 import { buildKml, buildZip } from "../lib/export";
 import { downloadFile } from "./planBar";
+import { locateMe } from "./locate";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
 import { fetchPathElevations } from "./tileElevation";
@@ -251,21 +252,12 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   }
 
   el("locate").addEventListener("click", () => {
-    if (!navigator.geolocation) {
-      setStatus("This browser can't share its location.", true);
-      return;
-    }
-    setStatus("Finding your location…");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        tx = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        if (!rx) map?.setView([tx.lat, tx.lon], 12);
-        setStatus("");
-        pinsChanged();
-      },
-      (err) => setStatus(`Couldn't get your location: ${err.message}`, true),
-      { enableHighAccuracy: true, timeout: 15000 },
-    );
+    locateMe(setStatus, (p) => {
+      tx = p;
+      if (!rx) map?.setView([p.lat, p.lon], 12);
+      setStatus("");
+      pinsChanged();
+    });
   });
 
   const reset = () => {

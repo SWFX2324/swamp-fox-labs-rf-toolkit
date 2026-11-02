@@ -3,6 +3,7 @@
 // Magnetic Model and a bearing line on the map.
 
 import { enhanceFields } from "./fieldHelp";
+import { locateMe } from "./locate";
 import { satPointingGuide } from "./helpText";
 import * as L from "leaflet";
 import { terminalMarker } from "./terminalIcon";
@@ -337,20 +338,11 @@ export const satPointingCalculator: Calculator = {
     setTimeout(waitForPage, 0);
 
     form.querySelector('[data-action="locate"]')!.addEventListener("click", () => {
-      if (!navigator.geolocation) {
-        setStatus("This browser can't share its location.");
-        return;
-      }
-      setStatus("Finding your location…");
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          field("site").value = formatCoordinates({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-          setStatus("");
-          update();
-        },
-        (err) => setStatus(`Couldn't get your location: ${err.message}`),
-        { enableHighAccuracy: true, timeout: 15000 },
-      );
+      locateMe(setStatus, (p) => {
+        field("site").value = formatCoordinates(p);
+        setStatus("");
+        update();
+      });
     });
     form.querySelector('[data-action="reset"]')!.addEventListener("click", () => {
       fill(defaults);

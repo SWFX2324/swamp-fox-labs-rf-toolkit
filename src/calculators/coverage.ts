@@ -1,6 +1,7 @@
 // Coverage Map: shade the area one site can reach, over terrain, on the map.
 
 import { enhanceFields } from "./fieldHelp";
+import { locateMe } from "./locate";
 import { coverageGuide } from "./helpText";
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
@@ -468,21 +469,12 @@ export const coverageCalculator: Calculator = {
 
     form.querySelector('[data-action="run"]')!.addEventListener("click", () => void run());
     form.querySelector('[data-action="locate"]')!.addEventListener("click", () => {
-      if (!navigator.geolocation) {
-        setStatus("This browser can't share its location.", true);
-        return;
-      }
-      setStatus("Finding your location…");
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          field("site").value = formatCoordinates({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-          setStatus("");
-          inputsChanged();
-          placeSite(true);
-        },
-        (err) => setStatus(`Couldn't get your location: ${err.message}`, true),
-        { enableHighAccuracy: true, timeout: 15000 },
-      );
+      locateMe(setStatus, (p) => {
+        field("site").value = formatCoordinates(p);
+        setStatus("");
+        inputsChanged();
+        placeSite(true);
+      });
     });
     form.querySelector('[data-action="reset"]')!.addEventListener("click", () => {
       for (const [name, value] of Object.entries(defaults)) {

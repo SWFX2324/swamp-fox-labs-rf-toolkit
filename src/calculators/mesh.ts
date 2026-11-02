@@ -2,6 +2,7 @@
 // real terrain with identical radios, plus whether the mesh holds together.
 
 import { enhanceFields } from "./fieldHelp";
+import { locateMe } from "./locate";
 import { meshGuide } from "./helpText";
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
@@ -488,20 +489,10 @@ export const meshCalculator: Calculator = {
     });
     for (const type of ["input", "change"]) field("addLoc").addEventListener(type, (e) => e.stopPropagation());
     form.querySelector('[data-action="locate"]')!.addEventListener("click", () => {
-      if (!navigator.geolocation) {
-        setStatus("This browser can't share its location.", true);
-        return;
-      }
-      setStatus("Finding your location…");
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const p = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-          addNode(p);
-          map?.setView([p.lat, p.lon], Math.max(map.getZoom(), 12));
-        },
-        (err) => setStatus(`Couldn't get your location: ${err.message}`, true),
-        { enableHighAccuracy: true, timeout: 15000 },
-      );
+      locateMe(setStatus, (p) => {
+        addNode(p);
+        map?.setView([p.lat, p.lon], Math.max(map.getZoom(), 12));
+      });
     });
     form.querySelector('[data-action="clear"]')!.addEventListener("click", () => {
       nodes = [];
