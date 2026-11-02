@@ -1,0 +1,84 @@
+name: Bug report
+description: Something is broken, or a result looks wrong.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public. **Please leave out real locations, and don't paste share links or saved plans that contain them.** Made-up coordinates show a problem just as well.
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Tool
+      options:
+        - Link Budget
+        - Mesh Planner
+        - Coverage Map
+        - Antenna Length
+        - Coax Loss
+        - Sat Pointing
+        - Sat Link
+        - RF Converter
+        - The whole app, or more than one tool
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of problem
+      options:
+        - Something doesn't work
+        - A calculated result looks wrong
+        - Display or layout problem
+        - Offline or install problem
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the exact wording of any message on screen.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: For a wrong result, give the value you expected and where it came from, such as a datasheet, another tool or a field measurement.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the values you entered, and say whether you were in Simple or Advanced mode.
+      placeholder: |
+        1. Open Link Budget in Advanced mode
+        2. Set frequency to 915 MHz and TX power to 1 W
+        3. See...
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: iPhone 15, Chrome / Windows 11, Firefox
+    validations:
+      required: true
+  - type: dropdown
+    id: how-used
+    attributes:
+      label: How were you using it?
+      options:
+        - In a browser tab, online
+        - In a browser tab, offline
+        - Installed as an app, online
+        - Installed as an app, offline
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Optional. Check that they don't show a real location, including on a map.

@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest a change or something new.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public. **Please leave out real locations and details of real operations.**
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Tool
+      options:
+        - Link Budget
+        - Mesh Planner
+        - Coverage Map
+        - Antenna Length
+        - Coax Loss
+        - Sat Pointing
+        - Sat Link
+        - RF Converter
+        - The whole app, or more than one tool
+        - A new tool
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the real task, and what makes it hard with the toolkit today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: Describe the change you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Formula or data source
+      description: Optional. If this needs a formula or outside data, link the standard, datasheet or provider.
