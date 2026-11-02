@@ -36,6 +36,10 @@ npm run build    # type-check and build to dist/
 
 The formulas live in `src/lib` as plain functions with no UI code, each with tests against reference values. Each calculator page lives in `src/calculators`. Pushing to `main` runs the tests and deploys to GitHub Pages.
 
+## Contributing
+
+Bug reports, field results and fixes are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
 [MIT](LICENSE) © Swamp Fox Labs
