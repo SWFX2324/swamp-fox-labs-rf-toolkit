@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/swamp-fox-labs-logo-dark.svg" width="420" alt="Swamp Fox Labs"></p>
+
 # Swamp Fox Labs RF Toolkit
 
 Practical RF calculators for planning radio links in the field: antenna lengths, free-space path loss, coax loss, and more.
