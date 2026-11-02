@@ -81,10 +81,10 @@ const template = `
     <section class="card">
       <div class="card-head"><h2>Satellite and carrier</h2><span class="meta">From your access documents</span></div>
       <div class="fields">
-        ${field("Satellite G/T toward you", "satGt", "dB/K")}
+        ${field("Satellite receive sensitivity (G/T)", "satGt", "dB/K")}
         ${field("Downlink EIRP for your carrier", "satEirp", "dBW")}
         ${field("Symbol rate", "symbolRate", "Msps", 'min="0"')}
-        <label>MODCOD (DVB-S2)
+        <label>Modulation / FEC
           <select name="modcod">${dvbs2Modcods.map((m) => `<option>${m.name}</option>`).join("")}</select>
         </label>
         ${field("Modem implementation loss", "implLoss", "dB", 'min="0"')}

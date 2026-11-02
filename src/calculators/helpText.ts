@@ -158,12 +158,13 @@ export const satLinkGuide: FieldGuide = {
     lnbK: "LNB noise from its datasheet. Noise figure converts to temperature: 0.6 dB is about 42 K, 0.8 dB about 59 K, 1.0 dB about 75 K.",
     antK: "Noise the dish picks up from the sky and ground in clear weather: about 30–50 K at Ku and moderate elevation.",
     rxFeed: "Loss between the feed horn and the LNB. Usually small.",
-    satGt: "How sensitive the satellite's receiver is toward your location, in dB/K, from the footprint maps or access documents.",
+    satGt:
+      "How well the satellite can hear your signal from where you are. Higher is better. G/T compares the antenna's gain (G) with the receiver's noise temperature (T), and it changes with your location. Find it in your access documents or on the satellite's G/T footprint map, or ask the satellite controller.",
     satEirp:
       "The downlink power your carrier gets toward your location, in dBW. Ask the satellite controller; the footprint map shows the whole transponder, which is more.",
     symbolRate: "Your carrier's symbol rate from the access plan, in megasymbols per second.",
     modcod:
-      "Modulation and coding from the access plan, such as QPSK 3/4. Higher orders carry more data but need a stronger signal.",
+      "Modulation and forward error correction (FEC) from the access plan, such as QPSK 3/4. These are the DVB-S2 options, also called MODCODs. Higher orders carry more data but need a stronger signal.",
     implLoss: "How far a real modem falls short of the ideal. 0.5–1 dB is typical.",
     upLoss: "Atmosphere and rain loss on the uplink. Add rain fade here to plan for bad weather: heavy rain can take 3–6 dB at Ku and 10 dB or more at Ka.",
     downLoss: "Atmosphere and rain loss on the downlink. Rain also raises the noise the dish sees, which is included.",
