@@ -58,7 +58,7 @@ and no backend that receives your data.
 **What stays on your device.** Your inputs, saved and recently loaded terrain
 paths, mesh plans, locations and preferences are kept in your browser's local
 storage for this site. They're never uploaded. Clearing the site's data in your
-browser removes them. Your location is read from GPS only when you press **Me**.
+browser removes them. Your location is read from GPS only when you press the crosshair button.
 
 **What other services see.** Maps load tiles from `tile.openstreetmap.org`. The
 Satellite layer, only when you choose it, loads tiles from

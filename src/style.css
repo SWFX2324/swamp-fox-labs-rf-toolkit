@@ -349,6 +349,9 @@ input.invalid { border-color: var(--critical); }
 .terrain .coords { margin-top: 12px; }
 .terrain .note.warn { color: var(--serious); }
 .input-unit .unit-btn { border-radius: 0 7px 7px 0; border-left: none; padding: 0 12px; min-width: 52px; background: var(--card-2); }
+.input-unit .locate-btn { min-width: 44px; }
+.locate-btn { display: inline-grid; place-items: center; }
+.locate-btn svg { width: 18px; height: 18px; }
 .terrain-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
 .saved-paths { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grid-line); }
 .saved-paths .input-unit select {

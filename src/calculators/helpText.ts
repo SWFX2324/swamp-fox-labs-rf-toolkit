@@ -28,7 +28,7 @@ const shared = {
   fade:
     "Extra signal to keep in reserve for weather, foliage, movement and fading. 10 dB is a good start; use 20 dB for links that must not drop.",
   location:
-    "Where this end of the link is. Press Me for GPS, type coordinates (decimal lat/lon or MGRS), or tap the map.",
+    "Where this end of the link is. Press the crosshair for GPS, type coordinates (decimal lat/lon or MGRS), or tap the map.",
   slot:
     "The satellite's orbital position from your access documents, such as 101W or 28.2E. Geostationary satellites sit over the equator at that longitude.",
 };
@@ -143,7 +143,7 @@ export const satPointingGuide: FieldGuide = {
 
 export const satLinkGuide: FieldGuide = {
   help: {
-    site: `${shared.location} Filled in from Sat Pointing if you've used it.`,
+    site: "Where your dish is. Press the crosshair for GPS or type coordinates (decimal lat/lon or MGRS). Filled in from Sat Pointing if you've used it.",
     slot: shared.slot,
     band: "The satellite band. Picking one fills in typical uplink and downlink frequencies and clear-sky losses.",
     upGHz: "Your transmit (uplink) frequency from the access plan.",

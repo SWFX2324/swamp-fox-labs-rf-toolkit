@@ -8,6 +8,7 @@ import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/co
 import { formatOrbitalSlot, lookAngles, parseOrbitalSlot } from "../lib/satPointing";
 import { dvbs2Modcods, satBands, satLinkBudget } from "../lib/satLink";
 import { fromMetres } from "../lib/units";
+import { locateButton, locateMe } from "./locate";
 
 const STORAGE_KEY = "rf-toolkit:sat-link";
 const POINTING_KEY = "rf-toolkit:sat-pointing";
@@ -51,12 +52,16 @@ const template = `
       <div class="card-head"><h2>Site and satellite</h2><span class="meta" data-out="geo"></span></div>
       <div class="fields">
         <label>Your location
-          <input name="site" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+          <span class="input-unit">
+            <input name="site" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+            ${locateButton('data-action="locate"')}
+          </span>
         </label>
         <label>Orbital slot
           <input name="slot" type="text" placeholder="101W or 28.2E" autocomplete="off" />
         </label>
       </div>
+      <p class="note" data-out="status"></p>
     </section>
 
     <section class="card">
@@ -309,6 +314,17 @@ export const satLinkCalculator: Calculator = {
       el("upGHz").value = String(band.uplinkGHz);
       el("downGHz").value = String(band.downlinkGHz);
       el("upLoss").value = el("downLoss").value = String(band.clearSkyLossDb);
+    });
+    const setStatus = (text: string, warn = false) => {
+      out("status").textContent = text;
+      out("status").classList.toggle("warn", warn);
+    };
+    form.querySelector('[data-action="locate"]')!.addEventListener("click", () => {
+      locateMe(setStatus, (p) => {
+        el("site").value = formatCoordinates(p);
+        setStatus("");
+        update();
+      });
     });
     form.querySelector('[data-action="reset"]')!.addEventListener("click", () => {
       const { site, slot } = { site: el("site").value, slot: el("slot").value };

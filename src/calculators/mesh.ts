@@ -2,7 +2,7 @@
 // real terrain with identical radios, plus whether the mesh holds together.
 
 import { enhanceFields } from "./fieldHelp";
-import { locateMe } from "./locate";
+import { locateButton, locateMe } from "./locate";
 import { meshGuide } from "./helpText";
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
@@ -116,7 +116,7 @@ const template = `
       <div class="add-node">
         <input name="addLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <button type="button" class="secondary" data-action="add">Add node</button>
-        <button type="button" class="secondary" data-action="locate" title="Add a node at my location">Me</button>
+        ${locateButton('data-action="locate"', "Add a node at my location", "")}
       </div>
       <p class="note warn" data-out="status"></p>
       <div class="table-wrap">

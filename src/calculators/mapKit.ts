@@ -5,6 +5,7 @@
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
+import { CROSSHAIR_ICON } from "./locate";
 import { addOfflineControl } from "./offlineControl";
 
 const LAYER_KEY = "rf-toolkit:map-layer";
@@ -80,8 +81,7 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
       button.title = "Recenter";
       button.setAttribute("role", "button");
       button.setAttribute("aria-label", "Recenter the map");
-      button.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+      button.innerHTML = CROSSHAIR_ICON;
       L.DomEvent.disableClickPropagation(bar);
       L.DomEvent.on(button, "click", (e) => {
         L.DomEvent.preventDefault(e);

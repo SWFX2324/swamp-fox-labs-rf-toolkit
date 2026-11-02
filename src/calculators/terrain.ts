@@ -5,7 +5,7 @@ import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
 import { buildKml, buildZip } from "../lib/export";
 import { downloadFile } from "./planBar";
-import { locateMe } from "./locate";
+import { locateButton, locateMe } from "./locate";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
 import { fetchPathElevations } from "./tileElevation";
@@ -58,7 +58,7 @@ const template = `
     <label>TX location
       <span class="input-unit">
         <input name="txLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-        <button type="button" class="secondary unit-btn" data-t="locate" title="Use my location">Me</button>
+        ${locateButton('data-t="locate"')}
       </span>
     </label>
     <label>RX location

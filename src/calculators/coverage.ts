@@ -1,7 +1,7 @@
 // Coverage Map: shade the area one site can reach, over terrain, on the map.
 
 import { enhanceFields } from "./fieldHelp";
-import { locateMe } from "./locate";
+import { locateButton, locateMe } from "./locate";
 import { coverageGuide } from "./helpText";
 import * as L from "leaflet";
 import { createMap, showDefaultView } from "./mapKit";
@@ -109,7 +109,7 @@ const template = `
         <label>Location
           <span class="input-unit">
             <input name="site" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-            <button type="button" class="secondary unit-btn" data-action="locate" title="Use my location">Me</button>
+            ${locateButton('data-action="locate"')}
           </span>
         </label>
         <label>Radius
