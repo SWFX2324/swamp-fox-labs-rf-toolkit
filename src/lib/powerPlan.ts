@@ -21,6 +21,50 @@ export interface ItemLoad {
   va: number;
 }
 
+const finite = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+
+/** An item read back from storage: known fields only, of the right types. */
+export function cleanPowerItem(raw: unknown): PowerItem | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  return {
+    name: typeof r.name === "string" ? r.name.slice(0, 80) : "",
+    qty: finite(r.qty) ?? 1,
+    watts: finite(r.watts),
+    volts: finite(r.volts),
+    amps: finite(r.amps),
+    ac: r.ac !== false,
+    powerFactor: finite(r.powerFactor) ?? 1,
+  };
+}
+
+/** Saved equipment: an item's data plate details, without a quantity. */
+export type EquipmentProfile = Omit<PowerItem, "qty">;
+export const MAX_PROFILES = 200;
+
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+export function cleanProfiles(raw: unknown): EquipmentProfile[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, MAX_PROFILES).flatMap((p): EquipmentProfile[] => {
+    const item = cleanPowerItem(p);
+    if (!item?.name.trim()) return [];
+    const { qty: _qty, ...profile } = item;
+    return [profile];
+  });
+}
+
+/** Add an item to the saved equipment, replacing one with the same name. Sorted by name. */
+export function saveProfile(profiles: EquipmentProfile[], item: PowerItem): EquipmentProfile[] {
+  const { qty: _qty, ...profile } = { ...item, name: item.name.trim() };
+  const rest = profiles.filter((p) => !sameName(p.name, profile.name));
+  return [...rest, profile].sort((a, b) => a.name.localeCompare(b.name)).slice(0, MAX_PROFILES);
+}
+
+export function removeProfile(profiles: EquipmentProfile[], name: string): EquipmentProfile[] {
+  return profiles.filter((p) => !sameName(p.name, name));
+}
+
 const positive = (v: number | undefined): v is number => v !== undefined && Number.isFinite(v) && v > 0;
 
 /** One item's draw, or undefined until it has watts or both volts and amps. */
@@ -104,8 +148,12 @@ export function csvCell(value: string | number): string {
 
 const round = (v: number, digits = 0) => Number(v.toFixed(digits));
 
-/** The plan as CSV, one row per item and the totals underneath, for Excel. */
-export function planCsv(items: PowerItem[], limit: number): string {
+/**
+ * The plan as CSV, one row per item and the totals underneath, for Excel. It
+ * leaves out the generator recommendation: choosing the set is the utilities
+ * Marines' call, and the CSV hands them the load to make it with.
+ */
+export function planCsv(items: PowerItem[]): string {
   const rows: (string | number)[][] = [["Item", "Qty", "Volts", "Amps", "AC/DC", "Power factor", "Watts each", "Total watts"]];
   for (const item of items) {
     const load = itemLoad(item);
@@ -122,14 +170,8 @@ export function planCsv(items: PowerItem[], limit: number): string {
     ]);
   }
   const totals = planTotals(items);
-  const rec = recommendGenerator(totals, limit);
-  rows.push(
-    [],
-    ["Total load (W)", round(totals.watts)],
-    ["Total apparent power (VA)", round(totals.va)],
-    ["Planning limit", `${round(limit * 100)}% of rating`],
-    ["Recommended AMMPS", rec ? `${rec.count > 1 ? `${rec.count} x ` : ""}${rec.set.kw} kW ${rec.set.model}` : ""],
-    ["Load on generator", rec ? `${round(rec.fraction * 100)}%` : ""],
-  );
+  rows.push([], ["Total load (W)", round(totals.watts)]);
+  // Only worth a line when a power factor below 1 makes it differ.
+  if (totals.va > totals.watts * 1.001) rows.push(["Total apparent power (VA)", round(totals.va)]);
   return rows.map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }

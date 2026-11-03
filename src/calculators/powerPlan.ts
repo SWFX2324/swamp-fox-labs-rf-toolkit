@@ -6,27 +6,51 @@ import { powerGuide } from "./helpText";
 import type { Calculator } from ".";
 import { downloadFile } from "./planBar";
 import { fileName } from "../lib/export";
-import { type PowerItem, ammpsSets, itemLoad, loadFraction, planCsv, planTotals, recommendGenerator } from "../lib/powerPlan";
+import {
+  type EquipmentProfile,
+  type PowerItem,
+  ammpsSets,
+  cleanPowerItem,
+  cleanProfiles,
+  itemLoad,
+  loadFraction,
+  planCsv,
+  planTotals,
+  recommendGenerator,
+  removeProfile,
+  saveProfile,
+} from "../lib/powerPlan";
 
 const STORAGE_KEY = "rf-toolkit:power-plan";
+const EQUIPMENT_KEY = "rf-toolkit:power-equipment";
 const MAX_ITEMS = 100;
 
 const defaults: Record<string, string> = { limit: "80" };
 
 const blankItem = (): PowerItem => ({ name: "", qty: 1, ac: true, powerFactor: 1 });
+const isBlank = (it: PowerItem) => !it.name.trim() && !it.watts && !it.volts && !it.amps;
+
+const BOOKMARK =
+  '<svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>';
 
 const template = `
   <div class="inputs">
     <section class="card power-equipment">
       <div class="card-head"><h2>Equipment</h2><span class="meta" data-out="count"></span></div>
-      <p class="note top">For each item, enter the watts from its data plate, or its volts and amps.</p>
+      <p class="note top">For each item, enter the watts from its data plate, or its volts and amps. Save gear you use often with ${BOOKMARK} to add it again later.</p>
       <div class="power-head" aria-hidden="true">
-        <span>Item</span><span>Qty</span><span>Volts</span><span>Amps</span><span>Watts</span><span>AC/DC</span><span class="pf-col">PF</span><span class="num">Total</span><span></span>
+        <span>Item</span><span>Qty</span><span>Volts</span><span>Amps</span><span>Watts</span><span>AC/DC</span><span class="pf-col">PF</span><span class="num">Total</span><span></span><span></span>
       </div>
       <div class="power-items" data-out="items"></div>
       <div class="power-actions">
         <button type="button" class="secondary" data-action="add">Add item</button>
+        <span class="input-unit power-saved" data-out="savedRow">
+          <select data-out="saved" aria-label="Saved equipment"></select>
+          <button type="button" class="secondary unit-btn" data-action="addSaved">Add</button>
+          <button type="button" class="secondary unit-btn" data-action="deleteSaved">Delete</button>
+        </span>
       </div>
+      <p class="note" data-out="savedStatus" role="status"></p>
     </section>
 
     <section class="card">
@@ -68,26 +92,18 @@ const template = `
   </aside>
 `;
 
-const finite = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
-
-function cleanItem(raw: unknown): PowerItem | undefined {
-  if (typeof raw !== "object" || raw === null) return undefined;
-  const r = raw as Record<string, unknown>;
-  return {
-    name: typeof r.name === "string" ? r.name.slice(0, 80) : "",
-    qty: finite(r.qty) ?? 1,
-    watts: finite(r.watts),
-    volts: finite(r.volts),
-    amps: finite(r.amps),
-    ac: r.ac !== false,
-    powerFactor: finite(r.powerFactor) ?? 1,
-  };
+function loadEquipment(): EquipmentProfile[] {
+  try {
+    return cleanProfiles(JSON.parse(localStorage.getItem(EQUIPMENT_KEY) ?? "[]"));
+  } catch {
+    return [];
+  }
 }
 
 function loadState(): { settings: Record<string, string>; items: PowerItem[] } {
   try {
     const v = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    const items = Array.isArray(v.items) ? v.items.slice(0, MAX_ITEMS).flatMap((i: unknown) => cleanItem(i) ?? []) : [];
+    const items = Array.isArray(v.items) ? v.items.slice(0, MAX_ITEMS).flatMap((i: unknown) => cleanPowerItem(i) ?? []) : [];
     const limit = typeof v.settings?.limit === "string" ? v.settings.limit : defaults.limit;
     return { settings: { limit }, items: items.length ? items : [blankItem()] };
   } catch {
@@ -146,6 +162,7 @@ export const powerPlanCalculator: Calculator = {
             ${cell("AC/DC", '<select data-f="ac" aria-label="AC or DC"><option value="ac">AC</option><option value="dc">DC</option></select>', "c-ac")}
             ${cell("PF", '<input data-f="pf" type="number" inputmode="decimal" step="0.05" min="0.1" max="1" aria-label="Power factor" title="Power factor (AC only)" />', "c-pf pf-col")}
             <span class="power-total mono" data-f="total"></span>
+            <button type="button" class="secondary icon-btn" data-f="keep" aria-label="Save item ${idx + 1} to your equipment" title="Save to your equipment">${BOOKMARK}</button>
             <button type="button" class="secondary icon-btn" data-f="remove" aria-label="Remove item ${idx + 1}" title="Remove">✕</button>`;
           const f = <T extends HTMLElement>(name: string) => row.querySelector<T>(`[data-f="${name}"]`)!;
           f<HTMLInputElement>("name").value = it.name;
@@ -207,8 +224,78 @@ export const powerPlanCalculator: Calculator = {
         .join("");
     };
 
+    // Saved equipment: data plate details kept on this device, to add again by name.
+    let equipment = loadEquipment();
+    const savedSelect = out("saved") as HTMLSelectElement;
+    const savedStatus = (text: string) => {
+      out("savedStatus").textContent = text;
+    };
+    const storeEquipment = () => {
+      try {
+        localStorage.setItem(EQUIPMENT_KEY, JSON.stringify(equipment));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const renderEquipment = (selected = "") => {
+      savedSelect.replaceChildren(new Option("Saved equipment…", ""));
+      // Option() sets names as text, so they can't become markup.
+      for (const p of equipment) savedSelect.append(new Option(p.name, p.name, false, p.name === selected));
+      out("savedRow").hidden = !equipment.length;
+    };
+
+    const addFromEquipment = () => {
+      const profile = equipment.find((p) => p.name === savedSelect.value);
+      if (!profile) {
+        savedStatus("Choose a saved item first.");
+        return;
+      }
+      if (items.length >= MAX_ITEMS && !isBlank(items[items.length - 1])) return;
+      // Fill an empty last line rather than leaving it above the new one.
+      const item = { ...profile, qty: 1 };
+      if (items.length && isBlank(items[items.length - 1])) items[items.length - 1] = item;
+      else items.push(item);
+      renderItems();
+      update();
+      savedSelect.value = "";
+      savedStatus(`Added ${profile.name}. Set the quantity.`);
+      const qty = out("items").querySelector<HTMLInputElement>(".power-item:last-child [data-f='qty']");
+      qty?.focus();
+      qty?.select();
+    };
+    form.querySelector('[data-action="addSaved"]')!.addEventListener("click", addFromEquipment);
+    form.querySelector('[data-action="deleteSaved"]')!.addEventListener("click", () => {
+      const name = savedSelect.value;
+      if (!name) {
+        savedStatus("Choose a saved item to delete.");
+        return;
+      }
+      equipment = removeProfile(equipment, name);
+      storeEquipment();
+      renderEquipment();
+      savedStatus(`Deleted ${name} from your equipment. Lines already in the plan stay.`);
+    });
+    // Keep the saved-equipment picker from recalculating the plan.
+    for (const type of ["input", "change"]) out("savedRow").addEventListener(type, (e) => e.stopPropagation());
+
     out("items").addEventListener("click", (e) => {
-      const button = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-f="remove"]');
+      const target = e.target as HTMLElement;
+      const keep = target.closest<HTMLButtonElement>('[data-f="keep"]');
+      if (keep) {
+        const item = items[Number(keep.closest<HTMLElement>(".power-item")!.dataset.idx)];
+        if (!item.name.trim()) savedStatus("Name the item before saving it.");
+        else if (!itemLoad(item)) savedStatus("Enter its watts, or volts and amps, before saving it.");
+        else {
+          const replacing = equipment.some((p) => p.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+          equipment = saveProfile(equipment, item);
+          if (!storeEquipment()) savedStatus("This browser wouldn't save it. Storage may be full or blocked.");
+          else savedStatus(`${replacing ? "Updated" : "Saved"} ${item.name.trim()} in your equipment.`);
+          renderEquipment();
+        }
+        return;
+      }
+      const button = target.closest<HTMLButtonElement>('[data-f="remove"]');
       if (!button) return;
       const idx = Number(button.closest<HTMLElement>(".power-item")!.dataset.idx);
       items.splice(idx, 1);
@@ -238,13 +325,15 @@ export const powerPlanCalculator: Calculator = {
       }
       const d = new Date();
       const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      downloadFile(fileName(`power-plan-${today}`, "csv"), `﻿${planCsv(items, limit())}`, "text/csv;charset=utf-8");
+      // The byte-order mark tells Excel the file is UTF-8.
+      downloadFile(fileName(`power-plan-${today}`, "csv"), `﻿${planCsv(items)}`, "text/csv;charset=utf-8");
       status.textContent = "Exported. Open it in Excel or send it to your utilities Marines.";
     });
 
     form.addEventListener("input", update);
     form.addEventListener("change", update);
     renderItems();
+    renderEquipment();
     update();
     enhanceFields(form, powerGuide, defaults);
     return form;

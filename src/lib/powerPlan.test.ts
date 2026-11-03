@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { type PowerItem, ammpsSets, csvCell, itemLoad, planCsv, planTotals, recommendGenerator } from "./powerPlan";
+import {
+  type PowerItem,
+  ammpsSets,
+  cleanPowerItem,
+  cleanProfiles,
+  csvCell,
+  itemLoad,
+  planCsv,
+  planTotals,
+  recommendGenerator,
+  removeProfile,
+  saveProfile,
+} from "./powerPlan";
 
 const item = (o: Partial<PowerItem>): PowerItem => ({ name: "", qty: 1, ac: true, powerFactor: 1, ...o });
 
@@ -91,18 +103,54 @@ describe("recommendGenerator", () => {
 
 describe("planCsv", () => {
   it("writes each item and the totals", () => {
-    const csv = planCsv([item({ name: "PRC-117G", watts: 150, qty: 4 }), item({ name: "Laptop", volts: 120, amps: 1.5, qty: 2 })], 0.8);
+    const csv = planCsv([item({ name: "PRC-117G", watts: 150, qty: 4 }), item({ name: "Laptop", volts: 120, amps: 1.5, qty: 2 })]);
     const lines = csv.trim().split("\r\n");
     expect(lines[0]).toBe("Item,Qty,Volts,Amps,AC/DC,Power factor,Watts each,Total watts");
     expect(lines[1]).toBe("PRC-117G,4,,,AC,1,150,600");
     expect(lines[2]).toBe("Laptop,2,120,1.5,AC,1,180,360");
     expect(csv).toContain("Total load (W),960");
-    expect(csv).toContain("Recommended AMMPS,5 kW MEP-1030");
-    expect(csv).toContain("Load on generator,19%");
+  });
+
+  it("leaves the generator choice to the utilities Marines", () => {
+    expect(planCsv([item({ name: "Radio", watts: 5000 })])).not.toMatch(/AMMPS|MEP-|generator|limit/i);
+  });
+
+  it("adds apparent power only when a power factor changes it", () => {
+    expect(planCsv([item({ name: "Radio", watts: 100 })])).not.toContain("apparent");
+    expect(planCsv([item({ name: "ECU", watts: 800, powerFactor: 0.8 })])).toContain("Total apparent power (VA),1000");
   });
 
   it("leaves out empty rows", () => {
-    expect(planCsv([item({}), item({ name: "Radio", watts: 50 })], 0.8).split("\r\n")[1]).toMatch(/^Radio,/);
+    expect(planCsv([item({}), item({ name: "Radio", watts: 50 })]).split("\r\n")[1]).toMatch(/^Radio,/);
+  });
+});
+
+describe("saved equipment", () => {
+  it("keeps the data plate details but not the quantity", () => {
+    const [saved] = saveProfile([], item({ name: " PRC-117G ", watts: 150, qty: 4 }));
+    expect(saved).toEqual({ name: "PRC-117G", watts: 150, ac: true, powerFactor: 1 });
+  });
+
+  it("replaces an entry with the same name, whatever the case, and sorts by name", () => {
+    let list = saveProfile([], item({ name: "Laptop", volts: 120, amps: 1.5 }));
+    list = saveProfile(list, item({ name: "ECU", watts: 3500 }));
+    list = saveProfile(list, item({ name: "laptop", volts: 120, amps: 2 }));
+    expect(list.map((p) => [p.name, p.amps])).toEqual([["ECU", undefined], ["laptop", 2]]);
+  });
+
+  it("removes by name", () => {
+    expect(removeProfile([{ name: "ECU", ac: true, powerFactor: 1, watts: 3500 }], "ecu")).toEqual([]);
+  });
+
+  it("reads back only well-formed, named entries", () => {
+    expect(cleanProfiles([{ name: "Radio", watts: "50", ac: false }, { watts: 10 }, null, "x"])).toEqual([
+      { name: "Radio", watts: undefined, volts: undefined, amps: undefined, ac: false, powerFactor: 1 },
+    ]);
+    expect(cleanProfiles({ name: "Radio" })).toEqual([]);
+  });
+
+  it("cleans a stored item", () => {
+    expect(cleanPowerItem({ name: 5, qty: Infinity, watts: 20 })).toEqual({ name: "", qty: 1, watts: 20, volts: undefined, amps: undefined, ac: true, powerFactor: 1 });
   });
 });
 
