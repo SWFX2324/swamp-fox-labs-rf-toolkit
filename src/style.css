@@ -372,10 +372,11 @@ button.secondary:disabled:hover { border-color: var(--border); }
 /* The .leaflet-container prefix: Leaflet's stylesheet loads after this one, so
    these would lose at equal specificity. */
 main .leaflet-container { background: var(--card-2); }
-.leaflet-container .leaflet-bar a, .leaflet-container .leaflet-bar a:hover {
+.leaflet-container .leaflet-bar a, .leaflet-container .leaflet-bar a:hover, .leaflet-container .leaflet-bar a:focus {
   background-color: var(--card); color: var(--text); border-bottom-color: var(--border);
 }
-.leaflet-container .leaflet-bar a:hover { background-color: var(--card-2); }
+/* Leaflet turns a focused button near-white, which hides the icon after a click. */
+.leaflet-container .leaflet-bar a:hover, .leaflet-container .leaflet-bar a:focus { background-color: var(--card-2); }
 .leaflet-container .leaflet-bar a.leaflet-disabled { background-color: var(--card-2); color: var(--muted); }
 .leaflet-bar { border: 1px solid var(--border) !important; box-shadow: 0 1px 4px rgb(0 0 0 / .25) !important; }
 /* Dark base map: invert OpenStreetMap, then turn the hues back so water stays
