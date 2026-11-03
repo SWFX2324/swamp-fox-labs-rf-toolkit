@@ -1,11 +1,13 @@
-// Shared Leaflet setup: a Streets, Dark or Satellite base map (the choice is
-// remembered across every map in the app) and a recenter button that frames whatever
-// the page cares about.
+// Shared Leaflet setup: a Streets, Dark or Satellite base map and a recenter
+// button that frames whatever the page cares about. The base map starts as Dark
+// in dark mode and Streets in light mode; a choice is remembered for that theme
+// across every map in the app.
 
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
 import { addOfflineControl } from "./offlineControl";
+import { THEME_EVENT, isDarkTheme } from "./theme";
 
 const LAYER_KEY = "rf-toolkit:map-layer";
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
@@ -15,18 +17,25 @@ const USGS_ATTRIBUTION = '<a href="https://www.usgs.gov/programs/national-geospa
 
 type LayerName = "Streets" | "Dark" | "Satellite";
 
-function readLayer(): LayerName {
+const themeKey = (dark: boolean) => `${LAYER_KEY}:${dark ? "dark" : "light"}`;
+const isLayerName = (v: string | null): v is LayerName => v === "Streets" || v === "Dark" || v === "Satellite";
+
+function readLayer(dark: boolean): LayerName {
   try {
-    const saved = localStorage.getItem(LAYER_KEY);
-    return saved === "Dark" || saved === "Satellite" ? saved : "Streets";
+    const saved = localStorage.getItem(themeKey(dark));
+    if (isLayerName(saved)) return saved;
+    // Before choices were kept per theme there was one for both. Only carry
+    // over Satellite, so the Streets and Dark defaults follow the theme.
+    if (localStorage.getItem(LAYER_KEY) === "Satellite") return "Satellite";
   } catch {
-    return "Streets";
+    // Storage blocked: use the theme's default.
   }
+  return dark ? "Dark" : "Streets";
 }
 
 function saveLayer(name: string): void {
   try {
-    localStorage.setItem(LAYER_KEY, name);
+    localStorage.setItem(themeKey(isDarkTheme()), name);
   } catch {
     // Storage blocked: the choice lasts until the page reloads.
   }
@@ -68,9 +77,30 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
       }),
     ]),
   };
-  layers[readLayer()].addTo(map);
+  let current = readLayer(isDarkTheme());
+  layers[current].addTo(map);
   L.control.layers(layers, undefined, { position: "topright" }).addTo(map);
-  map.on("baselayerchange", (e: L.LayersControlEvent) => saveLayer(e.name));
+  // The layer control also fires this when the code adds a layer: the first one
+  // once the map has a view, and theme swaps. Only a different layer is a choice.
+  map.on("baselayerchange", (e: L.LayersControlEvent) => {
+    if (!isLayerName(e.name) || e.name === current) return;
+    current = e.name;
+    saveLayer(e.name);
+  });
+  // Switch to the new theme's map when the theme changes.
+  const onTheme = () => {
+    if (!container.isConnected) {
+      window.removeEventListener(THEME_EVENT, onTheme);
+      return;
+    }
+    const next = readLayer(isDarkTheme());
+    if (next === current) return;
+    const previous = current;
+    current = next;
+    map.removeLayer(layers[previous]);
+    layers[next].addTo(map);
+  };
+  window.addEventListener(THEME_EVENT, onTheme);
 
   const Recenter = L.Control.extend({
     onAdd() {
