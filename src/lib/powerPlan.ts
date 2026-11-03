@@ -1,6 +1,6 @@
 // Power plan: each item's draw from its data plate (watts, or volts × amps),
 // times how many of it, summed into the load a generator has to carry, and
-// the smallest AMMPS set that carries it inside a planning limit.
+// the smallest standard generator size that carries it inside a planning limit.
 
 export interface PowerItem {
   name: string;
@@ -99,42 +99,36 @@ export function planTotals(items: PowerItem[]): PlanTotals {
   return { watts, va, counted };
 }
 
-/** AMMPS generator sets, rated in kW at 0.8 power factor. */
-export const AMMPS_POWER_FACTOR = 0.8;
-export const ammpsSets = [
-  { model: "MEP-1030", kw: 5 },
-  { model: "MEP-1040", kw: 10 },
-  { model: "MEP-1050", kw: 15 },
-  { model: "MEP-1060", kw: 30 },
-  { model: "MEP-1070", kw: 60 },
-] as const;
+/** Common generator sizes, rated in kW at 0.8 power factor as generators usually are. */
+export const GENERATOR_POWER_FACTOR = 0.8;
+export const generatorSizes = [{ kw: 5 }, { kw: 10 }, { kw: 15 }, { kw: 30 }, { kw: 60 }] as const;
 
-export type AmmpsSet = (typeof ammpsSets)[number];
+export type GeneratorSize = (typeof generatorSizes)[number];
 
 /** Share of a set's rating a load uses, by real power or apparent power, whichever is higher. */
-export function loadFraction(totals: Pick<PlanTotals, "watts" | "va">, set: AmmpsSet, count = 1): number {
+export function loadFraction(totals: Pick<PlanTotals, "watts" | "va">, set: GeneratorSize, count = 1): number {
   const kw = set.kw * count * 1000;
-  return Math.max(totals.watts / kw, totals.va / (kw / AMMPS_POWER_FACTOR));
+  return Math.max(totals.watts / kw, totals.va / (kw / GENERATOR_POWER_FACTOR));
 }
 
 export interface Recommendation {
-  set: AmmpsSet;
+  set: GeneratorSize;
   count: number;
   /** Load as a share of the set's (or sets') rating. */
   fraction: number;
 }
 
 /**
- * The smallest single AMMPS set that keeps the load at or under the limit
+ * The smallest single generator that keeps the load at or under the limit
  * (0.8 for 80%). Past the largest set, the fewest 60 kW sets that do.
  */
 export function recommendGenerator(totals: Pick<PlanTotals, "watts" | "va">, limit: number): Recommendation | undefined {
   if (!(totals.watts > 0) || !(limit > 0)) return undefined;
-  for (const set of ammpsSets) {
+  for (const set of generatorSizes) {
     const fraction = loadFraction(totals, set);
     if (fraction <= limit) return { set, count: 1, fraction };
   }
-  const largest = ammpsSets[ammpsSets.length - 1];
+  const largest = generatorSizes[generatorSizes.length - 1];
   const count = Math.ceil(loadFraction(totals, largest) / limit);
   return { set: largest, count, fraction: loadFraction(totals, largest, count) };
 }
@@ -150,8 +144,8 @@ const round = (v: number, digits = 0) => Number(v.toFixed(digits));
 
 /**
  * The plan as CSV, one row per item and the totals underneath, for Excel. It
- * leaves out the generator recommendation: choosing the set is the utilities
- * Marines' call, and the CSV hands them the load to make it with.
+ * leaves out the generator recommendation: whoever sizes the generators makes
+ * that call, and the CSV hands them the load to make it with.
  */
 export function planCsv(items: PowerItem[]): string {
   const rows: (string | number)[][] = [["Item", "Qty", "Volts", "Amps", "AC/DC", "Power factor", "Watts each", "Total watts"]];

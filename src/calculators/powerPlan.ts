@@ -1,5 +1,5 @@
 // Power Plan: list the gear, its data plate watts (or volts and amps) and how
-// many of each, and get the total load and the AMMPS generator to carry it.
+// many of each, and get the total load and the generator size to carry it.
 
 import { enhanceFields } from "./fieldHelp";
 import { powerGuide } from "./helpText";
@@ -9,7 +9,7 @@ import { fileName } from "../lib/export";
 import {
   type EquipmentProfile,
   type PowerItem,
-  ammpsSets,
+  generatorSizes,
   cleanPowerItem,
   cleanProfiles,
   itemLoad,
@@ -54,7 +54,7 @@ const template = `
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Planning</h2><span class="meta">AMMPS sets are rated at 0.8 power factor</span></div>
+      <div class="card-head"><h2>Planning</h2><span class="meta">Generators are usually rated at 0.8 power factor</span></div>
       <div class="fields">
         <label>Planning load limit
           <span class="input-unit">
@@ -76,10 +76,10 @@ const template = `
       <div data-out="results">
         <div class="tiles">
           <div class="tile"><span class="label">Total load</span><span class="value" data-out="load"></span><span class="sub" data-out="loadSub"></span></div>
-          <div class="tile"><span class="label">AMMPS set</span><span class="value" data-out="gen"></span><span class="sub" data-out="genSub"></span></div>
+          <div class="tile"><span class="label">Generator</span><span class="value" data-out="gen"></span><span class="sub" data-out="genSub"></span></div>
         </div>
         <table class="ledger">
-          <thead><tr><th>AMMPS set</th><th class="num">Load on it</th></tr></thead>
+          <thead><tr><th>Generator size</th><th class="num">Load on it</th></tr></thead>
           <tbody data-out="sets"></tbody>
         </table>
         <details class="about"><summary>About this calculation</summary><p>Data plate ratings are maximums, so the real draw is usually lower and this errs on the safe side. Each item is watts × quantity; with volts and amps, watts are volts × amps × power factor. Power factor is 1 unless you change it in Advanced mode; a lower one means more current, which the generator's kVA rating (kW ÷ 0.8) has to carry too. The planning limit leaves room for startup surges and gear added later. Gear on a DC power supply draws about 10–20% more from the generator than its DC volts × amps; enter the supply's AC rating if you have it.</p></details>
@@ -213,13 +213,13 @@ export const powerPlanCalculator: Calculator = {
       out("load").innerHTML = formatWatts(totals.watts);
       out("loadSub").textContent = `${totals.counted} ${totals.counted === 1 ? "line" : "lines"}${lowPf ? ` · ${fmt(totals.va / 1000, 1)} kVA with power factor` : ""}`;
       out("gen").innerHTML = `${rec.count > 1 ? `${rec.count} × ` : ""}${rec.set.kw}<span class="unit">kW</span>`;
-      out("genSub").textContent = `${rec.set.model}, ${pct(rec.fraction)} loaded${rec.count > 1 ? ". Confirm paralleling with your utilities Marines" : ""}`;
-      out("sets").innerHTML = ammpsSets
+      out("genSub").textContent = `${pct(rec.fraction)} loaded${rec.count > 1 ? ". Check the generators can run in parallel" : ""}`;
+      out("sets").innerHTML = generatorSizes
         .map((set) => {
           const f = loadFraction(totals, set);
           const cls = set === rec.set && rec.count === 1 ? ' class="total recommended"' : "";
           const status = f > 1 ? "Over rating" : f > limit() ? `${pct(f)}, over limit` : pct(f);
-          return `<tr${cls}><td>${set.kw} kW ${set.model}</td><td class="num mono">${status}</td></tr>`;
+          return `<tr${cls}><td>${set.kw} kW</td><td class="num mono">${status}</td></tr>`;
         })
         .join("");
     };
@@ -327,7 +327,7 @@ export const powerPlanCalculator: Calculator = {
       const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       // The byte-order mark tells Excel the file is UTF-8.
       downloadFile(fileName(`power-plan-${today}`, "csv"), `﻿${planCsv(items)}`, "text/csv;charset=utf-8");
-      status.textContent = "Exported. Open it in Excel or send it to your utilities Marines.";
+      status.textContent = "Exported. Open it in Excel or share it with whoever is sizing the generators.";
     });
 
     form.addEventListener("input", update);

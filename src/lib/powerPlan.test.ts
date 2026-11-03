@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type PowerItem,
-  ammpsSets,
+  generatorSizes,
   cleanPowerItem,
   cleanProfiles,
   csvCell,
@@ -87,7 +87,7 @@ describe("recommendGenerator", () => {
 
   it("uses several 60 kW sets past the largest", () => {
     const rec = recommendGenerator({ watts: 100_000, va: 100_000 }, 0.8)!;
-    expect(rec.set).toBe(ammpsSets[ammpsSets.length - 1]);
+    expect(rec.set).toBe(generatorSizes[generatorSizes.length - 1]);
     expect(rec.count).toBe(3);
     expect(rec.fraction).toBeCloseTo(100 / 180, 9);
   });
@@ -103,21 +103,21 @@ describe("recommendGenerator", () => {
 
 describe("planCsv", () => {
   it("writes each item and the totals", () => {
-    const csv = planCsv([item({ name: "PRC-117G", watts: 150, qty: 4 }), item({ name: "Laptop", volts: 120, amps: 1.5, qty: 2 })]);
+    const csv = planCsv([item({ name: "Radio", watts: 150, qty: 4 }), item({ name: "Laptop", volts: 120, amps: 1.5, qty: 2 })]);
     const lines = csv.trim().split("\r\n");
     expect(lines[0]).toBe("Item,Qty,Volts,Amps,AC/DC,Power factor,Watts each,Total watts");
-    expect(lines[1]).toBe("PRC-117G,4,,,AC,1,150,600");
+    expect(lines[1]).toBe("Radio,4,,,AC,1,150,600");
     expect(lines[2]).toBe("Laptop,2,120,1.5,AC,1,180,360");
     expect(csv).toContain("Total load (W),960");
   });
 
-  it("leaves the generator choice to the utilities Marines", () => {
-    expect(planCsv([item({ name: "Radio", watts: 5000 })])).not.toMatch(/AMMPS|MEP-|generator|limit/i);
+  it("leaves out the generator recommendation", () => {
+    expect(planCsv([item({ name: "Radio", watts: 5000 })])).not.toMatch(/kW|generator|limit/i);
   });
 
   it("adds apparent power only when a power factor changes it", () => {
     expect(planCsv([item({ name: "Radio", watts: 100 })])).not.toContain("apparent");
-    expect(planCsv([item({ name: "ECU", watts: 800, powerFactor: 0.8 })])).toContain("Total apparent power (VA),1000");
+    expect(planCsv([item({ name: "Air conditioner", watts: 800, powerFactor: 0.8 })])).toContain("Total apparent power (VA),1000");
   });
 
   it("leaves out empty rows", () => {
@@ -127,19 +127,19 @@ describe("planCsv", () => {
 
 describe("saved equipment", () => {
   it("keeps the data plate details but not the quantity", () => {
-    const [saved] = saveProfile([], item({ name: " PRC-117G ", watts: 150, qty: 4 }));
-    expect(saved).toEqual({ name: "PRC-117G", watts: 150, ac: true, powerFactor: 1 });
+    const [saved] = saveProfile([], item({ name: " Radio ", watts: 150, qty: 4 }));
+    expect(saved).toEqual({ name: "Radio", watts: 150, ac: true, powerFactor: 1 });
   });
 
   it("replaces an entry with the same name, whatever the case, and sorts by name", () => {
     let list = saveProfile([], item({ name: "Laptop", volts: 120, amps: 1.5 }));
-    list = saveProfile(list, item({ name: "ECU", watts: 3500 }));
+    list = saveProfile(list, item({ name: "Air conditioner", watts: 3500 }));
     list = saveProfile(list, item({ name: "laptop", volts: 120, amps: 2 }));
-    expect(list.map((p) => [p.name, p.amps])).toEqual([["ECU", undefined], ["laptop", 2]]);
+    expect(list.map((p) => [p.name, p.amps])).toEqual([["Air conditioner", undefined], ["laptop", 2]]);
   });
 
   it("removes by name", () => {
-    expect(removeProfile([{ name: "ECU", ac: true, powerFactor: 1, watts: 3500 }], "ecu")).toEqual([]);
+    expect(removeProfile([{ name: "Air conditioner", ac: true, powerFactor: 1, watts: 3500 }], "air conditioner")).toEqual([]);
   });
 
   it("reads back only well-formed, named entries", () => {
