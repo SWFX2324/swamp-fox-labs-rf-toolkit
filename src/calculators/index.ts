@@ -4,6 +4,7 @@ import { converterCalculator } from "./converter";
 import { coverageCalculator } from "./coverage";
 import { linkBudgetCalculator } from "./linkBudget";
 import { meshCalculator } from "./mesh";
+import { powerPlanCalculator } from "./powerPlan";
 import { satLinkCalculator } from "./satLink";
 import { satPointingCalculator } from "./satPointing";
 
@@ -26,5 +27,6 @@ export const calculators: Calculator[] = [
   coaxLossCalculator,
   satPointingCalculator,
   satLinkCalculator,
+  powerPlanCalculator,
   converterCalculator,
 ];

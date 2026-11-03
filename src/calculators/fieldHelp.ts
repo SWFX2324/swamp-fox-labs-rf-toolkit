@@ -136,6 +136,8 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
   const refresh = () => {
     const mode = getMode();
     for (const el of hideable) el.classList.toggle("mode-hidden", mode === "simple");
+    // For parts a page adds later, such as list rows, which CSS hides by this.
+    root.dataset.mode = mode;
     for (const b of bar.querySelectorAll<HTMLButtonElement>("button[data-mode]")) {
       b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
     }

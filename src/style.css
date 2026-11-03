@@ -10,6 +10,8 @@
   --muted: #6b6964;
   --accent: #1f6bc4;
   --good: #0ca30c;
+  /* Green for text: --good is too light to read at small sizes on a light card. */
+  --good-text: #087a08;
   --warning: #fab219;
   --serious: #ec835a;
   --critical: #d03b3b;
@@ -29,12 +31,14 @@
     --muted: #8f8d85;
     --accent: #3987e5;
     --grid-line: #2a2a27;
+    --good-text: var(--good);
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #111110; --card: #1a1a19; --card-2: #232321; --border: #2e2e2b;
   --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8d85; --accent: #3987e5; --grid-line: #2a2a27;
+  --good-text: var(--good);
 }
 
 * { box-sizing: border-box; }
@@ -503,4 +507,47 @@ main .leaflet-container { background: var(--card-2); }
 .add-node { flex-wrap: wrap; }
 .profile-chart svg { touch-action: pan-y; cursor: crosshair; }
 .profile-chart .crosshair { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; }
+/* ------------------------------------------------------------ power plan */
+.power-head, .power-item {
+  display: grid; gap: 6px; align-items: center;
+  grid-template-columns: minmax(110px, 2fr) 58px 68px 68px 76px 66px 62px minmax(64px, 1fr) 36px;
+}
+.power-plan .note.top { margin: -4px 0 12px; }
+.power-head { font-size: 12px; color: var(--muted); padding: 0 2px 4px; }
+.power-head .num, .power-total { text-align: right; }
+.power-items { display: grid; gap: 6px; }
+.power-item input, .power-item select { min-width: 0; width: 100%; padding: 8px 6px; }
+.power-item input:disabled { opacity: .35; }
+.power-cell { min-width: 0; gap: 2px; }
+.power-cap { display: none; font-size: 11px; color: var(--muted); }
+.power-total { font-size: 12.5px; color: var(--text); white-space: nowrap; }
+.power-item .icon-btn { min-height: 38px; padding: 0; }
+.power-actions { margin-top: 10px; }
+.power-plan [data-out="gen"], .power-plan tr.recommended td { color: var(--good-text); }
+.power-export { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grid-line); }
+.power-export .plan-btn { width: 100%; }
+/* Power factor is an Advanced setting; rows are added after the mode bar is set up. */
+.power-plan[data-mode="simple"] .pf-col { display: none; }
+.power-plan[data-mode="simple"] :is(.power-head, .power-item) {
+  grid-template-columns: minmax(110px, 2fr) 58px 68px 68px 76px 66px minmax(64px, 1fr) 36px;
+}
+/* Stack each row when the card, not the screen, is too narrow for one line. */
+.power-equipment { container-type: inline-size; }
+@container (max-width: 620px) {
+  .power-head { display: none; }
+  .power-cap { display: block; }
+  .power-items { gap: 10px; }
+  .power-item, .power-plan[data-mode="simple"] .power-item {
+    grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-flow: row dense; align-items: end;
+    padding-bottom: 10px; border-bottom: 1px solid var(--grid-line);
+  }
+  .power-item .c-name { grid-column: 1 / 5; }
+  .power-item .c-qty { grid-column: 5 / 6; }
+  .power-item [data-f="remove"] { grid-column: 6 / 7; }
+  .power-item :is(.c-volts, .c-amps, .c-watts) { grid-column: span 2; }
+  .power-item .c-ac { grid-column: 1 / 3; }
+  .power-item .c-pf { grid-column: 3 / 5; }
+  .power-item [data-f="total"] { grid-column: 5 / 7; align-self: center; }
+  .power-plan[data-mode="simple"] .power-item [data-f="total"] { grid-column: 3 / 7; }
+}
 .chart-readout { color: var(--text); font-variant-numeric: tabular-nums; }

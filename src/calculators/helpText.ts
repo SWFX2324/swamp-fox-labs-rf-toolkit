@@ -172,6 +172,14 @@ export const satLinkGuide: FieldGuide = {
   advanced: ["upGHz", "downGHz", "efficiency", "txFeed", "pointing", "lnbK", "antK", "rxFeed", "implLoss"],
 };
 
+export const powerGuide: FieldGuide = {
+  help: {
+    limit:
+      "How much of a generator's rating to plan on using. 80% is a common rule: it leaves room for startup surges, like air conditioners and ECUs, and for gear added later. The set's kVA (kW ÷ 0.8) is checked too.",
+  },
+  advanced: ["limit"],
+};
+
 export const converterGuide: FieldGuide = {
   help: {
     "power-uv":
