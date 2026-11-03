@@ -51,7 +51,7 @@ const template = `
           </span>
         </label>
       </div>
-      <p class="note warn" data-out="status"></p>
+      <p class="note" data-out="status"></p>
       <div class="map sat-map" data-out="map"></div>
       <p class="note">Tap the map or drag the pin. The blue line is the true azimuth.</p>
     </section>
@@ -192,8 +192,9 @@ export const satPointingCalculator: Calculator = {
     let marker: L.Marker | undefined;
     let bearing: L.Polyline | undefined;
 
-    const setStatus = (text: string) => {
+    const setStatus = (text: string, warn = false) => {
       out("status").textContent = text;
+      out("status").classList.toggle("warn", warn);
     };
 
     const placeOnMap = (site: LatLon | undefined, azTrue: number | undefined, recenter: boolean) => {
@@ -247,6 +248,7 @@ export const satPointingCalculator: Calculator = {
         siteText && !site ? "Enter decimal degrees like 35.22710, -80.84310, or MGRS like 17S NU 14277 98239."
         : slotText && slot === undefined ? "Enter the orbital slot like 101W, 101.0° W or 28.2E."
         : "",
+        true,
       );
 
       const ready = site && slot !== undefined;
