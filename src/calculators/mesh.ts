@@ -5,7 +5,7 @@ import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
 import { meshGuide } from "./helpText";
 import * as L from "leaflet";
-import { createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { buildKml, fileName, buildZip } from "../lib/export";
@@ -125,7 +125,6 @@ const template = `
           <tbody data-out="nodes"></tbody>
         </table>
       </div>
-      <div class="terrain-actions"><button type="button" class="secondary" data-action="clear">Clear nodes</button></div>
     </section>
   </div>
 
@@ -222,6 +221,7 @@ export const meshCalculator: Calculator = {
     const terrain = new Map<string, number[] | "error">();
     let loading: AbortController | undefined;
     let map: L.Map | undefined;
+    let clearControl: ClearControl | undefined;
     let markers: L.Marker[] = [];
     let lines: L.Polyline[] = [];
     let lastLinks: { a: number; b: number; link: MeshLink; distanceM: number }[] = [];
@@ -270,6 +270,7 @@ export const meshCalculator: Calculator = {
     };
 
     const drawMarkers = () => {
+      clearControl?.setVisible(nodes.length > 0);
       if (!map) return;
       for (const m of markers) m.remove();
       markers = nodes.map((n, idx) => {
@@ -470,6 +471,7 @@ export const meshCalculator: Calculator = {
         if (nodes.length) m.fitBounds(L.latLngBounds(nodes.map((n) => [n.lat, n.lon] as [number, number])), { padding: [40, 40], maxZoom: 14 });
         else showDefaultView(m);
       });
+      clearControl = addClearControl(map, "the nodes", clearNodes);
       map.on("click", (e: L.LeafletMouseEvent) => addNode({ lat: e.latlng.lat, lon: e.latlng.lng }));
       drawMarkers();
       recompute();
@@ -494,11 +496,13 @@ export const meshCalculator: Calculator = {
         map?.setView([p.lat, p.lon], Math.max(map.getZoom(), 12));
       });
     });
-    form.querySelector('[data-action="clear"]')!.addEventListener("click", () => {
+    const clearNodes = () => {
+      // Several nodes take a while to place again, so ask first.
+      if (nodes.length > 1 && !confirm(`Clear all ${nodes.length} nodes from the map?`)) return;
       nodes = [];
       setStatus("");
       nodesChanged(false);
-    });
+    };
     form.querySelector('[data-action="reset"]')!.addEventListener("click", () => {
       for (const [name, value] of Object.entries(settingDefaults)) field(name).value = value;
       save();

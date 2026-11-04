@@ -7,7 +7,7 @@ import { locateButton, locateMe } from "./locate";
 import { satPointingGuide } from "./helpText";
 import * as L from "leaflet";
 import { terminalMarker } from "./terminalIcon";
-import { createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type LatLon, destinationPoint } from "../lib/geo";
@@ -189,6 +189,7 @@ export const satPointingCalculator: Calculator = {
     if (savedSite) field("site").value = formatCoordinates(savedSite);
 
     let map: L.Map | undefined;
+    let clearControl: ClearControl | undefined;
     let marker: L.Marker | undefined;
     let bearing: L.Polyline | undefined;
 
@@ -198,6 +199,7 @@ export const satPointingCalculator: Calculator = {
     };
 
     const placeOnMap = (site: LatLon | undefined, azTrue: number | undefined, recenter: boolean) => {
+      clearControl?.setVisible(!!site);
       if (!map) return;
       if (!site) {
         marker?.remove();
@@ -331,6 +333,12 @@ export const satPointingCalculator: Calculator = {
       });
       map.on("click", (e: L.LeafletMouseEvent) => {
         field("site").value = formatCoordinates({ lat: e.latlng.lat, lon: e.latlng.lng });
+        update();
+      });
+      // Clears your location and the bearing line; the orbital slot stays.
+      clearControl = addClearControl(map, "your location and the bearing line", () => {
+        field("site").value = "";
+        setStatus("");
         update();
       });
       lastSiteText = "";

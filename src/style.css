@@ -388,6 +388,14 @@ main .leaflet-container { background: var(--card-2); }
 .leaflet-layer.map-dark { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.88) saturate(0.55); }
 .recenter-control a { display: grid; place-items: center; }
 .recenter-control svg { width: 18px; height: 18px; }
+.map-clear {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 13px; font-weight: 600;
+  color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / .25);
+}
+.map-clear:hover, .map-clear:focus-visible { border-color: var(--accent); background: var(--card-2); }
+.map-clear[hidden] { display: none; }
+.map-clear svg { width: 16px; height: 16px; flex: none; }
 .offline-panel {
   position: absolute; z-index: 1001; top: 10px; left: 56px; width: min(250px, calc(100% - 66px)); max-height: calc(100% - 20px); overflow-y: auto;
   box-sizing: border-box; padding: 10px 12px;
@@ -487,6 +495,7 @@ main .leaflet-container { background: var(--card-2); }
   .leaflet-container .leaflet-bar a { width: 44px !important; height: 44px !important; line-height: 44px !important; }
   .offline-panel { left: 64px; width: min(250px, calc(100% - 74px)); }
   .leaflet-container .leaflet-control-layers-toggle { width: 44px !important; height: 44px !important; }
+  .map-clear { min-height: 44px; padding: 6px 12px; }
 }
 
 /* ------------------------------------------------------------ plans, chart */

@@ -41,6 +41,41 @@ function saveLayer(name: string): void {
   }
 }
 
+export interface ClearControl {
+  /** Show the button only while the map has something to clear. */
+  setVisible(visible: boolean): void;
+}
+
+/**
+ * A labelled "Clear map" button in the same corner of every map, for removing
+ * the page's pins, nodes or coverage. what names them for screen readers.
+ */
+export function addClearControl(map: L.Map, what: string, onClear: () => void): ClearControl {
+  let button: HTMLButtonElement | undefined;
+  const Control = L.Control.extend({
+    onAdd() {
+      button = L.DomUtil.create("button", "map-clear");
+      button.type = "button";
+      button.hidden = true;
+      button.setAttribute("aria-label", `Clear ${what} from the map`);
+      button.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Clear map';
+      L.DomEvent.disableClickPropagation(button);
+      L.DomEvent.on(button, "click", (e) => {
+        L.DomEvent.preventDefault(e);
+        onClear();
+      });
+      return button;
+    },
+  });
+  new Control({ position: "bottomleft" }).addTo(map);
+  return {
+    setVisible(visible) {
+      if (button) button.hidden = !visible;
+    },
+  };
+}
+
 /** Default view when a page has nothing to show yet: the contiguous US. */
 export function showDefaultView(map: L.Map): void {
   map.setView([37.5, -96], 4);

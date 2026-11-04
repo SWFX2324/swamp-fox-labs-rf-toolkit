@@ -4,7 +4,7 @@ import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
 import { coverageGuide } from "./helpText";
 import * as L from "leaflet";
-import { createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type RadialSamples, coverageMargins, coverageStats, marginAt, sampleRadials } from "../lib/coverage";
@@ -225,6 +225,7 @@ export const coverageCalculator: Calculator = {
     const site = () => parseCoordinates(field("site").value);
 
     let map: L.Map | undefined;
+    let clearControl: ClearControl | undefined;
     let marker: L.Marker | undefined;
     let ring: L.Circle | undefined;
     let overlay: L.ImageOverlay | undefined;
@@ -239,6 +240,7 @@ export const coverageCalculator: Calculator = {
 
     const placeSite = (recenter: boolean) => {
       const p = site();
+      clearControl?.setVisible(!!p || !!samples);
       if (!map) return;
       if (!p) {
         marker?.remove();
@@ -413,6 +415,21 @@ export const coverageCalculator: Calculator = {
       recompute();
     };
 
+    // Remove the site, its circle and the coverage, so a tap places a new site.
+    // Radio and antenna settings stay.
+    const clearCoverage = () => {
+      running?.abort();
+      running = undefined;
+      samples = margins = undefined;
+      sampledFor = "";
+      lastOverlay = undefined;
+      map?.closePopup();
+      out("probe").textContent = "";
+      field("site").value = "";
+      setStatus("");
+      inputsChanged();
+    };
+
     const initMap = () => {
       if (map || !form.isConnected) return;
       const p = site();
@@ -423,6 +440,7 @@ export const coverageCalculator: Calculator = {
         else if (here) m.setView([here.lat, here.lon], 11);
         else showDefaultView(m);
       });
+      clearControl = addClearControl(map, "the site and coverage", clearCoverage);
       map.on("click", (e: L.LeafletMouseEvent) => {
         const q = { lat: e.latlng.lat, lon: e.latlng.lng };
         if (samples && margins && sampledFor === sampleKey()) {

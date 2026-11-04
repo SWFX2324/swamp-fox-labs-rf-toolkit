@@ -2,7 +2,7 @@
 // elevation profile between them, and how well the path clears it.
 
 import * as L from "leaflet";
-import { createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import { buildKml, buildZip } from "../lib/export";
 import { downloadFile } from "./planBar";
 import { locateButton, locateMe } from "./locate";
@@ -70,7 +70,6 @@ const template = `
   <table class="ledger geometry" data-t="facts" hidden><tbody></tbody></table>
   <div class="terrain-actions">
     <button type="button" class="secondary" data-t="export">Export KMZ</button>
-    <button type="button" class="secondary" data-t="clear">Clear pins</button>
   </div>
   <div class="fields saved-paths">
     <label>Saved paths
@@ -132,6 +131,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   let elevations: number[] | undefined;
   let loading: AbortController | undefined;
   let map: L.Map | undefined;
+  let clearControl: ClearControl | undefined;
   let txMarker: L.Marker | undefined;
   let rxMarker: L.Marker | undefined;
   let line: L.Polyline | undefined;
@@ -146,6 +146,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     input("txLoc").value = tx ? formatCoordinates(tx) : "";
     input("rxLoc").value = rx ? formatCoordinates(rx) : "";
     savePins(tx, rx);
+    clearControl?.setVisible(!!(tx || rx));
     if (!map) return;
     const place = (marker: L.Marker | undefined, at: LatLon | undefined, label: "tx" | "rx") => {
       if (!at) {
@@ -227,6 +228,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       else return;
       pinsChanged();
     });
+    clearControl = addClearControl(map, "the pins and terrain profile", reset);
     syncPins();
   };
   // Leaflet needs the container in the page before it starts. A timer rather
@@ -268,7 +270,6 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     syncPins();
     onPathChange();
   };
-  el("clear").addEventListener("click", reset);
 
   // Saved paths. These controls sit inside the link budget form, so keep their
   // events from re-running the budget on every key press.
