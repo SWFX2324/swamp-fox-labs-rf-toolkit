@@ -7,6 +7,7 @@ import { environmentNote, environmentOptions } from "./environmentField";
 import { midpointClearance } from "../lib/horizon";
 import { createTerrainCard } from "./terrain";
 import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
+import { linkQuality } from "../lib/linkLines";
 import {
   type DistanceUnit,
   dbmToWatts,
@@ -392,6 +393,7 @@ export const linkBudgetCalculator: Calculator = {
         }
         out("rating").hidden = true;
         out("ledger").replaceChildren();
+        terrain.showLink(undefined);
         return;
       }
 
@@ -400,6 +402,8 @@ export const linkBudgetCalculator: Calculator = {
       inputs.terrainLossDb = profile?.diffraction.lossDb ?? 0;
       const r = linkBudget(inputs);
       const rating = rateMargin(r.marginDb);
+      // The map line follows the same rule as the Mesh Planner: good once the fade margin is covered.
+      terrain.showLink(hf ? undefined : linkQuality(r.marginDb, inputs.fadeMarginDb));
 
       out("eirp").innerHTML = dbm(r.eirpDbm);
       out("eirpW").textContent = formatWatts(dbmToWatts(r.eirpDbm));

@@ -5,6 +5,8 @@ import * as L from "leaflet";
 import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import { buildKml, buildZip } from "../lib/export";
 import { downloadFile } from "./planBar";
+import { drawLinkLine, linkLegend } from "./linkLine";
+import { type LinkQuality, linkLineLabels, linkLineStyle } from "../lib/linkLines";
 import { locateButton, locateMe } from "./locate";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
@@ -37,6 +39,8 @@ export interface TerrainCard {
   refresh(params: TerrainParams): TerrainAnalysis | undefined;
   /** Remove both pins and the profile. */
   reset(): void;
+  /** How strong the budget says the link is, to style the line; undefined when it can't say. */
+  showLink(quality: LinkQuality | undefined): void;
 }
 
 const statusText: Record<ProfileStatus, [string, string]> = {
@@ -54,6 +58,7 @@ const template = `
   <div class="terrain-body" data-t="body" hidden>
   <p class="note top">Tap the map for TX, then RX. Drag a pin to move it.</p>
   <div class="map" data-t="map"></div>
+  <div data-t="legend"></div>
   <div class="fields coords">
     <label>TX location
       <span class="input-unit">
@@ -113,6 +118,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   const card = document.createElement("section");
   card.className = "card terrain";
   card.innerHTML = template;
+  card.querySelector('[data-t="legend"]')!.replaceWith(linkLegend());
   const el = (name: string) => card.querySelector<HTMLElement>(`[data-t="${name}"]`)!;
   const input = (name: string) => card.querySelector<HTMLInputElement>(`input[name="${name}"]`)!;
   input("txLoc").placeholder = input("rxLoc").placeholder = coordPlaceholder();
@@ -134,7 +140,15 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   let clearControl: ClearControl | undefined;
   let txMarker: L.Marker | undefined;
   let rxMarker: L.Marker | undefined;
-  let line: L.Polyline | undefined;
+  let line: L.LayerGroup | undefined;
+  // The line's style comes from the budget's verdict and the profile's.
+  let quality: LinkQuality | undefined;
+  let lineOfSight: ProfileStatus | undefined;
+  const lineStyle = () => (quality ? linkLineStyle(quality, lineOfSight) : "unchecked");
+  const drawPath = () => {
+    line?.remove();
+    line = map && tx && rx ? drawLinkLine(map, tx, rx, lineStyle()) : undefined;
+  };
 
   const setStatus = (text: string, warn = false) => {
     el("status").textContent = text;
@@ -165,8 +179,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     };
     txMarker = place(txMarker, tx, "tx");
     rxMarker = place(rxMarker, rx, "rx");
-    line?.remove();
-    line = tx && rx ? L.polyline([[tx.lat, tx.lon], [rx.lat, rx.lon]], { className: "path-line" }).addTo(map) : undefined;
+    drawPath();
   };
 
   const loadProfile = async () => {
@@ -372,14 +385,14 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       setStatus("Drop both pins before exporting.", true);
       return;
     }
-    const status = lastResult?.status === "blocked" ? "fail" : lastResult?.status === "fresnel" ? "marginal" : "good";
+    const status = lineStyle();
     const kml = buildKml(
       "RF Toolkit path",
       [
         { name: "TX", lat: tx.lat, lon: tx.lon },
         { name: "RX", lat: rx.lat, lon: rx.lon },
       ],
-      [{ name: "TX to RX", from: tx, to: rx, status }],
+      [{ name: "TX to RX", from: tx, to: rx, status, description: `${linkLineLabels[status]}.` }],
       RADIO_FILE,
     );
     const kmz = buildZip([{ name: "doc.kml", data: new TextEncoder().encode(kml) }, radioIconFile()]);
@@ -392,7 +405,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     const pill = el("pill");
     const chart = el("chart");
     const facts = el("facts");
-    line?.getElement()?.classList.remove("s-good", "s-marginal", "s-fail");
+    lineOfSight = undefined;
     if (!tx || !rx || !elevations || !params.applies || !(params.freqHz > 0)) {
       pill.hidden = chart.hidden = facts.hidden = true;
       if (!params.applies && tx && rx) setStatus(hfNote);
@@ -414,7 +427,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     pill.hidden = false;
     pill.className = `pill ${cls}`;
     pill.textContent = text;
-    line?.getElement()?.classList.add(cls);
+    lineOfSight = result.status;
 
     chart.hidden = false;
     // Draw at the real width so the axis text stays its CSS size on phones.
@@ -462,6 +475,10 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     pathDistanceM: () => (tx && rx ? distanceBetweenM(tx, rx) : undefined),
     refresh,
     reset,
+    showLink(q) {
+      quality = q;
+      drawPath();
+    },
   };
 }
 

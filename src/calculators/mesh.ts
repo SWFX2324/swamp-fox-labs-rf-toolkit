@@ -9,6 +9,8 @@ import { type ClearControl, addClearControl, createMap, showDefaultView } from "
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { buildKml, fileName, buildZip } from "../lib/export";
+import { linkLineLabels, linkLineStyle } from "../lib/linkLines";
+import { drawLinkLine, linkLegend } from "./linkLine";
 import { findEnvironment } from "../lib/environment";
 import { applySettings, createPlanBar, downloadFile } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
@@ -113,6 +115,7 @@ const template = `
         </label>
       </div>
       <div class="map mesh-map" data-out="map"></div>
+      <div data-out="legend"></div>
       <div class="add-node">
         <input name="addLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <button type="button" class="secondary" data-action="add">Add node</button>
@@ -178,6 +181,7 @@ export const meshCalculator: Calculator = {
     const form = document.createElement("form");
     form.className = "calculator two-col mesh";
     form.innerHTML = template;
+    form.querySelector('[data-out="legend"]')!.replaceWith(linkLegend());
     form.addEventListener("submit", (e) => e.preventDefault());
 
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
@@ -223,7 +227,7 @@ export const meshCalculator: Calculator = {
     let map: L.Map | undefined;
     let clearControl: ClearControl | undefined;
     let markers: L.Marker[] = [];
-    let lines: L.Polyline[] = [];
+    let lines: L.LayerGroup[] = [];
     let lastLinks: { a: number; b: number; link: MeshLink; distanceM: number }[] = [];
 
     const heightM = (n: MeshNode) =>
@@ -388,16 +392,7 @@ export const meshCalculator: Calculator = {
         });
 
       if (map) {
-        lines = results.map((r) =>
-          L.polyline(
-            [
-              [nodes[r.a].lat, nodes[r.a].lon],
-              [nodes[r.b].lat, nodes[r.b].lon],
-            ],
-            { className: `mesh-line mesh-${r.link.status}` },
-          ).addTo(map!),
-        );
-        for (const l of lines) if (l.options.className?.includes("mesh-fail")) l.bringToBack();
+        lines = results.map((r) => drawLinkLine(map!, nodes[r.a], nodes[r.b], linkLineStyle(r.link.status, r.link.profile)));
       }
     };
 
@@ -551,8 +546,8 @@ export const meshCalculator: Calculator = {
                 name: `${nodeLabel(r.a)} to ${nodeLabel(r.b)}`,
                 from: nodes[r.a],
                 to: nodes[r.b],
-                status: r.link.status,
-                description: `Margin ${fmt(r.link.marginDb)} dB, ${statusText[r.link.status][0]}`,
+                status: linkLineStyle(r.link.status, r.link.profile),
+                description: `${linkLineLabels[linkLineStyle(r.link.status, r.link.profile)]}. Margin ${fmt(r.link.marginDb)} dB.`,
               })),
             RADIO_FILE,
           );

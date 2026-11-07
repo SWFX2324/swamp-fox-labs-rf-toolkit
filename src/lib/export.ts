@@ -3,6 +3,7 @@
 // ATAK, WinTAK and Google Earth.
 
 import type { LatLon } from "./geo";
+import type { LinkLineStyle } from "./linkLines";
 
 export function escapeXml(text: string): string {
   return text
@@ -22,16 +23,19 @@ export interface ExportLine {
   name: string;
   from: LatLon;
   to: LatLon;
-  /** Style: solid, marginal or none. */
-  status: "good" | "marginal" | "fail";
+  /** The app's link line style; the description should name it too. */
+  status: LinkLineStyle;
   description?: string;
 }
 
-// KML colours are aabbggrr.
-const lineStyles: Record<ExportLine["status"], string> = {
-  good: "ff0ca30c",
-  marginal: "ff19b2fa",
-  fail: "803b3bd0",
+// KML has no dashed lines, so colour and width carry the style, and each
+// line's description says what it means. KML colours are aabbggrr.
+const lineStyles: Record<LinkLineStyle, { colour: string; width: number }> = {
+  "good-clear": { colour: "ff0ca30c", width: 4 },
+  "good-obstructed": { colour: "b30ca30c", width: 2 },
+  marginal: { colour: "ff19b2fa", width: 3 },
+  fail: { colour: "803b3bd0", width: 1 },
+  unchecked: { colour: "ff858d8f", width: 2 },
 };
 
 /**
@@ -53,7 +57,7 @@ function placemark(name: string, description: string | undefined, geometry: stri
 /** A KML document of named points and rated link lines. */
 export function buildKml(title: string, points: ExportPoint[], lines: ExportLine[] = [], iconFile?: string): string {
   const styles = Object.entries(lineStyles)
-    .map(([id, colour]) => `    <Style id="${id}"><LineStyle><color>${colour}</color><width>${id === "fail" ? 1 : 3}</width></LineStyle></Style>`)
+    .map(([id, { colour, width }]) => `    <Style id="${id}"><LineStyle><color>${colour}</color><width>${width}</width></LineStyle></Style>`)
     .concat(iconFile ? [iconStyle(iconFile)] : [])
     .join("\n");
   const body = [
