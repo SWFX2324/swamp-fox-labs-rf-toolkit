@@ -6,12 +6,11 @@
 //   the line of sight itself): long-dash green
 // - Marginal: short-dash amber
 // - Won't connect: thin, faded red dots
-// - Good on budget, but terrain not checked yet: grey dashes
 
 import type { ProfileStatus } from "./profile";
 
 export type LinkQuality = "good" | "marginal" | "fail";
-export type LinkLineStyle = "good-clear" | "good-obstructed" | "marginal" | "fail" | "unchecked";
+export type LinkLineStyle = "good-clear" | "good-obstructed" | "marginal" | "fail";
 
 /** Good once the margin covers the fade margin wanted, marginal above 0 dB. */
 export function linkQuality(marginDb: number, fadeMarginDb: number): LinkQuality {
@@ -20,12 +19,12 @@ export function linkQuality(marginDb: number, fadeMarginDb: number): LinkQuality
 
 /**
  * Line style for a link. Line of sight only splits good links: a marginal or
- * failed link is drawn the same either way. Without a terrain verdict, a good
- * link can't claim clear line of sight, so it's drawn as unchecked.
+ * failed link is drawn the same either way. Without a terrain verdict (still
+ * loading, offline, or no profile), a good link can't promise clear line of
+ * sight, so it's drawn as obstructed.
  */
 export function linkLineStyle(quality: LinkQuality, lineOfSight: ProfileStatus | undefined): LinkLineStyle {
   if (quality !== "good") return quality;
-  if (lineOfSight === undefined) return "unchecked";
   return lineOfSight === "clear" ? "good-clear" : "good-obstructed";
 }
 
@@ -35,8 +34,7 @@ export const linkLineLabels: Record<LinkLineStyle, string> = {
   "good-obstructed": "Good, obstructed line of sight",
   marginal: "Marginal",
   fail: "Won't connect",
-  unchecked: "Good on budget, terrain not checked",
 };
 
 /** Legend order, strongest first. */
-export const linkLineOrder: LinkLineStyle[] = ["good-clear", "good-obstructed", "marginal", "fail", "unchecked"];
+export const linkLineOrder: LinkLineStyle[] = ["good-clear", "good-obstructed", "marginal", "fail"];

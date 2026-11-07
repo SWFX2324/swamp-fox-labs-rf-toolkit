@@ -21,7 +21,7 @@ describe("linkLineStyle", () => {
   });
 
   it("doesn't call a good link clear before terrain is checked", () => {
-    expect(linkLineStyle("good", undefined)).toBe("unchecked");
+    expect(linkLineStyle("good", undefined)).toBe("good-obstructed");
   });
 
   it("draws marginal and failed links the same whatever the terrain", () => {

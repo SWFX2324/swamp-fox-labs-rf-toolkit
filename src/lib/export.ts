@@ -23,8 +23,8 @@ export interface ExportLine {
   name: string;
   from: LatLon;
   to: LatLon;
-  /** The app's link line style; the description should name it too. */
-  status: LinkLineStyle;
+  /** The app's link line style; the description should name it too. Unset for a link that isn't rated. */
+  status?: LinkLineStyle;
   description?: string;
 }
 
@@ -35,7 +35,6 @@ const lineStyles: Record<LinkLineStyle, { colour: string; width: number }> = {
   "good-obstructed": { colour: "b30ca30c", width: 2 },
   marginal: { colour: "ff19b2fa", width: 3 },
   fail: { colour: "803b3bd0", width: 1 },
-  unchecked: { colour: "ff858d8f", width: 2 },
 };
 
 /**

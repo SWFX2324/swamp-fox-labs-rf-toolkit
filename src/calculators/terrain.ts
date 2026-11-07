@@ -144,10 +144,10 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   // The line's style comes from the budget's verdict and the profile's.
   let quality: LinkQuality | undefined;
   let lineOfSight: ProfileStatus | undefined;
-  const lineStyle = () => (quality ? linkLineStyle(quality, lineOfSight) : "unchecked");
+  // Without a rating (a field missing, or HF) there's no line, just the pins.
   const drawPath = () => {
     line?.remove();
-    line = map && tx && rx ? drawLinkLine(map, tx, rx, lineStyle()) : undefined;
+    line = map && tx && rx && quality ? drawLinkLine(map, tx, rx, linkLineStyle(quality, lineOfSight)) : undefined;
   };
 
   const setStatus = (text: string, warn = false) => {
@@ -385,14 +385,14 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       setStatus("Drop both pins before exporting.", true);
       return;
     }
-    const status = lineStyle();
+    const status = quality ? linkLineStyle(quality, lineOfSight) : undefined;
     const kml = buildKml(
       "RF Toolkit path",
       [
         { name: "TX", lat: tx.lat, lon: tx.lon },
         { name: "RX", lat: rx.lat, lon: rx.lon },
       ],
-      [{ name: "TX to RX", from: tx, to: rx, status, description: `${linkLineLabels[status]}.` }],
+      [{ name: "TX to RX", from: tx, to: rx, status, description: status ? `${linkLineLabels[status]}.` : "Not rated." }],
       RADIO_FILE,
     );
     const kmz = buildZip([{ name: "doc.kml", data: new TextEncoder().encode(kml) }, radioIconFile()]);
