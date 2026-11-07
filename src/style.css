@@ -134,6 +134,12 @@ main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 .fields > .note { grid-column: 1 / -1; margin-top: -4px; }
+.fields > .field-group-head {
+  grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border);
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+.field-group-head .meta { font-weight: 400; font-size: 12px; color: var(--text-2); }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
 select, input {
   background: var(--card); border: 1px solid var(--border); border-radius: 7px;

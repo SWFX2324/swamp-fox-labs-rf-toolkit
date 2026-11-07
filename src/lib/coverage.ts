@@ -1,10 +1,12 @@
 // Area coverage from one site: terrain is sampled along evenly spaced
 // radials, and every point on a radial gets a link margin from free-space
-// loss plus Bullington diffraction over the ground between it and the site.
-// Sampling happens once per site and radius; margins recompute quickly when
-// only the radio settings or antenna heights change.
+// loss plus terrain loss (Longley-Rice, see propagation.ts) over the ground
+// between it and the site.
+// Sampling happens once per site and radius. Path loss reruns when the
+// frequency, antenna heights or model settings change; power and gain
+// changes only redo the quick margin step.
 
-import { bullingtonLoss } from "./diffraction";
+import { type ModelSettings, defaultModel, terrainLoss } from "./propagation";
 import { fsplDb } from "./fspl";
 import { type LatLon, destinationPoint } from "./geo";
 
@@ -53,23 +55,33 @@ export interface CoverageRadio {
   clutterLossDb?: number;
 }
 
-/** Margin in dB at every radial point (index 0, the site itself, is NaN). */
-export function coverageMargins(s: RadialSamples, radio: CoverageRadio, txHeightM: number, rxHeightM: number): Float32Array[] {
-  const fixed = radio.eirpDbm + radio.rxGainDbi - radio.rxCableLossDb - radio.sensitivityDbm - (radio.clutterLossDb ?? 0);
+/**
+ * Path loss in dB, free space plus terrain, at every radial point (index 0,
+ * the site itself, is NaN). This is the slow part, and it depends only on the
+ * frequency, the antenna heights and the model, not on power or gains.
+ */
+export function coveragePathLoss(s: RadialSamples, freqHz: number, txHeightM: number, rxHeightM: number, model: ModelSettings = defaultModel): Float32Array[] {
   return s.elevations.map((e) => {
     const out = new Float32Array(e.length);
     out[0] = Number.NaN;
-    const heights = Array.from(e);
     for (let k = 1; k < e.length; k++) {
       const d = k * s.stepM;
-      const diffraction =
-        k >= 2
-          ? bullingtonLoss({ freqHz: radio.freqHz, distanceM: d, elevationsM: heights.slice(0, k + 1), txHeightM, rxHeightM }).lossDb
-          : 0;
-      out[k] = fixed - fsplDb(radio.freqHz, d) - diffraction;
+      const terrain = k >= 2 ? terrainLoss({ freqHz, distanceM: d, elevationsM: e.subarray(0, k + 1), txHeightM, rxHeightM }, model).lossDb : 0;
+      out[k] = fsplDb(freqHz, d) + terrain;
     }
     return out;
   });
+}
+
+/** Margin in dB at every radial point from the path loss there. */
+export function marginsFromLoss(loss: Float32Array[], radio: Omit<CoverageRadio, "freqHz">): Float32Array[] {
+  const fixed = radio.eirpDbm + radio.rxGainDbi - radio.rxCableLossDb - radio.sensitivityDbm - (radio.clutterLossDb ?? 0);
+  return loss.map((row) => row.map((l) => fixed - l));
+}
+
+/** Margin in dB at every radial point (index 0, the site itself, is NaN). */
+export function coverageMargins(s: RadialSamples, radio: CoverageRadio, txHeightM: number, rxHeightM: number, model: ModelSettings = defaultModel): Float32Array[] {
+  return marginsFromLoss(coveragePathLoss(s, radio.freqHz, txHeightM, rxHeightM, model), radio);
 }
 
 /** Margin at a bearing and distance from the nearest radial point, or NaN. */

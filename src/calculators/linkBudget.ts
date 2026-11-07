@@ -4,7 +4,9 @@ import type { Calculator } from ".";
 import { beyondCableRange, cableLossDb, cables, findCable, lossPer100Ft } from "../lib/coax";
 import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
 import { environmentNote, environmentOptions } from "./environmentField";
-import { midpointClearance } from "../lib/horizon";
+import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { type ModelSettings, timeAvailable } from "../lib/propagation";
+import { STANDARD_K, kFactors, midpointClearance, parseKFactor } from "../lib/horizon";
 import { createTerrainCard } from "./terrain";
 import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
 import { linkQuality } from "../lib/linkLines";
@@ -50,6 +52,8 @@ const defaults: Record<string, string> = {
   rxOther: "0.5",
   rxSens: "-100",
   fadeMargin: "10",
+  kFactor: "4/3",
+  ...modelDefaults,
 };
 
 const hfWarning =
@@ -143,7 +147,11 @@ const template = `
         <label>Environment
           <select name="environment">${environmentOptions()}</select>
         </label>
+        <label>Earth curvature (k)
+          <select name="kFactor">${kFactors.map((f) => `<option value="${f.id}">${f.name}</option>`).join("")}</select>
+        </label>
         ${numberField("Extra path loss", "extraLoss", "dB", 'min="0" title="Foliage, buildings, rain, partial Fresnel blockage"')}
+        ${modelFieldsHtml()}
       </div>
       <p class="note" data-out="envNote" hidden></p>
       <p class="note" data-out="distNote" hidden>
@@ -183,6 +191,7 @@ const template = `
         <div class="tile">
           <span class="label">Link margin</span>
           <span class="value" data-out="margin"></span>
+          <span class="sub" data-out="marginSub"></span>
         </div>
         <div class="tile">
           <span class="label">Max range</span>
@@ -195,7 +204,7 @@ const template = `
         <thead><tr><th>Stage</th><th class="num">Change</th><th class="num">Level</th></tr></thead>
         <tbody data-out="ledger"></tbody>
       </table>
-      <details class="about"><summary>About this calculation</summary><p>Margin guide: 20 dB or more is solid, 10–20 workable, 0–10 marginal. Free-space loss is the best case with a clear line of sight. Cable loss assumes a well-matched antenna; high SWR adds more.</p></details>
+      <details class="about"><summary>About this calculation</summary><p>Margin guide: 20 dB or more is solid, 10–20 workable, 0–10 marginal. Without map pins, free-space loss is the best case with a clear line of sight. With pins, the Irregular Terrain Model (Longley-Rice) adds the terrain along the path, at the reliability and confidence you set; the margin then shows how much of the time the link holds. Cable loss assumes a well-matched antenna; high SWR adds more.</p></details>
     </section>
   </aside>
 
@@ -242,6 +251,14 @@ function formatWatts(watts: number): string {
   return `${fmt(watts * 1e6, 1)} µW`;
 }
 
+/** How often the link holds, under the margin. */
+function availabilityText(percent: number, model: ModelSettings): string {
+  const at = ` at ${fmt(model.confidence, 0)}% confidence`;
+  if (percent >= 99.9) return `Holds over 99.9% of the time${at}`;
+  if (percent <= 0.1) return `Holds under 0.1% of the time${at}`;
+  return `Holds about ${fmt(percent, percent >= 99 ? 1 : 0)}% of the time${at}`;
+}
+
 function formatRange(metres: number, unit: DistanceUnit): string {
   const value = fromMetres(metres, unit);
   return value >= 1e5 ? "Beyond 100,000" : fmt(value, value < 10 ? 2 : 1);
@@ -256,6 +273,7 @@ export const linkBudgetCalculator: Calculator = {
     const form = document.createElement("form");
     form.className = "calculator link-budget";
     form.innerHTML = template;
+    linkGroundToEnvironment(form);
     form.addEventListener("submit", (e) => e.preventDefault());
 
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
@@ -311,7 +329,7 @@ export const linkBudgetCalculator: Calculator = {
         warn.hidden = false;
         return;
       }
-      const c = midpointClearance(i.freqHz, i.distanceM, i.txHeightM, i.rxHeightM);
+      const c = midpointClearance(i.freqHz, i.distanceM, i.txHeightM, i.rxHeightM, i.k);
       out("bulge").textContent = height(c.bulgeM);
       out("clearance").textContent = height(c.clearanceM);
       out("fresnel").textContent = height(c.neededM);
@@ -359,6 +377,7 @@ export const linkBudgetCalculator: Calculator = {
         txHeightM,
         rxHeightM,
         clutterLossDb: clutterLossDb(env, freqHz, txHeightM) + clutterLossDb(env, freqHz, rxHeightM),
+        k: parseKFactor(field("kFactor").value),
       };
 
       const problem =
@@ -376,6 +395,7 @@ export const linkBudgetCalculator: Calculator = {
       out("geometry").hidden = hf || !!problem;
       out("geoWarn").hidden = true;
 
+      const model = readModel(form);
       const profile = terrain.refresh({
         freqHz: inputs.freqHz,
         // The terrain path runs from the top of the clutter; the clutter loss
@@ -385,10 +405,12 @@ export const linkBudgetCalculator: Calculator = {
         distUnit,
         heightUnit: asDistanceUnit(field("txHeightUnit").value),
         applies: !hf && !problem,
+        model,
+        k: inputs.k ?? STANDARD_K,
       });
 
       if (problem) {
-        for (const name of ["eirp", "eirpW", "fspl", "rxIso", "rsl", "margin", "range", "rangeSub", "barRsl", "barMargin"]) {
+        for (const name of ["eirp", "eirpW", "fspl", "rxIso", "rsl", "margin", "marginSub", "range", "rangeSub", "barRsl", "barMargin"]) {
           out(name).textContent = dash;
         }
         out("rating").hidden = true;
@@ -399,7 +421,7 @@ export const linkBudgetCalculator: Calculator = {
 
       out("envNote").hidden = env.id === "none";
       out("envNote").textContent = environmentNote(env, freqHz, txHeightM, rxHeightM);
-      inputs.terrainLossDb = profile?.diffraction.lossDb ?? 0;
+      inputs.terrainLossDb = profile?.loss.lossDb ?? 0;
       const r = linkBudget(inputs);
       const rating = rateMargin(r.marginDb);
       // The map line follows the same rule as the Mesh Planner: good once the fade margin is covered.
@@ -411,6 +433,7 @@ export const linkBudgetCalculator: Calculator = {
       out("rxIso").textContent = `Arrives at ${fmt(r.rxIsotropicDbm)} dBm before RX antenna gain`;
       out("rsl").innerHTML = dbm(r.rslDbm);
       out("margin").innerHTML = db(r.marginDb);
+      out("marginSub").textContent = profile?.loss.itm && !hf ? availabilityText(timeAvailable(profile.loss.itm, model, r.marginDb), model) : "";
       if (hf) {
         out("range").textContent = dash;
         out("rangeSub").textContent = "Not meaningful on HF";
@@ -462,7 +485,7 @@ export const linkBudgetCalculator: Calculator = {
       step("Free-space loss", -r.fsplDb);
       if (inputs.extraPathLossDb) step("Extra path loss", -inputs.extraPathLossDb);
       if (inputs.clutterLossDb) step(env.name, -inputs.clutterLossDb);
-      if (profile) step("Terrain diffraction", -inputs.terrainLossDb);
+      if (profile) step(profile.loss.model === "itm" ? "Terrain (Longley-Rice)" : "Terrain diffraction", -inputs.terrainLossDb);
       step("RX antenna", inputs.rxGainDbi);
       if (inputs.rxCableLossDb) step("RX coax", -inputs.rxCableLossDb);
       if (inputs.rxOtherLossDb) step("RX other losses", -inputs.rxOtherLossDb);

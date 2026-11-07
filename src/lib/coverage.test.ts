@@ -30,8 +30,8 @@ describe("coverageMargins", () => {
     const s = sampleRadials(site, 3000, 4, 30, flat);
     const m = coverageMargins(s, radio, 300, 300);
     const d = 30 * s.stepM;
-    // Margins are stored as Float32, good to about 1e-5 dB here.
-    expect(m[0][30]).toBeCloseTo(32 + 2 - 0 + 100 - fsplDb(915e6, d), 4);
+    // Longley-Rice adds next to nothing when the path clears the ground by far.
+    expect(m[0][30]).toBeCloseTo(32 + 2 - 0 + 100 - fsplDb(915e6, d), 2);
     expect(m[0][0]).toBeNaN();
   });
 

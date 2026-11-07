@@ -2,10 +2,10 @@
 // radios, over terrain when a profile is available, then which nodes can
 // reach each other through usable links.
 
-import { bullingtonLoss } from "./diffraction";
 import { type Environment, clutterLossDb, effectiveHeightM } from "./environment";
 import { linkBudget } from "./linkBudget";
 import { type ProfileStatus, analyzeProfile } from "./profile";
+import { type ModelSettings, defaultModel, terrainLoss } from "./propagation";
 
 export interface MeshRadio {
   freqHz: number;
@@ -18,6 +18,8 @@ export interface MeshRadio {
   fadeMarginDb: number;
   /** What surrounds the nodes; adds clutter loss at both ends of each link. */
   environment?: Environment;
+  /** Propagation model settings for terrain loss; the defaults if unset. */
+  model?: ModelSettings;
 }
 
 export type MeshLinkStatus = "good" | "marginal" | "fail";
@@ -49,7 +51,7 @@ export function meshLink(
   let profile: ProfileStatus | undefined;
   if (elevationsM && elevationsM.length >= 3) {
     const path = { freqHz: radio.freqHz, distanceM, elevationsM, txHeightM: pathA, rxHeightM: pathB };
-    terrainLossDb = bullingtonLoss(path).lossDb;
+    terrainLossDb = terrainLoss(path, radio.model ?? defaultModel).lossDb;
     profile = analyzeProfile(path).status;
   }
   const r = linkBudget({

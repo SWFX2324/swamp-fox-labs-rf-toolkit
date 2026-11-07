@@ -65,3 +65,12 @@ describe("sampleCount", () => {
     expect(sampleCount(100_000)).toBe(200);
   });
 });
+
+describe("analyzeProfile k-factor", () => {
+  it("can turn a clear path into a Fresnel-obstructed one at k = 2/3", () => {
+    // 40 km over flat ground, 5.8 GHz, 60 m masts: clears at 4/3, not at 2/3.
+    const path = { freqHz: 5.8e9, distanceM: 40_000, elevationsM: Array.from({ length: 101 }, () => 0), txHeightM: 60, rxHeightM: 60 };
+    expect(analyzeProfile(path).status).toBe("clear");
+    expect(analyzeProfile({ ...path, k: 2 / 3 }).status).not.toBe("clear");
+  });
+});

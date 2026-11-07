@@ -7,7 +7,7 @@ import * as L from "leaflet";
 import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
-import { type RadialSamples, coverageMargins, coverageStats, marginAt, sampleRadials } from "../lib/coverage";
+import { type RadialSamples, coveragePathLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials } from "../lib/coverage";
 import { bearingDeg, distanceBetweenM } from "../lib/geo";
 import { EARTH_RADIUS_M } from "../lib/horizon";
 import { compassPoint } from "../lib/satPointing";
@@ -17,6 +17,7 @@ import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environ
 import { applySettings, createPlanBar, downloadFile, pngBytes } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { environmentNote, environmentOptions } from "./environmentField";
+import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { loadTiles } from "./tileElevation";
 import {
   type DistanceUnit,
@@ -49,6 +50,7 @@ const defaults: Record<string, string> = {
   sens: "-100",
   fade: "10",
   environment: "none",
+  ...modelDefaults,
   radius: "6",
   radiusUnit: "mi",
   detail: "standard",
@@ -124,6 +126,7 @@ const template = `
         <label>Detail
           <select name="detail">${Object.entries(detailLevels).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select>
         </label>
+        ${modelFieldsHtml()}
       </div>
       <div class="run-row">
         <button type="button" data-action="run">Map coverage</button>
@@ -157,7 +160,7 @@ const template = `
         <p class="note" data-out="envNote" hidden></p>
         <p class="note" data-out="probe"></p>
       </div>
-      <details class="about"><summary>About this calculation</summary><p>Free-space loss plus ITU-R P.526 Bullington diffraction over bare-earth terrain, sampled along radials from the site. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. Tiles you've loaded work offline.</p></details>
+      <details class="about"><summary>About this calculation</summary><p>Free-space loss plus terrain loss from the Irregular Terrain Model (Longley-Rice) over bare-earth terrain, sampled along radials from the site, at the reliability and confidence you set. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. Tiles you've loaded work offline.</p></details>
     </section>
   </aside>
 `;
@@ -193,6 +196,7 @@ export const coverageCalculator: Calculator = {
     const form = document.createElement("form");
     form.className = "calculator two-col coverage";
     form.innerHTML = template;
+    linkGroundToEnvironment(form);
     form.addEventListener("submit", (e) => e.preventDefault());
 
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
@@ -232,6 +236,7 @@ export const coverageCalculator: Calculator = {
     let samples: RadialSamples | undefined;
     let sampledFor = "";
     let margins: Float32Array[] | undefined;
+    let pathLoss: { samples: RadialSamples; key: string; loss: Float32Array[] } | undefined;
     let running: AbortController | undefined;
     let lastOverlay: { url: string; bounds: OverlayBounds } | undefined;
     let runWhenReady = false;
@@ -343,12 +348,15 @@ export const coverageCalculator: Calculator = {
       const rxH = toMetres(num("rxHeight") || 0, heightUnit());
       out("envNote").hidden = env.id === "none";
       out("envNote").textContent = environmentNote(env, r.freqHz, txH, rxH);
-      margins = coverageMargins(
-        samples,
-        { ...r, clutterLossDb: clutterLossDb(env, r.freqHz, txH) + clutterLossDb(env, r.freqHz, rxH) },
-        effectiveHeightM(env, txH),
-        effectiveHeightM(env, rxH),
-      );
+      // The terrain work only reruns when what it depends on changes.
+      const model = readModel(form);
+      const pathTxH = effectiveHeightM(env, txH);
+      const pathRxH = effectiveHeightM(env, rxH);
+      const lossKey = JSON.stringify([r.freqHz, pathTxH, pathRxH, model]);
+      if (!pathLoss || pathLoss.samples !== samples || pathLoss.key !== lossKey) {
+        pathLoss = { samples, key: lossKey, loss: coveragePathLoss(samples, r.freqHz, pathTxH, pathRxH, model) };
+      }
+      margins = marginsFromLoss(pathLoss.loss, { ...r, clutterLossDb: clutterLossDb(env, r.freqHz, txH) + clutterLossDb(env, r.freqHz, rxH) });
       const fade = num("fade") || 0;
       const stats = coverageStats(samples, margins, fade);
       const pill = out("pill");
@@ -420,7 +428,7 @@ export const coverageCalculator: Calculator = {
     const clearCoverage = () => {
       running?.abort();
       running = undefined;
-      samples = margins = undefined;
+      samples = margins = pathLoss = undefined;
       sampledFor = "";
       lastOverlay = undefined;
       map?.closePopup();

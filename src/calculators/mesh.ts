@@ -15,6 +15,7 @@ import { findEnvironment } from "../lib/environment";
 import { applySettings, createPlanBar, downloadFile } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { environmentOptions } from "./environmentField";
+import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, distanceBetweenM, samplePath } from "../lib/geo";
 import { type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
@@ -55,6 +56,7 @@ const settingDefaults: Record<string, string> = {
   distUnit: "mi",
   height: "30",
   heightUnit: "ft",
+  ...modelDefaults,
 };
 
 const statusText: Record<MeshLinkStatus, [string, string]> = {
@@ -103,6 +105,7 @@ const template = `
         <label>Show distances in
           <select name="distUnit"><option>mi</option><option>km</option></select>
         </label>
+        ${modelFieldsHtml()}
       </div>
     </section>
 
@@ -152,7 +155,7 @@ const template = `
             <tbody data-out="links"></tbody>
           </table>
         </div>
-        <details class="about"><summary>About this calculation</summary><p>Solid links keep your fade margin; marginal ones connect with less. Terrain loss uses ITU-R P.526 Bullington diffraction on bare-earth elevation (Terrain Tiles, USGS in the US), so trees and buildings aren't counted unless you pick an Environment.</p></details>
+        <details class="about"><summary>About this calculation</summary><p>Solid links keep your fade margin; marginal ones connect with less. Terrain loss uses the Irregular Terrain Model (Longley-Rice) on bare-earth elevation (Terrain Tiles, USGS in the US), at the reliability and confidence you set, so trees and buildings aren't counted unless you pick an Environment.</p></details>
       </div>
     </section>
   </aside>
@@ -181,6 +184,7 @@ export const meshCalculator: Calculator = {
     const form = document.createElement("form");
     form.className = "calculator two-col mesh";
     form.innerHTML = template;
+    linkGroundToEnvironment(form);
     form.querySelector('[data-out="legend"]')!.replaceWith(linkLegend());
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -310,6 +314,7 @@ export const meshCalculator: Calculator = {
         sensitivityDbm: num("sens"),
         fadeMarginDb: num("fade") || 0,
         environment: findEnvironment(field("environment").value),
+        model: readModel(form),
       };
       if (!(radio.freqHz > 0) || !Number.isFinite(radio.txPowerDbm) || !Number.isFinite(radio.sensitivityDbm)) {
         out("pill").hidden = true;

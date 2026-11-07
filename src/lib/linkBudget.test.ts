@@ -109,3 +109,11 @@ describe("power units", () => {
     expect(toDbm(27, "dBm")).toBe(27);
   });
 });
+
+describe("linkBudget k-factor", () => {
+  it("uses k for the radio horizon", () => {
+    const i: LinkInputs = { freqHz: 900e6, distanceM: 30_000, txPowerDbm: 30, txCableLossDb: 0, txOtherLossDb: 0, txGainDbi: 0, extraPathLossDb: 0, rxGainDbi: 0, rxCableLossDb: 0, rxOtherLossDb: 0, rxSensitivityDbm: -110, fadeMarginDb: 10, txHeightM: 20, rxHeightM: 20 };
+    expect(linkBudget({ ...i, k: 2 / 3 }).horizonM).toBeCloseTo(lineOfSightRangeM(20, 20, 2 / 3), 6);
+    expect(linkBudget(i).horizonM).toBeCloseTo(lineOfSightRangeM(20, 20), 6);
+  });
+});

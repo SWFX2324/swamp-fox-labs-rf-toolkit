@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { earthBulgeM, fresnelRadiusM, lineOfSightRangeM, midpointClearance, radioHorizonM } from "./horizon";
+import { STANDARD_K, earthBulgeM, fresnelRadiusM, lineOfSightRangeM, midpointClearance, parseKFactor, radioHorizonM } from "./horizon";
 import { fromMetres, toMetres } from "./units";
 
 describe("radioHorizonM", () => {
@@ -40,5 +40,23 @@ describe("midpointClearance", () => {
     const c = midpointClearance(915e6, 10_000, 10, 20);
     expect(c.clearanceM).toBeCloseTo(15 - earthBulgeM(5000, 5000), 9);
     expect(c.neededM).toBeCloseTo(0.6 * fresnelRadiusM(915e6, 5000, 5000), 9);
+  });
+});
+
+describe("k-factor choices", () => {
+  it("reads the choice ids, standard for anything else", () => {
+    expect(parseKFactor("4/3")).toBeCloseTo(4 / 3, 12);
+    expect(parseKFactor("1")).toBe(1);
+    expect(parseKFactor("2/3")).toBeCloseTo(2 / 3, 12);
+    expect(parseKFactor("5")).toBe(STANDARD_K);
+    expect(parseKFactor(undefined)).toBe(STANDARD_K);
+  });
+
+  it("raises the bulge and shortens the horizon in the worst case", () => {
+    expect(earthBulgeM(20_000, 20_000, 2 / 3)).toBeCloseTo(2 * earthBulgeM(20_000, 20_000), 9);
+    expect(lineOfSightRangeM(30, 30, 2 / 3)).toBeLessThan(lineOfSightRangeM(30, 30));
+    const worst = midpointClearance(5.8e9, 40_000, 30, 30, 2 / 3);
+    const standard = midpointClearance(5.8e9, 40_000, 30, 30);
+    expect(standard.clearanceM - worst.clearanceM).toBeCloseTo(worst.bulgeM - standard.bulgeM, 9);
   });
 });

@@ -36,6 +36,8 @@ export interface LinkInputs {
   /** Antenna heights above ground, metres. */
   txHeightM: number;
   rxHeightM: number;
+  /** Effective earth radius factor for the radio horizon; 4/3 if unset. */
+  k?: number;
 }
 
 export interface LinkResult {
@@ -73,7 +75,7 @@ export function linkBudget(i: LinkInputs): LinkResult {
   const fixed = eirp - i.extraPathLossDb - clutter + i.rxGainDbi - i.rxCableLossDb - i.rxOtherLossDb;
   const allowedFspl = fixed - i.rxSensitivityDbm - i.fadeMarginDb;
   const budgetRange = distanceForLossM(i.freqHz, allowedFspl);
-  const horizon = lineOfSightRangeM(i.txHeightM, i.rxHeightM);
+  const horizon = lineOfSightRangeM(i.txHeightM, i.rxHeightM, i.k);
 
   return {
     eirpDbm: eirp,

@@ -3,6 +3,7 @@
 // inputs' name attributes. Typical values are rules of thumb, not specs.
 
 import type { FieldGuide } from "./fieldHelp";
+import { modelAdvanced, modelHelp } from "./modelFields";
 
 const shared = {
   freq:
@@ -54,8 +55,12 @@ export const linkBudgetGuide: FieldGuide = {
     fadeMargin: `${shared.fade} It sets the max range and the margin rating.`,
     txLoc: shared.location,
     rxLoc: shared.location,
+    ...modelHelp,
+    kFactor:
+      "How much the air bends signals back toward the earth, used for the line-of-sight and Fresnel checks and the radio horizon. 4/3 is the normal atmosphere. 2/3 is the bad case, a few percent of the time, when the earth effectively bulges higher; microwave links are often planned to stay clear even then. It doesn't change the Longley-Rice loss, which has its own atmosphere model.",
   },
   advanced: [
+    "kFactor",
     "txCable",
     "txCableLen",
     '[data-show="txCable"]',
@@ -68,6 +73,7 @@ export const linkBudgetGuide: FieldGuide = {
     '[data-out="rxCableNote"]',
     "rxOther",
     "fadeMargin",
+    ...modelAdvanced,
   ],
 };
 
@@ -81,8 +87,9 @@ export const meshGuide: FieldGuide = {
     fade: `${shared.fade} Links that keep it count as solid.`,
     environment: shared.environment,
     height: `${shared.height} Each node can override it in the node list.`,
+    ...modelHelp,
   },
-  advanced: ["cable", "fade", "distUnit"],
+  advanced: ["cable", "fade", "distUnit", ...modelAdvanced],
 };
 
 export const coverageGuide: FieldGuide = {
@@ -103,8 +110,9 @@ export const coverageGuide: FieldGuide = {
     sens: shared.sensitivity,
     fade: `${shared.fade} Areas that keep it show as solid.`,
     environment: shared.environment,
+    ...modelHelp,
   },
-  advanced: ["detail", "txCable", "rxGain", "rxCable", "fade"],
+  advanced: ["detail", "txCable", "rxGain", "rxCable", "fade", ...modelAdvanced],
 };
 
 export const antennaGuide: FieldGuide = {

@@ -7,6 +7,22 @@ import { wavelengthM } from "./fspl";
 export const EARTH_RADIUS_M = 6_371_000;
 export const STANDARD_K = 4 / 3;
 
+/**
+ * k-factor choices for clearance checks. 4/3 is the usual atmosphere; 2/3 is
+ * the bad case microwave planners also check, when the air bends signals up
+ * and away and the earth effectively bulges higher.
+ */
+export const kFactors = [
+  { id: "4/3", k: 4 / 3, name: "4/3 (standard)" },
+  { id: "1", k: 1, name: "1 (no bending)" },
+  { id: "2/3", k: 2 / 3, name: "2/3 (worst case)" },
+] as const;
+
+/** The k-factor for a choice id, standard for anything unknown. */
+export function parseKFactor(id: string | undefined): number {
+  return kFactors.find((f) => f.id === id)?.k ?? STANDARD_K;
+}
+
 /** Distance from an antenna at heightM to its radio horizon, in metres. */
 export function radioHorizonM(heightM: number, k = STANDARD_K): number {
   return Math.sqrt(2 * k * EARTH_RADIUS_M * Math.max(0, heightM));

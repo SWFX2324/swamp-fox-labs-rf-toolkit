@@ -9,13 +9,16 @@ import { drawLinkLine, linkLegend } from "./linkLine";
 import { type LinkQuality, linkLineLabels, linkLineStyle } from "../lib/linkLines";
 import { locateButton, locateMe } from "./locate";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
-import { type DiffractionResult, bullingtonLoss } from "../lib/diffraction";
+import { type ModelSettings, type TerrainLoss, terrainLoss } from "../lib/propagation";
 import { fetchPathElevations } from "./tileElevation";
 import { createPathStore } from "../lib/pathStore";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type LatLon, bearingDeg, distanceBetweenM, formatLatLon, parseLatLon, samplePath } from "../lib/geo";
 import { FRESNEL_CLEAR_RATIO, type ProfileResult, type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
 import { type DistanceUnit, fromMetres } from "../lib/units";
+import { STANDARD_K, kFactors } from "../lib/horizon";
+
+const kLabel = (k: number) => kFactors.find((f) => f.k === k)?.id ?? k.toFixed(2);
 
 const STORAGE_KEY = "rf-toolkit:terrain";
 
@@ -27,9 +30,12 @@ export interface TerrainParams {
   heightUnit: DistanceUnit;
   /** False on HF, where a line-of-sight profile doesn't apply. */
   applies: boolean;
+  model: ModelSettings;
+  /** Effective earth radius factor for the clearance check. */
+  k: number;
 }
 
-export type TerrainAnalysis = ProfileResult & { diffraction: DiffractionResult };
+export type TerrainAnalysis = ProfileResult & { loss: TerrainLoss };
 
 export interface TerrainCard {
   element: HTMLElement;
@@ -90,7 +96,7 @@ const template = `
       </span>
     </label>
   </div>
-  <details class="about"><summary>About this calculation</summary><p>Terrain loss uses the Bullington method of ITU-R P.526-16, which can read low on paths over several ridges. Elevation: Terrain Tiles (Mapzen, AWS Open Data), bare earth at up to about 30 m; US data courtesy of the U.S. Geological Survey. Saved and recent paths work offline, as do areas you've viewed before.</p></details>
+  <details class="about"><summary>About this calculation</summary><p>Terrain loss uses the Irregular Terrain Model (Longley-Rice), ported from NTIA's reference code: it covers line of sight, diffraction over terrain and troposcatter beyond the horizon, from 20 MHz to 20 GHz. Above 20 GHz it falls back to the Bullington method of ITU-R P.526-16. Elevation: Terrain Tiles (Mapzen, AWS Open Data), bare earth at up to about 30 m; US data courtesy of the U.S. Geological Survey. Saved and recent paths work offline, as do areas you've viewed before.</p></details>
   </div>
 `;
 
@@ -421,12 +427,12 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       txHeightM: params.txHeightM,
       rxHeightM: params.rxHeightM,
     };
-    const result = analyzeProfile(path);
-    const diffraction = bullingtonLoss(path);
+    const result = analyzeProfile({ ...path, k: params.k });
+    const loss = terrainLoss(path, params.model);
     const [text, cls] = statusText[result.status];
     pill.hidden = false;
     pill.className = `pill ${cls}`;
-    pill.textContent = text;
+    pill.textContent = params.k === STANDARD_K ? text : `${text} at k = ${kLabel(params.k)}`;
     lineOfSight = result.status;
 
     chart.hidden = false;
@@ -444,7 +450,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
         : `${h(w.clearanceM)} clear, ${fmt(Math.max(0, w.clearanceRatio) * 100, 0)}% of the Fresnel zone`;
     facts.hidden = false;
     facts.querySelector("tbody")!.innerHTML = [
-      ["Terrain diffraction loss", `${fmt(diffraction.lossDb, 1)} dB`],
+      [loss.model === "itm" ? "Terrain loss (Longley-Rice)" : "Terrain loss (Bullington)", `${fmt(loss.lossDb, 1)} dB beyond free space`],
       ["Tightest point", `${d(w.distanceM)} from TX`],
       [w.clearanceM < 0 ? "Terrain there is" : "Clearance there", tightest],
       ["Ground at TX / RX", `${h(result.txGroundM)} / ${h(result.rxGroundM)}`],
@@ -452,7 +458,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     ]
       .map(([k, v], idx) => `<tr${idx === 0 ? ' class="total"' : ""}><td>${k}</td><td class="num mono">${v}</td></tr>`)
       .join("");
-    return { ...result, diffraction };
+    return { ...result, loss };
   };
 
   // Closed until wanted, so it doesn't push the results down; open if pins exist.
@@ -468,7 +474,8 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   el("toggle").setAttribute("aria-expanded", String(!el("body").hidden));
 
   syncPins();
-  if (tx && rx) void loadProfile();
+  // After the page finishes building: a cached path calls onPathChange straight away.
+  if (tx && rx) queueMicrotask(() => void loadProfile());
 
   return {
     element: card,
