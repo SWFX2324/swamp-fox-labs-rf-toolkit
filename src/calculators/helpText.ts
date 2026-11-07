@@ -23,7 +23,7 @@ const shared = {
   extraLoss:
     "Any known loss you want to add on top, such as being inside a vehicle or building (roughly 10–20 dB). If you've picked an Environment, it already covers the general surroundings, so don't count those again.",
   environment:
-    "A rough estimate of the loss from what surrounds your antennas, applied at both ends: open water, fields or desert (low antennas lose signal to ground reflections), light vegetation or suburbs, cities, or dense forest and jungle. It grows with frequency and fades away once an antenna clears the clutter. It can't see that a path runs through forest then open field, and it's less reliable under about 800 ft. Based on ITU-R P.2108; Open Water, Open Fields and Desert use the same ITU category, as do Light Vegetation and Suburban.",
+    "A rough estimate of the loss from what surrounds your antennas, applied at both ends: open water, fields or desert (low antennas lose signal to ground reflections), light vegetation or suburbs, cities, or dense forest and jungle. It grows with frequency and fades away once an antenna clears the clutter. It can't see that a path runs through forest then open field, and it's less reliable under about 800 ft. Based on ITU-R P.2108; Open Water, Open Fields and Desert use the same ITU category, as do Light Vegetation and Suburban. From land-cover map reads a 10 m satellite land-cover map (Impact Observatory, Microsoft and Esri) and picks the profile at each end separately: trees count as Dense Vegetation, crops and grassland as Open Fields, built-up areas as Suburban or Urban by how built-up the area is. It needs a connection the first time for each area, or an area saved for offline.",
   sensitivity:
     "The weakest signal the receiver can still decode, from its datasheet, as a negative number in dBm. More negative is more sensitive. A VHF handheld is often around −120 dBm; a HaLow node around −95 to −105 dBm depending on data rate.",
   fade:
@@ -33,6 +33,15 @@ const shared = {
   slot:
     "The satellite's orbital position from your access documents, such as 101W or 28.2E. Geostationary satellites sit over the equator at that longitude.",
 };
+
+const patternHelp =
+  "The shape of the antenna's beam. Omni sends the same way in every direction; a sector covers a wedge (its beamwidth); Directional is a Yagi, panel or dish, with a beam that narrows as its gain rises. Antenna gain is the peak, on the beam; off the beam the app takes away what the pattern loses there, down to about 20–25 dB behind it. Higher-gain antennas also have a thinner beam up and down, so they can miss ground right under a tall mast.";
+const aimHelp =
+  "The compass direction the antenna faces, in degrees from true north: 0 is north, 90 east, 180 south, 270 west. A phone compass reads magnetic north; Sat Pointing shows the difference (declination) for your area.";
+const tiltHelp =
+  "How far the beam points below the horizon, in degrees: built-in (electrical) tilt plus any mechanical tilt. 0 is level. A few degrees of downtilt fills in close to a tall site at the cost of reach. Leave 0 if you don't know it.";
+const kFactorHelp =
+  "How much the air bends signals back toward the earth, used for the line-of-sight and Fresnel checks and the radio horizon. 4/3 is the normal atmosphere. 2/3 is the bad case, a few percent of the time, when the earth effectively bulges higher; microwave links are often planned to stay clear even then. It doesn't change the Longley-Rice loss, which has its own atmosphere model.";
 
 export const linkBudgetGuide: FieldGuide = {
   help: {
@@ -56,8 +65,7 @@ export const linkBudgetGuide: FieldGuide = {
     txLoc: shared.location,
     rxLoc: shared.location,
     ...modelHelp,
-    kFactor:
-      "How much the air bends signals back toward the earth, used for the line-of-sight and Fresnel checks and the radio horizon. 4/3 is the normal atmosphere. 2/3 is the bad case, a few percent of the time, when the earth effectively bulges higher; microwave links are often planned to stay clear even then. It doesn't change the Longley-Rice loss, which has its own atmosphere model.",
+    kFactor: kFactorHelp,
   },
   advanced: [
     "kFactor",
@@ -88,8 +96,9 @@ export const meshGuide: FieldGuide = {
     environment: shared.environment,
     height: `${shared.height} Each node can override it in the node list.`,
     ...modelHelp,
+    kFactor: `${kFactorHelp} Here it decides whether a good link is drawn as clear line of sight (solid) or obstructed (long dashes).`,
   },
-  advanced: ["cable", "fade", "distUnit", ...modelAdvanced],
+  advanced: ["cable", "fade", "distUnit", "kFactor", ...modelAdvanced],
 };
 
 export const coverageGuide: FieldGuide = {
@@ -103,6 +112,9 @@ export const coverageGuide: FieldGuide = {
     txGain: shared.gain,
     txCable: `Cable and connector loss between the transmitter and its antenna. ${shared.otherLoss}`,
     txHeight: `${shared.height} This is the transmitter or repeater site.`,
+    txPattern: patternHelp,
+    txAzimuth: aimHelp,
+    txTilt: tiltHelp,
     rxHeight:
       "Antenna height of the stations you want to reach: about 5 ft for a handheld, 6–8 ft on a vehicle roof.",
     rxGain: shared.gain,
@@ -112,7 +124,7 @@ export const coverageGuide: FieldGuide = {
     environment: shared.environment,
     ...modelHelp,
   },
-  advanced: ["detail", "txCable", "rxGain", "rxCable", "fade", ...modelAdvanced],
+  advanced: ["detail", "txTilt", "txCable", "rxGain", "rxCable", "fade", ...modelAdvanced],
 };
 
 export const antennaGuide: FieldGuide = {

@@ -3,7 +3,9 @@ import { linkBudgetGuide } from "./helpText";
 import type { Calculator } from ".";
 import { beyondCableRange, cableLossDb, cables, findCable, lossPer100Ft } from "../lib/coax";
 import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
-import { environmentNote, environmentOptions } from "./environmentField";
+import { environmentNote, environmentOptions, landCoverNote } from "./environmentField";
+import { AUTO_ENVIRONMENT, type LandCoverPoint } from "../lib/landCover";
+import { landCoverAt } from "./landCoverTiles";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { type ModelSettings, timeAvailable } from "../lib/propagation";
 import { STANDARD_K, kFactors, midpointClearance, parseKFactor } from "../lib/horizon";
@@ -292,6 +294,27 @@ export const linkBudgetCalculator: Calculator = {
     const terrain = createTerrainCard(() => update());
     form.querySelector('[data-card="path"]')!.after(terrain.element);
 
+    // Land cover at the two pins, when Environment is "From land-cover map".
+    let cover: { key: string; ends?: [LandCoverPoint, LandCoverPoint]; error?: string } | undefined;
+    const landCover = (): { ends?: [LandCoverPoint, LandCoverPoint]; note: string } => {
+      const pins = terrain.pins();
+      if (!pins) return { note: "Drop both pins in Terrain profile to read the land cover at each end. Until then no clutter loss is added." };
+      const key = JSON.stringify(pins);
+      if (cover?.key !== key) {
+        const mine = { key } as NonNullable<typeof cover>;
+        cover = mine;
+        landCoverAt([pins.tx, pins.rx])
+          .then(([a, b]) => (mine.ends = [a, b]))
+          .catch((err: Error) => {
+            mine.error = navigator.onLine ? err.message : "no connection, and this area isn't saved";
+          })
+          .finally(() => cover === mine && update());
+      }
+      if (cover.error) return { note: `Couldn't read the land-cover map (${cover.error}), so no clutter loss is added.` };
+      if (!cover.ends) return { note: "Reading the land-cover map…" };
+      return { ends: cover.ends, note: "" };
+    };
+
     // Cable loss for one side, plus the note under the cable picker.
     const sideCable = (side: "tx" | "rx", freqHz: number): number => {
       const cable = findCable(field(`${side}Cable`).value);
@@ -358,7 +381,11 @@ export const linkBudgetCalculator: Calculator = {
       saveState(state);
 
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
+      const auto = field("environment").value === AUTO_ENVIRONMENT;
+      const ends = auto ? landCover() : undefined;
       const env = findEnvironment(field("environment").value);
+      const txEnv = ends?.ends?.[0].environment ?? env;
+      const rxEnv = ends?.ends?.[1].environment ?? env;
       const txHeightM = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
       const rxHeightM = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
       const inputs: LinkInputs = {
@@ -376,7 +403,7 @@ export const linkBudgetCalculator: Calculator = {
         fadeMarginDb: num("fadeMargin") || 0,
         txHeightM,
         rxHeightM,
-        clutterLossDb: clutterLossDb(env, freqHz, txHeightM) + clutterLossDb(env, freqHz, rxHeightM),
+        clutterLossDb: clutterLossDb(txEnv, freqHz, txHeightM) + clutterLossDb(rxEnv, freqHz, rxHeightM),
         k: parseKFactor(field("kFactor").value),
       };
 
@@ -400,8 +427,8 @@ export const linkBudgetCalculator: Calculator = {
         freqHz: inputs.freqHz,
         // The terrain path runs from the top of the clutter; the clutter loss
         // covers the rest. The horizon above stays on the real antennas.
-        txHeightM: effectiveHeightM(env, txHeightM),
-        rxHeightM: effectiveHeightM(env, rxHeightM),
+        txHeightM: effectiveHeightM(txEnv, txHeightM),
+        rxHeightM: effectiveHeightM(rxEnv, rxHeightM),
         distUnit,
         heightUnit: asDistanceUnit(field("txHeightUnit").value),
         applies: !hf && !problem,
@@ -419,8 +446,12 @@ export const linkBudgetCalculator: Calculator = {
         return;
       }
 
-      out("envNote").hidden = env.id === "none";
-      out("envNote").textContent = environmentNote(env, freqHz, txHeightM, rxHeightM);
+      out("envNote").hidden = env.id === "none" && !auto;
+      out("envNote").textContent = ends
+        ? ends.ends
+          ? landCoverNote(ends.ends, ["The TX end", "the RX end"], freqHz, txHeightM, rxHeightM)
+          : ends.note
+        : environmentNote(env, freqHz, txHeightM, rxHeightM);
       inputs.terrainLossDb = profile?.loss.lossDb ?? 0;
       const r = linkBudget(inputs);
       const rating = rateMargin(r.marginDb);
@@ -484,7 +515,7 @@ export const linkBudgetCalculator: Calculator = {
       step("EIRP", null, true);
       step("Free-space loss", -r.fsplDb);
       if (inputs.extraPathLossDb) step("Extra path loss", -inputs.extraPathLossDb);
-      if (inputs.clutterLossDb) step(env.name, -inputs.clutterLossDb);
+      if (inputs.clutterLossDb) step(auto ? "Clutter (land cover)" : env.name, -inputs.clutterLossDb);
       if (profile) step(profile.loss.model === "itm" ? "Terrain (Longley-Rice)" : "Terrain diffraction", -inputs.terrainLossDb);
       step("RX antenna", inputs.rxGainDbi);
       if (inputs.rxCableLossDb) step("RX coax", -inputs.rxCableLossDb);

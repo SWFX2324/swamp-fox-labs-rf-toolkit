@@ -267,7 +267,13 @@ button.secondary:hover { border-color: var(--accent); }
 .coverage-map { height: 420px; margin-top: 12px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--card-2); z-index: 0; }
 .run-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .run-row .note { margin: 0; }
+label.check { flex-direction: row; align-items: center; gap: 8px; margin-top: 12px; color: var(--text); }
+label.check input { width: auto; margin: 0; }
+.readings-card .tiles { margin-top: 12px; }
+.ledger.readings .reading-cover { font-size: 12px; color: var(--text-2); }
+.leaflet-container .reading-dot { fill: var(--accent); fill-opacity: 0.9; stroke: #fff; stroke-width: 2; }
 .leaflet-container .coverage-ring { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 5; }
+.leaflet-container .coverage-aim { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 2 6; stroke-linecap: round; }
 .coverage-overlay { image-rendering: auto; }
 .coverage-legend .cov-strong { background: color-mix(in srgb, var(--good) 65%, transparent); }
 .coverage-legend .cov-solid { background: color-mix(in srgb, var(--good) 40%, transparent); }
@@ -285,6 +291,11 @@ button.secondary:hover { border-color: var(--accent); }
 .node-list .node-name { width: 100%; min-width: 90px; }
 .node-list .node-loc { font-size: 12px; color: var(--text-2); }
 .node-list .node-height { width: 110px; }
+.node-list .node-antenna { min-width: 120px; }
+.node-list .node-antenna select { width: 100%; }
+.node-list .node-aim { margin-top: 4px; width: 100%; }
+.node-list .node-aim input { width: 0; flex: 1; min-width: 0; }
+.node-list .node-aim[hidden] { display: none; }
 .node-badge {
   display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
   background: var(--accent); color: #fff; font: 700 12px/1 system-ui, sans-serif;
@@ -317,6 +328,10 @@ button.secondary:hover { border-color: var(--accent); }
 @media (max-width: 600px) {
   .node-list th:nth-child(3), .node-list td:nth-child(3) { display: none; }
   .node-list .node-height { width: 92px; }
+  .node-list .node-name { min-width: 40px; }
+  .node-list .node-antenna { min-width: 0; width: 96px; }
+  .node-list .node-antenna select { font-size: 13px; padding-left: 6px; padding-right: 22px; }
+  .node-list th, .node-list td { padding-left: 2px; padding-right: 2px; }
   .links th, .links td { padding: 6px 2px; }
   .links .pill { font-size: 11px; padding: 1px 6px 1px 5px; margin-left: 2px; }
 }

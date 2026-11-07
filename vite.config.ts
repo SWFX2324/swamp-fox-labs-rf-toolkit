@@ -26,7 +26,7 @@ export default defineConfig({
         // Keep map tiles the user has looked at, so the map background still
         // shows offline. Stale-while-revalidate refreshes them when online.
         // OpenStreetMap tiles are never downloaded in bulk (per its tile usage
-        // policy); "save this view" stores only the imagery and terrain below.
+        // policy); "save this view" stores only the imagery, terrain and land cover below.
         runtimeCaching: [
           {
             // OpenStreetMap tiles, used by both the Streets and Dark maps. Fetched
@@ -58,6 +58,16 @@ export default defineConfig({
               cacheName: "elevation-tiles",
               expiration: { maxEntries: 3000, maxAgeSeconds: 180 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Land-cover tiles for one year's map, which doesn't change either.
+            urlPattern: /^https:\/\/ic\.imagery1\.arcgis\.com\/arcgis\/rest\/services\/Sentinel2_10m_LandCover\//,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "land-cover-tiles",
+              expiration: { maxEntries: 3000, maxAgeSeconds: 365 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],

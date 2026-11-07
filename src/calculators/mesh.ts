@@ -15,12 +15,16 @@ import { findEnvironment } from "../lib/environment";
 import { applySettings, createPlanBar, downloadFile } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { environmentOptions } from "./environmentField";
+import { AUTO_ENVIRONMENT, type LandCoverPoint, describePoint } from "../lib/landCover";
+import { landCoverAt } from "./landCoverTiles";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { fetchPathElevations } from "./tileElevation";
-import { type LatLon, distanceBetweenM, samplePath } from "../lib/geo";
+import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM, samplePath } from "../lib/geo";
+import { beam, elevationAngleDeg, patternLossDb, patterns } from "../lib/pattern";
 import { type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
 import { createPathStore, pathKey } from "../lib/pathStore";
 import { sampleCount } from "../lib/profile";
+import { kFactors, parseKFactor } from "../lib/horizon";
 import {
   type DistanceUnit,
   frequencyUnits,
@@ -41,6 +45,10 @@ interface MeshNode extends LatLon {
   name: string;
   /** Antenna height in the chosen height unit, as typed. */
   height: string;
+  /** Antenna pattern id; omni if unset. */
+  antenna?: string;
+  /** Degrees true the antenna points, as typed. */
+  aim?: string;
 }
 
 const settingDefaults: Record<string, string> = {
@@ -56,6 +64,7 @@ const settingDefaults: Record<string, string> = {
   distUnit: "mi",
   height: "30",
   heightUnit: "ft",
+  kFactor: "4/3",
   ...modelDefaults,
 };
 
@@ -105,13 +114,16 @@ const template = `
         <label>Show distances in
           <select name="distUnit"><option>mi</option><option>km</option></select>
         </label>
+        <label>Earth curvature (k)
+          <select name="kFactor">${kFactors.map((f) => `<option value="${f.id}">${f.name}</option>`).join("")}</select>
+        </label>
         ${modelFieldsHtml()}
       </div>
     </section>
 
     <section class="card">
       <div class="card-head"><h2>Nodes</h2><span class="meta" data-out="nodeCount"></span></div>
-      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it.</p>
+      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it. For a sector or directional antenna, pick it under Antenna and enter the way it points.</p>
       <div class="fields">
         <label>Environment
           <select name="environment">${environmentOptions()}</select>
@@ -127,7 +139,7 @@ const template = `
       <p class="note warn" data-out="status"></p>
       <div class="table-wrap">
         <table class="ledger node-list">
-          <thead><tr><th></th><th>Name</th><th>Location</th><th>Height</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Name</th><th>Location</th><th>Height</th><th>Antenna</th><th></th></tr></thead>
           <tbody data-out="nodes"></tbody>
         </table>
       </div>
@@ -232,10 +244,21 @@ export const meshCalculator: Calculator = {
     let clearControl: ClearControl | undefined;
     let markers: L.Marker[] = [];
     let lines: L.LayerGroup[] = [];
+    let aimLines: L.Polyline[] = [];
     let lastLinks: { a: number; b: number; link: MeshLink; distanceM: number }[] = [];
 
     const heightM = (n: MeshNode) =>
       toMetres(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, asDistanceUnit(field("heightUnit").value));
+
+    // Pattern loss at node "from" toward node "to". The profile runs from "from".
+    const antennaLoss = (from: MeshNode, to: MeshNode, distanceM: number, elev: number[] | undefined, gainDbi: number, k: number) => {
+      // Omni antennas lose a little straight up or down too, which only
+      // matters close in under a tall mast.
+      const b = beam(from.antenna, gainDbi, Number.parseFloat(from.aim ?? "") || 0);
+      const fromTop = (elev?.[0] ?? 0) + heightM(from);
+      const toTop = (elev?.[elev.length - 1] ?? 0) + heightM(to);
+      return patternLossDb(b, bearingDeg(from, to), elevationAngleDeg(fromTop, toTop, distanceM, k));
+    };
 
     const renderNodes = () => {
       out("nodeCount").textContent = `${nodes.length} of ${MAX_NODES}`;
@@ -248,6 +271,10 @@ export const meshCalculator: Calculator = {
             <td><input class="node-name" type="text" autocomplete="off" /></td>
             <td class="mono node-loc"></td>
             <td><span class="input-unit node-height"><input type="number" inputmode="decimal" step="any" min="0" /><span class="unit"></span></span></td>
+            <td class="node-antenna">
+              <select aria-label="Node ${idx + 1} antenna pattern">${patterns.map((p) => `<option value="${p.id}">${p.id === "directional" ? "Directional" : p.name.replace(", ", " ")}</option>`).join("")}</select>
+              <span class="input-unit node-aim"><input type="number" inputmode="decimal" step="any" min="0" max="360" placeholder="0" title="Degrees from true north" aria-label="Node ${idx + 1} antenna points, degrees true" /><span class="unit">°</span></span>
+            </td>
             <td><button type="button" class="secondary icon-btn" title="Remove node" aria-label="Remove node ${idx + 1}">✕</button></td>`;
           const name = tr.querySelector<HTMLInputElement>(".node-name")!;
           name.value = n.name;
@@ -268,7 +295,28 @@ export const meshCalculator: Calculator = {
             save();
             recompute();
           });
-          tr.querySelector("button")!.addEventListener("click", () => {
+          const pattern = tr.querySelector<HTMLSelectElement>(".node-antenna select")!;
+          const aimBox = tr.querySelector<HTMLElement>(".node-aim")!;
+          const aim = aimBox.querySelector("input")!;
+          pattern.value = n.antenna ?? "omni";
+          aim.value = n.aim ?? "";
+          aimBox.hidden = pattern.value === "omni";
+          for (const type of ["input", "change"]) {
+            pattern.addEventListener(type, (e) => e.stopPropagation());
+            aim.addEventListener(type, (e) => e.stopPropagation());
+          }
+          pattern.addEventListener("change", () => {
+            n.antenna = pattern.value === "omni" ? undefined : pattern.value;
+            aimBox.hidden = pattern.value === "omni";
+            save();
+            recompute();
+          });
+          aim.addEventListener("input", () => {
+            n.aim = aim.value;
+            save();
+            recompute();
+          });
+          tr.querySelector("button[title]")!.addEventListener("click", () => {
             nodes.splice(idx, 1);
             nodesChanged();
           });
@@ -297,9 +345,42 @@ export const meshCalculator: Calculator = {
       });
     };
 
+    // Land cover at every node, when Environment is "From land-cover map".
+    let cover: { key: string; points?: LandCoverPoint[]; error?: string } | undefined;
+    const nodeCover = (): { points?: LandCoverPoint[]; note: string } => {
+      const key = JSON.stringify(nodes.map((n) => [n.lat, n.lon]));
+      if (cover?.key !== key) {
+        const mine: NonNullable<typeof cover> = { key };
+        cover = mine;
+        landCoverAt(nodes)
+          .then((p) => (mine.points = p))
+          .catch((err: Error) => {
+            mine.error = navigator.onLine ? err.message : "no connection, and this area isn't saved";
+          })
+          .finally(() => cover === mine && recompute());
+      }
+      if (cover.error) return { note: `Couldn't read the land-cover map (${cover.error}), so no clutter loss is added.` };
+      if (!cover.points) return { note: "Reading the land-cover map…" };
+      return { points: cover.points, note: "" };
+    };
+
+    // A dotted line out from each directional node the way it points.
+    const drawAims = () => {
+      for (const l of aimLines) l.remove();
+      aimLines = [];
+      if (!map) return;
+      for (const n of nodes) {
+        if (!n.antenna || n.antenna === "omni") continue;
+        const far = Math.max(0, ...nodes.map((o) => distanceBetweenM(n, o)));
+        const tip = destinationPoint(n, Number.parseFloat(n.aim ?? "") || 0, far > 0 ? 0.4 * far : 1000);
+        aimLines.push(L.polyline([[n.lat, n.lon], [tip.lat, tip.lon]], { className: "coverage-aim", interactive: false }).addTo(map));
+      }
+    };
+
     const recompute = () => {
       for (const l of lines) l.remove();
       lines = [];
+      drawAims();
       const ready = nodes.length >= 2;
       out("empty").hidden = ready;
       out("results").hidden = !ready;
@@ -315,6 +396,7 @@ export const meshCalculator: Calculator = {
         fadeMarginDb: num("fade") || 0,
         environment: findEnvironment(field("environment").value),
         model: readModel(form),
+        k: parseKFactor(field("kFactor").value),
       };
       if (!(radio.freqHz > 0) || !Number.isFinite(radio.txPowerDbm) || !Number.isFinite(radio.sensitivityDbm)) {
         out("pill").hidden = true;
@@ -322,14 +404,20 @@ export const meshCalculator: Calculator = {
         return;
       }
 
+      const auto = field("environment").value === AUTO_ENVIRONMENT;
+      const landCover = auto ? nodeCover() : undefined;
       const results = pairs(nodes.length).map(([a, b]) => {
         const elev = terrain.get(pathKey(nodes[a], nodes[b]));
+        const distanceM = Math.max(1, distanceBetweenM(nodes[a], nodes[b]));
         const link: MeshLink = meshLink(
           radio,
-          Math.max(1, distanceBetweenM(nodes[a], nodes[b])),
+          distanceM,
           heightM(nodes[a]),
           heightM(nodes[b]),
           Array.isArray(elev) ? elev : undefined,
+          antennaLoss(nodes[a], nodes[b], distanceM, Array.isArray(elev) ? elev : undefined, radio.gainDbi, radio.k) +
+            antennaLoss(nodes[b], nodes[a], distanceM, Array.isArray(elev) ? [...elev].reverse() : undefined, radio.gainDbi, radio.k),
+          landCover?.points ? [landCover.points[a].environment, landCover.points[b].environment] : undefined,
         );
         return { a, b, link, distanceM: distanceBetweenM(nodes[a], nodes[b]), terrainState: elev === undefined ? "pending" : elev === "error" ? "error" : "ok" };
       });
@@ -364,8 +452,12 @@ export const meshCalculator: Calculator = {
       const envLow = Math.min(...envLoss);
       const envHigh = Math.max(...envLoss);
       const env = radio.environment;
-      out("envNote").hidden = env.id === "none" || !(envHigh > 0);
-      out("envNote").textContent = `${env.name} adds about ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB to each link, included in the margins below. An estimate; the Terrain column is checked from the top of the clutter.`;
+      out("envNote").hidden = !landCover && (env.id === "none" || !(envHigh > 0));
+      if (landCover) {
+        out("envNote").textContent = landCover.points
+          ? `From the land-cover map: ${landCover.points.map((p, i) => `node ${i + 1} is in ${describePoint(p)}`).join("; ")}. Clutter adds ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB per link, included in the margins below.`
+          : landCover.note;
+      } else out("envNote").textContent = `${env.name} adds about ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB to each link, included in the margins below. An estimate; the Terrain column is checked from the top of the clutter.`;
       out("up").textContent = `${up.length} of ${results.length}`;
       out("upSub").textContent = `${solid.length} solid, ${up.length - solid.length} marginal`;
       out("hops").textContent = groups.length === 1 ? String(maxHops) : "—";

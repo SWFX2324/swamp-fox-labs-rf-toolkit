@@ -20,6 +20,8 @@ export interface MeshRadio {
   environment?: Environment;
   /** Propagation model settings for terrain loss; the defaults if unset. */
   model?: ModelSettings;
+  /** Effective earth radius factor for the line-of-sight check; 4/3 if unset. */
+  k?: number;
 }
 
 export type MeshLinkStatus = "good" | "marginal" | "fail";
@@ -28,6 +30,8 @@ export interface MeshLink {
   fsplDb: number;
   terrainLossDb: number;
   clutterLossDb: number;
+  /** Loss below peak gain from the antenna patterns at both ends, dB. */
+  antennaLossDb: number;
   rslDbm: number;
   marginDb: number;
   status: MeshLinkStatus;
@@ -41,25 +45,30 @@ export function meshLink(
   aHeightM: number,
   bHeightM: number,
   elevationsM?: number[],
+  /** Loss below peak gain from the antenna patterns, both ends together, dB. */
+  antennaLossDb = 0,
+  /** What surrounds each end, from a land-cover map; radio.environment at both if unset. */
+  ends?: [Environment, Environment],
 ): MeshLink {
   // The path runs from the top of the clutter; the clutter loss covers the rest.
-  const env = radio.environment;
-  const clutter = env ? clutterLossDb(env, radio.freqHz, aHeightM) + clutterLossDb(env, radio.freqHz, bHeightM) : 0;
-  const pathA = env ? effectiveHeightM(env, aHeightM) : aHeightM;
-  const pathB = env ? effectiveHeightM(env, bHeightM) : bHeightM;
+  const envA = ends?.[0] ?? radio.environment;
+  const envB = ends?.[1] ?? radio.environment;
+  const clutter = (envA ? clutterLossDb(envA, radio.freqHz, aHeightM) : 0) + (envB ? clutterLossDb(envB, radio.freqHz, bHeightM) : 0);
+  const pathA = envA ? effectiveHeightM(envA, aHeightM) : aHeightM;
+  const pathB = envB ? effectiveHeightM(envB, bHeightM) : bHeightM;
   let terrainLossDb = 0;
   let profile: ProfileStatus | undefined;
   if (elevationsM && elevationsM.length >= 3) {
     const path = { freqHz: radio.freqHz, distanceM, elevationsM, txHeightM: pathA, rxHeightM: pathB };
     terrainLossDb = terrainLoss(path, radio.model ?? defaultModel).lossDb;
-    profile = analyzeProfile(path).status;
+    profile = analyzeProfile({ ...path, k: radio.k }).status;
   }
   const r = linkBudget({
     freqHz: radio.freqHz,
     distanceM,
     txPowerDbm: radio.txPowerDbm,
     txCableLossDb: radio.cableLossDb,
-    txOtherLossDb: 0,
+    txOtherLossDb: antennaLossDb,
     txGainDbi: radio.gainDbi,
     extraPathLossDb: 0,
     terrainLossDb,
@@ -73,7 +82,7 @@ export function meshLink(
     rxHeightM: bHeightM,
   });
   const status: MeshLinkStatus = r.marginDb >= radio.fadeMarginDb ? "good" : r.marginDb >= 0 ? "marginal" : "fail";
-  return { fsplDb: r.fsplDb, terrainLossDb, clutterLossDb: clutter, rslDbm: r.rslDbm, marginDb: r.marginDb, status, profile };
+  return { fsplDb: r.fsplDb, terrainLossDb, clutterLossDb: clutter, antennaLossDb, rslDbm: r.rslDbm, marginDb: r.marginDb, status, profile };
 }
 
 /** Every unordered pair of n items, as index pairs. */

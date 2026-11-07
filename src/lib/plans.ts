@@ -16,6 +16,10 @@ export interface PlanNode {
   lat: number;
   lon: number;
   height: string;
+  /** Antenna pattern id, when not omni. */
+  antenna?: string;
+  /** Degrees true the antenna points, as typed. */
+  aim?: string;
 }
 
 const MAX_ENCODED = 8000;
@@ -53,7 +57,7 @@ export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undef
   }
   if (Array.isArray(nodes)) {
     clean.nodes = nodes.slice(0, MAX_NODES).flatMap((n): PlanNode[] => {
-      const { name, lat, lon, height } = (n ?? {}) as Record<string, unknown>;
+      const { name, lat, lon, height, antenna, aim } = (n ?? {}) as Record<string, unknown>;
       if (typeof lat !== "number" || typeof lon !== "number" || !Number.isFinite(lat) || !Number.isFinite(lon)) return [];
       if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return [];
       return [{
@@ -61,6 +65,8 @@ export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undef
         lat,
         lon,
         height: typeof height === "string" ? height.slice(0, 12) : "",
+        ...(typeof antenna === "string" && /^[a-z0-9]{1,16}$/.test(antenna) ? { antenna } : {}),
+        ...(typeof aim === "string" && aim.length <= 12 ? { aim } : {}),
       }];
     });
   }

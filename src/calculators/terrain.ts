@@ -41,6 +41,8 @@ export interface TerrainCard {
   element: HTMLElement;
   /** Length of the pinned path in metres, or undefined without both pins. */
   pathDistanceM(): number | undefined;
+  /** Both pins, when both are down. */
+  pins(): { tx: LatLon; rx: LatLon } | undefined;
   /** Re-run the analysis for new frequency or heights; returns it if there is one. */
   refresh(params: TerrainParams): TerrainAnalysis | undefined;
   /** Remove both pins and the profile. */
@@ -480,6 +482,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   return {
     element: card,
     pathDistanceM: () => (tx && rx ? distanceBetweenM(tx, rx) : undefined),
+    pins: () => (tx && rx ? { tx, rx } : undefined),
     refresh,
     reset,
     showLink(q) {

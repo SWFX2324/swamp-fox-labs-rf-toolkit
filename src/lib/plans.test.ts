@@ -14,6 +14,16 @@ describe("share links", () => {
     expect(decodePlan(encodePlan(plan), names)).toEqual(plan);
   });
 
+  it("keeps a node's antenna and aim, and drops odd values", () => {
+    const nodes = [
+      { name: "a", lat: 1, lon: 2, height: "", antenna: "sector90", aim: "135" },
+      { name: "b", lat: 1, lon: 2, height: "", antenna: "<img>", aim: "9".repeat(40) },
+    ];
+    const plan = decodePlan(encodePlan({ settings: {}, nodes }), names)!;
+    expect(plan.nodes![0]).toEqual(nodes[0]);
+    expect(plan.nodes![1]).toEqual({ name: "b", lat: 1, lon: 2, height: "" });
+  });
+
   it("keeps only known settings and short strings", () => {
     const encoded = encodePlan({ settings: { freq: "915", evil: "x", power: "y".repeat(500) } });
     expect(decodePlan(encoded, names)).toEqual({ settings: { freq: "915" } });

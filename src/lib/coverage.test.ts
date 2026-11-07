@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { coverageMargins, coverageStats, marginAt, sampleRadials } from "./coverage";
+import { coverageMargins, coveragePathLoss, coveragePatternLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials, sumGrids } from "./coverage";
+import { beam } from "./pattern";
 import { fsplDb } from "./fspl";
 import { bearingDeg, distanceBetweenM } from "./geo";
 
@@ -82,5 +83,43 @@ describe("marginAt and coverageStats", () => {
     const none = coverageStats(s, m, 500);
     expect(none.solid).toBe(0);
     expect(none.marginal).toBeCloseTo(1, 9);
+  });
+});
+
+describe("per-point receive heights", () => {
+  it("uses a height per radial point when given one", () => {
+    const s = sampleRadials(site, 5000, 4, 20, flat);
+    const same = coveragePathLoss(s, radio.freqHz, 30, 2);
+    const grid = coveragePathLoss(s, radio.freqHz, 30, s.elevations.map((e) => new Float32Array(e.length).fill(2)));
+    expect(Array.from(grid[1])).toEqual(Array.from(same[1]));
+  });
+});
+
+describe("antenna pattern on coverage", () => {
+  const s = sampleRadials(site, 10_000, 8, 50, flat);
+
+  it("costs nothing on the beam and the front-to-back ratio behind it", () => {
+    const loss = coveragePatternLoss(s, beam("sector90", 14, 90), 30, 2);
+    // Radial 2 points east, along the beam; radial 6 points west, behind it.
+    expect(loss[2][50]).toBeLessThan(1);
+    expect(loss[6][50]).toBe(25);
+    // 45° off the beam centre is the 3 dB edge, plus a little vertical loss.
+    expect(loss[1][50]).toBeGreaterThanOrEqual(3);
+    expect(loss[1][50]).toBeLessThan(4);
+  });
+
+  it("is taken off the margins", () => {
+    const pathLoss = coveragePathLoss(s, radio.freqHz, 30, 2);
+    const pattern = coveragePatternLoss(s, beam("sector90", 14, 90), 30, 2);
+    const plain = marginsFromLoss(pathLoss, radio);
+    const aimed = marginsFromLoss(pathLoss, radio, pattern);
+    expect(aimed[6][40]).toBeCloseTo(plain[6][40] - 25, 4);
+  });
+
+  it("sums per-point grids, skipping missing ones", () => {
+    const a = [new Float32Array([1, 2])];
+    const b = [new Float32Array([10, 20])];
+    expect(sumGrids(undefined, undefined)).toBeUndefined();
+    expect(Array.from(sumGrids(a, undefined, b)![0])).toEqual([11, 22]);
   });
 });

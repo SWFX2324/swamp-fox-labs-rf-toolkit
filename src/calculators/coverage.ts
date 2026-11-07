@@ -7,8 +7,12 @@ import * as L from "leaflet";
 import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
-import { type RadialSamples, coveragePathLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials } from "../lib/coverage";
-import { bearingDeg, distanceBetweenM } from "../lib/geo";
+import { type RadialSamples, coveragePathLoss, coveragePatternLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials, sumGrids } from "../lib/coverage";
+import { beam, patterns } from "../lib/pattern";
+import { AUTO_ENVIRONMENT, LAND_COVER_CREDIT, LandCoverGrid, type LandCoverPoint, describePoint, landCoverNames } from "../lib/landCover";
+import { loadLandCover } from "./landCoverTiles";
+import { createReadingsCard } from "./readingsCard";
+import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM } from "../lib/geo";
 import { EARTH_RADIUS_M } from "../lib/horizon";
 import { compassPoint } from "../lib/satPointing";
 import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
@@ -41,6 +45,9 @@ const defaults: Record<string, string> = {
   power: "1",
   powerUnit: "W",
   txGain: "3",
+  txPattern: "omni",
+  txAzimuth: "0",
+  txTilt: "0",
   txCable: "1",
   txHeight: "30",
   rxHeight: "5",
@@ -90,6 +97,16 @@ const template = `
           </span>
         </label>
         ${numberField("TX antenna gain", "txGain", "dBi")}
+        <label>TX antenna pattern
+          <select name="txPattern">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select>
+        </label>
+        <label data-show="txAim">TX antenna points
+          <span class="input-unit">
+            <input name="txAzimuth" type="number" inputmode="decimal" step="any" min="0" max="360" />
+            <span class="unit">° true</span>
+          </span>
+        </label>
+        ${numberField("TX downtilt", "txTilt", "°", 'min="-30" max="30"')}
         ${numberField("TX cable loss", "txCable", "dB", 'min="0"')}
         <label>TX antenna height
           <span class="input-unit">
@@ -158,9 +175,10 @@ const template = `
           <div class="tile"><span class="label">Farthest solid point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
         </div>
         <p class="note" data-out="envNote" hidden></p>
+        <p class="note" data-out="corrNote" hidden></p>
         <p class="note" data-out="probe"></p>
       </div>
-      <details class="about"><summary>About this calculation</summary><p>Free-space loss plus terrain loss from the Irregular Terrain Model (Longley-Rice) over bare-earth terrain, sampled along radials from the site, at the reliability and confidence you set. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. Tiles you've loaded work offline.</p></details>
+      <details class="about"><summary>About this calculation</summary><p>Free-space loss plus terrain loss from the Irregular Terrain Model (Longley-Rice) over bare-earth terrain, sampled along radials from the site, at the reliability and confidence you set. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. ${LAND_COVER_CREDIT}. Tiles you've loaded work offline.</p></details>
     </section>
   </aside>
 `;
@@ -187,6 +205,26 @@ function cssColor(name: string): [number, number, number] {
   return [Number(m[0]), Number(m[1]), Number(m[2])];
 }
 
+
+/** What the land-cover map found at the site and across the circle. */
+function landCoverSummary(lc: { site: LandCoverPoint; points: LandCoverPoint[][] }, freqHz: number, txH: number): string {
+  // Each point stands for a ring sector whose area grows with distance.
+  const area = new Map<number, number>();
+  let total = 0;
+  for (const row of lc.points) {
+    row.forEach((p, k) => {
+      if (k === 0 || p.cls === 0) return;
+      area.set(p.cls, (area.get(p.cls) ?? 0) + k);
+      total += k;
+    });
+  }
+  const top = [...area.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([cls, a]) => `${Math.round((100 * a) / total)}% ${landCoverNames[cls]?.toLowerCase() ?? "other"}`);
+  const siteLoss = clutterLossDb(lc.site.environment, freqHz, txH);
+  return `From the land-cover map: the site is in ${describePoint(lc.site)}${siteLoss > 0 ? `, adding ${siteLoss.toFixed(1)} dB` : ""}. Across the circle: ${top.join(", ") || "no data"}. Each point is charged for the clutter where it is, and terrain is checked from the clutter tops.`;
+}
 
 export const coverageCalculator: Calculator = {
   id: "coverage",
@@ -237,11 +275,18 @@ export const coverageCalculator: Calculator = {
     let sampledFor = "";
     let margins: Float32Array[] | undefined;
     let pathLoss: { samples: RadialSamples; key: string; loss: Float32Array[] } | undefined;
+    let patternLoss: { samples: RadialSamples; key: string; loss: Float32Array[] | undefined } | undefined;
+    let aimLine: L.Polyline | undefined;
+    // Land cover at the site and every radial point, read with the terrain.
+    let cover: { samples: RadialSamples; site: LandCoverPoint; points: LandCoverPoint[][] } | undefined;
+    let coverError = "";
+    let clutterGrids: { samples: RadialSamples; key: string; heights: Float32Array[]; loss: Float32Array[] } | undefined;
     let running: AbortController | undefined;
     let lastOverlay: { url: string; bounds: OverlayBounds } | undefined;
     let runWhenReady = false;
 
-    const sampleKey = () => `${field("site").value}|${radiusM()}|${field("detail").value}`;
+    const autoCover = () => field("environment").value === AUTO_ENVIRONMENT;
+    const sampleKey = () => `${field("site").value}|${radiusM()}|${field("detail").value}|${autoCover()}`;
 
     const placeSite = (recenter: boolean) => {
       const p = site();
@@ -267,10 +312,50 @@ export const coverageCalculator: Calculator = {
         marker.setLatLng([p.lat, p.lon]);
       }
       const r = radiusM();
+      aimLine?.remove();
+      aimLine = undefined;
+      const b = txBeam();
+      if (b.pattern.id !== "omni" && r > 0) {
+        const tip = destinationPoint(p, b.azimuthDeg, r);
+        aimLine = L.polyline([[p.lat, p.lon], [tip.lat, tip.lon]], { className: "coverage-aim", interactive: false }).addTo(map);
+      }
       ring?.remove();
       ring = r > 0 ? L.circle([p.lat, p.lon], { radius: r, className: "coverage-ring", interactive: false }).addTo(map) : undefined;
       if (recenter && ring) map.fitBounds(ring.getBounds(), { padding: [10, 10] });
     };
+
+    const txBeam = () => beam(field("txPattern").value, num("txGain") || 0, num("txAzimuth"), num("txTilt"));
+    const syncPattern = () => {
+      form.querySelector<HTMLElement>('[data-show="txAim"]')!.hidden = field("txPattern").value === "omni";
+    };
+
+    // The nearest radial point to p, as [radial, step], or undefined outside the circle.
+    const nearestPoint = (p: LatLon): [number, number] | undefined => {
+      if (!samples) return undefined;
+      const k = Math.round(distanceBetweenM(samples.site, p) / samples.stepM);
+      if (k > samples.elevations[0].length - 1) return undefined;
+      const n = samples.bearings.length;
+      return [Math.round((((bearingDeg(samples.site, p) % 360) + 360) % 360) / (360 / n)) % n, k];
+    };
+    const mapped = () => !!samples && !!margins && sampledFor === sampleKey();
+
+    const readingsCard = createReadingsCard({
+      site,
+      predict: (p) => {
+        if (!mapped()) return undefined;
+        const v = marginAt(samples!, margins!, bearingDeg(samples!.site, p), distanceBetweenM(samples!.site, p));
+        // Margins include any correction; predictions are compared without it.
+        return Number.isFinite(v) ? v - readingsCard.correctionDb() + num("sens") : undefined;
+      },
+      coverAt: (p) => {
+        const at = cover && cover.samples === samples && mapped() ? nearestPoint(p) : undefined;
+        if (at) return cover!.points[at[0]][at[1]].environment.name;
+        const env = findEnvironment(field("environment").value);
+        return autoCover() || env.id === "none" ? undefined : env.name;
+      },
+      map: () => map,
+      onCorrectionChange: () => recompute(),
+    });
 
     const radio = () => ({
       freqHz: toHz(num("freq"), asFrequencyUnit(field("freqUnit").value)),
@@ -339,6 +424,7 @@ export const coverageCalculator: Calculator = {
       if (!ready || !samples) {
         overlay?.remove();
         overlay = undefined;
+        readingsCard.refresh();
         return;
       }
       const r = radio();
@@ -346,17 +432,46 @@ export const coverageCalculator: Calculator = {
       const env = findEnvironment(field("environment").value);
       const txH = toMetres(num("txHeight") || 0, heightUnit());
       const rxH = toMetres(num("rxHeight") || 0, heightUnit());
-      out("envNote").hidden = env.id === "none";
-      out("envNote").textContent = environmentNote(env, r.freqHz, txH, rxH);
+      const lc = autoCover() && cover?.samples === samples ? cover : undefined;
+      const siteEnv = lc ? lc.site.environment : env;
+      if (lc && (!clutterGrids || clutterGrids.samples !== samples || clutterGrids.key !== JSON.stringify([r.freqHz, rxH]))) {
+        const at = (rr: number, k: number) => lc.points[rr][k].environment;
+        clutterGrids = {
+          samples,
+          key: JSON.stringify([r.freqHz, rxH]),
+          heights: samples.elevations.map((e, rr) => e.map((_, k) => effectiveHeightM(at(rr, k), rxH))),
+          loss: samples.elevations.map((e, rr) => e.map((_, k) => (k === 0 ? 0 : clutterLossDb(at(rr, k), r.freqHz, rxH)))),
+        };
+      }
+      out("envNote").hidden = env.id === "none" && !autoCover();
+      out("envNote").textContent = lc
+        ? landCoverSummary(lc, r.freqHz, txH)
+        : autoCover()
+          ? `Couldn't read the land-cover map${coverError ? ` (${coverError})` : ""}, so no clutter loss is added. Press Map coverage to try again.`
+          : environmentNote(env, r.freqHz, txH, rxH);
       // The terrain work only reruns when what it depends on changes.
       const model = readModel(form);
-      const pathTxH = effectiveHeightM(env, txH);
-      const pathRxH = effectiveHeightM(env, rxH);
-      const lossKey = JSON.stringify([r.freqHz, pathTxH, pathRxH, model]);
+      const pathTxH = effectiveHeightM(siteEnv, txH);
+      const pathRxH = lc ? clutterGrids!.heights : effectiveHeightM(env, rxH);
+      const lossKey = JSON.stringify([r.freqHz, pathTxH, lc ? `cover${rxH}` : pathRxH, model]);
       if (!pathLoss || pathLoss.samples !== samples || pathLoss.key !== lossKey) {
         pathLoss = { samples, key: lossKey, loss: coveragePathLoss(samples, r.freqHz, pathTxH, pathRxH, model) };
       }
-      margins = marginsFromLoss(pathLoss.loss, { ...r, clutterLossDb: clutterLossDb(env, r.freqHz, txH) + clutterLossDb(env, r.freqHz, rxH) });
+      const b = txBeam();
+      const beamKey = JSON.stringify([b, txH, rxH]);
+      if (!patternLoss || patternLoss.samples !== samples || patternLoss.key !== beamKey) {
+        // An omni at 0 dBi with no tilt has a 90° beam: not worth the grid.
+        const flat = b.pattern.id === "omni" && b.downtiltDeg === 0 && b.vBeamwidthDeg >= 90;
+        patternLoss = { samples, key: beamKey, loss: flat ? undefined : coveragePatternLoss(samples, b, txH, rxH) };
+      }
+      const correction = readingsCard.correctionDb();
+      out("corrNote").hidden = correction === 0;
+      out("corrNote").textContent = `Corrected by ${correction > 0 ? "+" : ""}${fmt(correction)} dB, the average error of your field readings.`;
+      margins = marginsFromLoss(
+        pathLoss.loss,
+        { ...r, eirpDbm: r.eirpDbm + correction, clutterLossDb: clutterLossDb(siteEnv, r.freqHz, txH) + (lc ? 0 : clutterLossDb(env, r.freqHz, rxH)) },
+        sumGrids(patternLoss.loss, lc ? clutterGrids!.loss : undefined),
+      );
       const fade = num("fade") || 0;
       const stats = coverageStats(samples, margins, fade);
       const pill = out("pill");
@@ -372,6 +487,7 @@ export const coverageCalculator: Calculator = {
         ? `Toward ${Math.round(stats.farthestSolidBearing)}° ${compassPoint(stats.farthestSolidBearing)}`
         : "Nowhere meets the fade margin";
       drawOverlay();
+      readingsCard.refresh();
     };
 
     const run = async () => {
@@ -407,18 +523,44 @@ export const coverageCalculator: Calculator = {
         return;
       }
       if (controller.signal.aborted) return;
+      let coverGrid: LandCoverGrid | undefined;
+      coverError = "";
+      if (autoCover()) {
+        coverGrid = new LandCoverGrid(z);
+        try {
+          await loadLandCover(tiles, coverGrid, {
+            signal: controller.signal,
+            onProgress: (done, total) => setStatus(`Loading land cover ${done} of ${total}…`),
+          });
+        } catch (err) {
+          if (controller.signal.aborted) return;
+          coverGrid = undefined;
+          coverError = navigator.onLine ? (err as Error).message : "no connection, and this area isn't saved";
+        }
+      }
+      if (controller.signal.aborted) return;
       setStatus("Calculating…");
       // Let the status paint before the heavy loop.
       await new Promise((resolve) => setTimeout(resolve, 30));
       // Sea-floor depths become sea level: the signal crosses the water surface.
       samples = sampleRadials(p, r, detail.radials, detail.steps, (q) => Math.max(0, grid.sample(q)));
       sampledFor = sampleKey();
+      if (coverGrid) {
+        const g = coverGrid;
+        const s = samples;
+        cover = {
+          samples: s,
+          site: g.at(p),
+          points: s.bearings.map((b, rr) => Array.from({ length: s.elevations[rr].length }, (_, k) => g.at(k === 0 ? p : destinationPoint(p, b, k * s.stepM)))),
+        };
+      } else cover = undefined;
       recompute();
       setStatus("");
     };
 
     const inputsChanged = () => {
       save();
+      syncPattern();
       placeSite(false);
       recompute();
     };
@@ -428,7 +570,7 @@ export const coverageCalculator: Calculator = {
     const clearCoverage = () => {
       running?.abort();
       running = undefined;
-      samples = margins = pathLoss = undefined;
+      samples = margins = pathLoss = patternLoss = cover = clutterGrids = undefined;
       sampledFor = "";
       lastOverlay = undefined;
       map?.closePopup();
@@ -451,6 +593,7 @@ export const coverageCalculator: Calculator = {
       clearControl = addClearControl(map, "the site and coverage", clearCoverage);
       map.on("click", (e: L.LeafletMouseEvent) => {
         const q = { lat: e.latlng.lat, lon: e.latlng.lng };
+        if (readingsCard.takeMapTap(q)) return;
         if (samples && margins && sampledFor === sampleKey()) {
           const d = distanceBetweenM(samples.site, q);
           const b = bearingDeg(samples.site, q);
@@ -479,6 +622,7 @@ export const coverageCalculator: Calculator = {
         inputsChanged();
       });
       placeSite(!!p);
+      readingsCard.refresh();
       if (runWhenReady) {
         runWhenReady = false;
         void run();
@@ -530,6 +674,7 @@ export const coverageCalculator: Calculator = {
     };
     field("heightUnit").addEventListener("change", syncHeightUnit);
     syncHeightUnit();
+    syncPattern();
 
     recompute();
     out("map").closest(".card")!.append(
@@ -571,6 +716,7 @@ export const coverageCalculator: Calculator = {
         },
       }),
     );
+    form.querySelector(".results")!.append(readingsCard.element);
     enhanceFields(form, coverageGuide, defaults);
     return form;
   },

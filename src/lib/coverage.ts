@@ -9,6 +9,7 @@
 import { type ModelSettings, defaultModel, terrainLoss } from "./propagation";
 import { fsplDb } from "./fspl";
 import { type LatLon, destinationPoint } from "./geo";
+import { type Beam, elevationAngleDeg, patternLossDb } from "./pattern";
 
 export interface RadialSamples {
   site: LatLon;
@@ -60,23 +61,67 @@ export interface CoverageRadio {
  * the site itself, is NaN). This is the slow part, and it depends only on the
  * frequency, the antenna heights and the model, not on power or gains.
  */
-export function coveragePathLoss(s: RadialSamples, freqHz: number, txHeightM: number, rxHeightM: number, model: ModelSettings = defaultModel): Float32Array[] {
-  return s.elevations.map((e) => {
+export function coveragePathLoss(
+  s: RadialSamples,
+  freqHz: number,
+  txHeightM: number,
+  /** One height for everywhere, or one per radial point (clutter tops from a land-cover map). */
+  rxHeightM: number | Float32Array[],
+  model: ModelSettings = defaultModel,
+): Float32Array[] {
+  return s.elevations.map((e, r) => {
     const out = new Float32Array(e.length);
     out[0] = Number.NaN;
     for (let k = 1; k < e.length; k++) {
       const d = k * s.stepM;
-      const terrain = k >= 2 ? terrainLoss({ freqHz, distanceM: d, elevationsM: e.subarray(0, k + 1), txHeightM, rxHeightM }, model).lossDb : 0;
+      const rxH = typeof rxHeightM === "number" ? rxHeightM : rxHeightM[r][k];
+      const terrain = k >= 2 ? terrainLoss({ freqHz, distanceM: d, elevationsM: e.subarray(0, k + 1), txHeightM, rxHeightM: rxH }, model).lossDb : 0;
       out[k] = fsplDb(freqHz, d) + terrain;
     }
     return out;
   });
 }
 
-/** Margin in dB at every radial point from the path loss there. */
-export function marginsFromLoss(loss: Float32Array[], radio: Omit<CoverageRadio, "freqHz">): Float32Array[] {
+/**
+ * Margin in dB at every radial point from the path loss there. extraLossDb,
+ * if given, is more loss per point on the same grid (antenna pattern, clutter
+ * that changes from point to point).
+ */
+export function marginsFromLoss(loss: Float32Array[], radio: Omit<CoverageRadio, "freqHz">, extraLossDb?: Float32Array[]): Float32Array[] {
   const fixed = radio.eirpDbm + radio.rxGainDbi - radio.rxCableLossDb - radio.sensitivityDbm - (radio.clutterLossDb ?? 0);
-  return loss.map((row) => row.map((l) => fixed - l));
+  return loss.map((row, r) => row.map((l, k) => fixed - l - (extraLossDb ? extraLossDb[r][k] : 0)));
+}
+
+/**
+ * Loss below the TX antenna's peak gain toward every radial point, from its
+ * pattern, pointing and downtilt. The elevation angle runs from the TX antenna
+ * top to the RX antenna top over the earth's curve.
+ */
+export function coveragePatternLoss(s: RadialSamples, b: Beam, txHeightM: number, rxHeightM: number): Float32Array[] {
+  return s.elevations.map((e, r) => {
+    const out = new Float32Array(e.length);
+    const txTop = e[0] + txHeightM;
+    for (let k = 1; k < e.length; k++) {
+      out[k] = patternLossDb(b, s.bearings[r], elevationAngleDeg(txTop, e[k] + rxHeightM, k * s.stepM));
+    }
+    return out;
+  });
+}
+
+/** A value for every radial point (index 0, the site, included), as a grid. */
+export function radialGrid(s: RadialSamples, value: (p: LatLon, r: number, k: number) => number): Float32Array[] {
+  return s.bearings.map((b, r) => {
+    const out = new Float32Array(s.elevations[r].length);
+    for (let k = 0; k < out.length; k++) out[k] = value(k === 0 ? s.site : destinationPoint(s.site, b, k * s.stepM), r, k);
+    return out;
+  });
+}
+
+/** Adds per-point loss grids together; undefined grids are skipped. */
+export function sumGrids(...grids: (Float32Array[] | undefined)[]): Float32Array[] | undefined {
+  const present = grids.filter((g): g is Float32Array[] => !!g);
+  if (!present.length) return undefined;
+  return present[0].map((row, r) => row.map((v, k) => present.reduce((sum, g, i) => (i === 0 ? sum : sum + g[r][k]), v)));
 }
 
 /** Margin in dB at every radial point (index 0, the site itself, is NaN). */

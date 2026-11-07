@@ -41,6 +41,37 @@ describe("meshLink", () => {
   });
 });
 
+describe("meshLink antenna loss", () => {
+  it("takes pattern loss off the margin", () => {
+    const aimed = meshLink(radio, 5000, 10, 10);
+    const off = meshLink(radio, 5000, 10, 10, undefined, 12);
+    expect(off.antennaLossDb).toBe(12);
+    expect(off.marginDb).toBeCloseTo(aimed.marginDb - 12, 9);
+  });
+});
+
+describe("meshLink with land cover at each end", () => {
+  it("charges each end for its own surroundings", () => {
+    const urban = findEnvironment("urban");
+    const fields = findEnvironment("fields");
+    const l = meshLink(radio, 5000, 2, 2, undefined, 0, [urban, fields]);
+    expect(l.clutterLossDb).toBeCloseTo(clutterLossDb(urban, 915e6, 2) + clutterLossDb(fields, 915e6, 2), 9);
+  });
+});
+
+describe("meshLink k-factor", () => {
+  it("checks line of sight with the k-factor given", () => {
+    // 40 km over flat ground at 5.8 GHz with 50 m masts: the earth bulges
+    // 23.5 m at 4/3 and 47 m at 2/3, against 19 m of Fresnel clearance needed.
+    const flat = Array.from({ length: 201 }, () => 0);
+    const wifi = { ...radio, freqHz: 5.8e9 };
+    expect(meshLink(wifi, 40_000, 50, 50, flat).profile).toBe("clear");
+    expect(meshLink({ ...wifi, k: 2 / 3 }, 40_000, 50, 50, flat).profile).toBe("fresnel");
+    // Longley-Rice has its own atmosphere, so the loss doesn't move.
+    expect(meshLink({ ...wifi, k: 2 / 3 }, 40_000, 50, 50, flat).terrainLossDb).toBe(meshLink(wifi, 40_000, 50, 50, flat).terrainLossDb);
+  });
+});
+
 describe("meshLink with an environment", () => {
   it("charges clutter at both ends and lowers the margin", () => {
     const urban = findEnvironment("urban");

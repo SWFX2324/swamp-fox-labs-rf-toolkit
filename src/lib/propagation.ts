@@ -45,6 +45,7 @@ export const grounds: { id: GroundId; name: string; permittivity: number; conduc
 export function groundForEnvironment(environmentId: string): GroundId {
   if (environmentId === "water") return "sea";
   if (environmentId === "desert" || environmentId === "urban") return "poor";
+  // "auto" (the land-cover map) varies along the path: average suits most land.
   return "average";
 }
 

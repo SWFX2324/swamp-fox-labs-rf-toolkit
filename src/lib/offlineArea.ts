@@ -1,8 +1,9 @@
-// Which tiles to save so an area works offline: terrain for the calculations
-// and satellite imagery to see it on. Street maps are left out on purpose, as
+// Which tiles to save so an area works offline: terrain and land cover for
+// the calculations, and satellite imagery to see it on. Street maps are left out on purpose, as
 // OpenStreetMap's tile policy forbids prefetching and "save for offline".
 
 import { type TileId, TILE_SIZE, tileUrl, toGlobalPixel } from "./terrainTiles";
+import { landCoverUrl } from "./landCover";
 
 export const SENTINEL_YEAR = 2024;
 export const SENTINEL_URL = `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-${SENTINEL_YEAR}_3857/default/g/{z}/{y}/{x}.jpg`;
@@ -13,6 +14,7 @@ export const USGS_MAX_ZOOM = 16;
 /** Service worker caches, so saved tiles are found the same way as viewed ones. */
 export const TERRAIN_CACHE = "elevation-tiles";
 export const IMAGERY_CACHE = "imagery-tiles";
+export const LAND_COVER_CACHE = "land-cover-tiles";
 
 // The calculations pick a terrain zoom from a path's or radius's size, so every
 // zoom they could ask for has to be saved.
@@ -22,6 +24,7 @@ const IMAGERY_MIN_ZOOM = 6;
 export const MAX_TERRAIN_TILES = 1000;
 export const MAX_IMAGERY_TILES = 2000;
 const TERRAIN_TILE_BYTES = 110_000;
+const LAND_COVER_TILE_BYTES = 6_000;
 const SENTINEL_TILE_BYTES = 13_000;
 const USGS_TILE_BYTES = 26_000;
 
@@ -119,7 +122,8 @@ export function planOfflineArea(box: Box): OfflinePlan {
   for (const z of TERRAIN_ZOOMS) {
     for (const t of tilesInBox(box, z)) {
       tiles.push({ url: tileUrl(t), cache: TERRAIN_CACHE });
-      estimatedBytes += TERRAIN_TILE_BYTES;
+      tiles.push({ url: landCoverUrl(t), cache: LAND_COVER_CACHE });
+      estimatedBytes += TERRAIN_TILE_BYTES + LAND_COVER_TILE_BYTES;
     }
   }
   for (let z = IMAGERY_MIN_ZOOM; z <= imageryMaxZoom; z++) {

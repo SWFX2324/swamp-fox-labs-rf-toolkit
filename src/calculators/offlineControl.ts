@@ -2,7 +2,7 @@
 // what's on screen, in the same caches the service worker reads from.
 
 import * as L from "leaflet";
-import { IMAGERY_CACHE, type OfflinePlan, type OfflineTile, TERRAIN_CACHE, planOfflineArea } from "../lib/offlineArea";
+import { IMAGERY_CACHE, LAND_COVER_CACHE, type OfflinePlan, type OfflineTile, TERRAIN_CACHE, planOfflineArea } from "../lib/offlineArea";
 
 const CONCURRENT = 4;
 
@@ -50,10 +50,10 @@ function imageryReach(closer: number): string {
 async function storedText(): Promise<string> {
   try {
     let bytes = 0;
-    for (const name of [TERRAIN_CACHE, IMAGERY_CACHE]) {
+    for (const name of [TERRAIN_CACHE, LAND_COVER_CACHE, IMAGERY_CACHE]) {
       for (const res of await (await caches.open(name)).matchAll()) bytes += (await res.blob()).size;
     }
-    return bytes ? `Terrain and satellite tiles on this device: about ${formatMb(bytes)}.` : "";
+    return bytes ? `Terrain, land-cover and satellite tiles on this device: about ${formatMb(bytes)}.` : "";
   } catch {
     return "";
   }
@@ -109,7 +109,7 @@ export function addOfflineControl(map: L.Map): void {
         save.disabled = plan.tooBig;
         text.textContent = plan.tooBig
           ? "This view is too big to save. Zoom in until it shows about 200 km across or less."
-          : `Downloads about ${formatMb(plan.estimatedBytes)} of terrain and satellite imagery for everything on screen. OpenStreetMap doesn't allow saving street maps.`;
+          : `Downloads about ${formatMb(plan.estimatedBytes)} of terrain, land cover and satellite imagery for everything on screen. OpenStreetMap doesn't allow saving street maps.`;
       };
 
       const refreshStored = async () => {
@@ -165,8 +165,8 @@ export function addOfflineControl(map: L.Map): void {
       cancel.addEventListener("click", () => running?.abort());
       part("close").addEventListener("click", () => open(false));
       part("clear").addEventListener("click", async () => {
-        if (!confirm("Remove all saved and viewed terrain and satellite tiles from this device?")) return;
-        await Promise.all([caches.delete(TERRAIN_CACHE), caches.delete(IMAGERY_CACHE)]);
+        if (!confirm("Remove all saved and viewed terrain, land-cover and satellite tiles from this device?")) return;
+        await Promise.all([caches.delete(TERRAIN_CACHE), caches.delete(LAND_COVER_CACHE), caches.delete(IMAGERY_CACHE)]);
         status.textContent = "Saved tiles cleared.";
         void refreshStored();
       });
