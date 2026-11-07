@@ -3,7 +3,7 @@
 
 import * as L from "leaflet";
 import type { LatLon } from "../lib/geo";
-import { type LinkLineStyle, linkLineLabels, linkLineOrder } from "../lib/linkLines";
+import { type LinkLineStyle, linkLineLabels, linkLineOrder, linkLineShortLabels } from "../lib/linkLines";
 
 /**
  * A link between two points: a dark casing under the coloured line, so it
@@ -31,7 +31,7 @@ export function linkLegend(styles: LinkLineStyle[] = linkLineOrder): HTMLElement
   legend.innerHTML = styles
     .map(
       (s) =>
-        `<li><svg viewBox="0 0 36 10" aria-hidden="true"><line class="link-casing link-${s}" x1="3" y1="5" x2="33" y2="5"/><line class="link-line link-${s}" x1="3" y1="5" x2="33" y2="5"/></svg>${linkLineLabels[s]}</li>`,
+        `<li title="${linkLineLabels[s]}"><svg viewBox="0 0 46 10" aria-hidden="true"><line class="link-casing link-${s}" x1="3" y1="5" x2="43" y2="5"/><line class="link-line link-${s}" x1="3" y1="5" x2="43" y2="5"/></svg><span aria-label="${linkLineLabels[s]}">${linkLineShortLabels[s]}</span></li>`,
     )
     .join("");
   return legend;

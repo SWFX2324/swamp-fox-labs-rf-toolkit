@@ -36,5 +36,13 @@ export const linkLineLabels: Record<LinkLineStyle, string> = {
   fail: "Won't connect",
 };
 
+/** Short names for the key under a map, where the line itself shows the colour. */
+export const linkLineShortLabels: Record<LinkLineStyle, string> = {
+  "good-clear": "Good, clear LOS",
+  "good-obstructed": "Good, obstructed",
+  marginal: "Marginal",
+  fail: "Won't connect",
+};
+
 /** Legend order, strongest first. */
 export const linkLineOrder: LinkLineStyle[] = ["good-clear", "good-obstructed", "marginal", "fail"];
