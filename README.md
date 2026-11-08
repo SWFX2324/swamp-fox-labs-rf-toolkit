@@ -22,7 +22,47 @@ It runs entirely in the browser. Once a page has loaded, it keeps working offlin
 | Power Plan | Available | List your gear with data plate watts, or volts and amps (AC or DC), and how many of each. Totals every line and the whole load, and recommends the smallest generator, from 5 to 60 kW, that carries it inside a planning limit, 80% by default. Save gear you use often to your equipment list and add it again with just a new quantity. Exports a CSV for Excel with every line and the total load. |
 | RF Converter | Available | Linked converters for watts, dBm, dBW, microvolts and S-meter readings; SWR, return loss, reflection coefficient and mismatch loss; dBi and dBd; and decibel ratios. |
 
-Link Budget, Mesh Planner and Coverage Map model terrain with the Irregular Terrain Model (ITM, also called Longley-Rice), the model behind Radio Mobile and SPLAT!, ported from NTIA's reference code and tested against NTIA's published test cases to within 0.005 dB. It covers line of sight with ground reflection, diffraction over terrain and troposcatter beyond the horizon, from 20 MHz to 20 GHz, with settings for reliability (percent of time), confidence, radio climate, ground type and polarization; above 20 GHz it falls back to ITU-R P.526 Bullington diffraction. These settings sit under their own Longley-Rice model heading. Longley-Rice works from bare-earth elevation, so the environment profiles below still add the trees and buildings around each antenna, and picking one suggests a matching Ground (sea water for Open Water, poor ground for Desert and Urban) unless you've changed Ground yourself. They also offer environment profiles (Open Water, Open Fields, Desert, Light Vegetation, Suburban, Urban, Dense Vegetation) that estimate loss from surrounding clutter using the height-aware model in ITU-R P.2108. Or pick From land-cover map, and the profile is read separately at each end of every path from a 10 m satellite land-cover map: trees as Dense Vegetation, crops and grassland as Open Fields, built-up areas as Suburban or Urban depending on how built-up the area is. On the Coverage Map that means every point gets the clutter where it is. They're planning aids, not site surveys. The Mesh Planner and Coverage Map can save named plans, share them by link, and export KML or KMZ for ATAK, WinTAK or Google Earth; the terrain profile exports its path as KMZ and its chart reads out any point you tap. Every field has an ⓘ with a plain-language explanation and typical values. Tabs open in Simple mode with just the essentials; Advanced shows every setting, and hidden settings keep sensible defaults. Every location box accepts decimal lat/lon or MGRS, and a switch in the top bar sets which one the app shows. Link lines follow one standard on every map, with a key under the map: solid green for a good link with clear line of sight, long-dash green for a good link with terrain in the Fresnel zone or across the line of sight, short-dash amber for marginal, and faded red dots for a link that won’t connect. Until terrain has loaded, a good link shows as long-dash green, since its line of sight isn’t confirmed yet. Exports can’t draw dashes, so there the line’s colour, width and description carry the same meaning. Maps have a recenter button, a Clear map button that removes the pins, nodes or coverage on it, and a Streets, Dark or Satellite base map. It starts on Dark in dark mode and Streets in light mode, and each theme remembers your choice across every map.
+## How the modeling works
+
+These are planning aids, not site surveys.
+
+### Terrain
+
+Link Budget, Mesh Planner and Coverage Map use the **Irregular Terrain Model** (ITM, also called Longley-Rice), the model behind Radio Mobile and SPLAT!.
+
+- Ported from NTIA's reference code and matches NTIA's published test cases to within 0.005 dB.
+- Covers line of sight with ground reflection, diffraction over terrain, and troposcatter beyond the horizon, from 20 MHz to 20 GHz.
+- Above 20 GHz it falls back to ITU-R P.526 Bullington diffraction.
+- Settings for reliability, confidence, radio climate, ground type and polarization sit under the **Longley-Rice model** heading.
+
+### Trees and buildings
+
+Longley-Rice works from bare-earth elevation, so an **Environment** setting adds the clutter around each antenna using ITU-R P.2108.
+
+- Profiles: Open Water, Open Fields, Desert, Light Vegetation, Suburban, Urban, Dense Vegetation.
+- **From land-cover map** reads the profile at each end of every path from a 10 m satellite map. On the Coverage Map, every point gets the clutter where it is.
+- Picking a profile suggests a matching Ground (sea water for Open Water, poor ground for Desert and Urban) unless you've set Ground yourself.
+
+## Using the maps
+
+- **Link lines** follow one standard, with a key under each map:
+  - Solid green: good link, clear line of sight.
+  - Long-dash green: good link, but terrain in the Fresnel zone or line of sight (or terrain not loaded yet).
+  - Short-dash amber: marginal.
+  - Faded red dots: won't connect.
+
+  Exports can't draw dashes, so there the colour, width and description carry the meaning.
+- **Base maps:** Streets, Dark or Satellite. Dark mode starts on Dark, light mode on Streets, and each remembers your choice.
+- **Buttons:** recenter, and Clear map to remove pins, nodes or coverage.
+- **Plans:** the Mesh Planner and Coverage Map save named plans, share them by link, and export KML or KMZ for ATAK, WinTAK or Google Earth. The terrain profile exports its path as KMZ, and tapping its chart reads out that point.
+
+## Everywhere in the app
+
+- **Simple and Advanced:** tabs open in Simple mode with just the essentials. Advanced shows every setting; hidden ones keep sensible defaults.
+- **Help:** every field has an ⓘ with a plain-language explanation and typical values.
+- **Coordinates:** location boxes accept decimal lat/lon or MGRS, and a switch in the top bar sets which one the app shows.
+
+## Coax data
 
 LMR coax figures use the k1/k2 coefficients published in the Times Microwave Communications Coax Selection Guide. The RG figures are fits to typical values from the same guide and vary by manufacturer.
 
