@@ -23,6 +23,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // App shell plus the bundled SVGs (the topographic page background), so it all works offline.
+        globPatterns: ["**/*.{js,css,html,svg}"],
         // Keep map tiles the user has looked at, so the map background still
         // shows offline. Stale-while-revalidate refreshes them when online.
         // OpenStreetMap tiles are never downloaded in bulk (per its tile usage
