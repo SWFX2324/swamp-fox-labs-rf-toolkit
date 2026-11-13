@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aboveModelRange, belowModelRange, clutterLossDb, effectiveHeightM, environments, findEnvironment } from "./environment";
+import { DEFAULT_TREE_HEIGHT_M, aboveModelRange, belowModelRange, clutterLossDb, effectiveHeightM, environments, findEnvironment, withTreeHeight, woodlandLossDb } from "./environment";
 
 const env = findEnvironment;
 
@@ -25,15 +25,14 @@ describe("clutterLossDb", () => {
   });
 
   it("grows with frequency and shrinks with antenna height", () => {
-    const e = env("dense");
+    const e = env("urban");
     expect(clutterLossDb(e, 2.4e9, 2)).toBeGreaterThan(clutterLossDb(e, 915e6, 2));
     expect(clutterLossDb(e, 915e6, 2)).toBeGreaterThan(clutterLossDb(e, 150e6, 2));
     expect(clutterLossDb(e, 915e6, 10)).toBeLessThan(clutterLossDb(e, 915e6, 2));
   });
 
-  it("ranks dense vegetation above urban above light vegetation", () => {
+  it("ranks urban above light vegetation", () => {
     const at = (id: string) => clutterLossDb(env(id), 915e6, 1.5);
-    expect(at("dense")).toBeGreaterThan(at("urban"));
     expect(at("urban")).toBeGreaterThan(at("light"));
   });
 
@@ -58,6 +57,32 @@ describe("clutterLossDb", () => {
     // Free space at 915 MHz is 105.7 dB, so about 35 dB of excess.
     const both = 2 * clutterLossDb(env("fields"), 915e6, 1.5);
     expect(Math.abs(both - 35.2)).toBeLessThan(2);
+  });
+});
+
+describe("woodland (Dense Vegetation, ITU-R P.833)", () => {
+  it("is Am = 1.15·f^0.43 below the canopy, at any height under it", () => {
+    expect(woodlandLossDb(50e6)).toBeCloseTo(1.15 * Math.pow(50, 0.43), 9);
+    expect(clutterLossDb(env("dense"), 50e6, 1.8)).toBeCloseTo(6.2, 1);
+    expect(clutterLossDb(env("dense"), 150e6, 12)).toBeCloseTo(clutterLossDb(env("dense"), 150e6, 1.8), 9);
+  });
+
+  it("adds nothing once the antenna is above the trees", () => {
+    expect(clutterLossDb(env("dense"), 150e6, DEFAULT_TREE_HEIGHT_M + 1)).toBe(0);
+  });
+
+  it("works the path from the antenna's real height, not the treetops", () => {
+    expect(effectiveHeightM(env("dense"), 1.8)).toBe(1.8);
+  });
+
+  it("takes a tree height, so tall pines cover a 22 m mast", () => {
+    const pines = withTreeHeight(env("dense"), 24);
+    expect(pines.clutterHeightM).toBe(24);
+    expect(clutterLossDb(env("dense"), 150e6, 22)).toBe(0);
+    expect(clutterLossDb(pines, 150e6, 22)).toBeGreaterThan(0);
+    // Only woodland takes it; a missing height keeps the default.
+    expect(withTreeHeight(env("urban"), 24).clutterHeightM).toBe(15);
+    expect(withTreeHeight(env("dense"), undefined).clutterHeightM).toBe(DEFAULT_TREE_HEIGHT_M);
   });
 });
 

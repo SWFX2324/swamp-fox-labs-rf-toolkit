@@ -17,10 +17,10 @@ import { EARTH_RADIUS_M } from "../lib/horizon";
 import { compassPoint } from "../lib/satPointing";
 import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
 import { type OverlayBounds, buildOverlayKml, buildZip, fileName } from "../lib/export";
-import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
+import { type Environment, clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
 import { applySettings, createPlanBar, downloadFile, pngBytes } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
-import { environmentNote, environmentOptions } from "./environmentField";
+import { bindTreeField, environmentNote, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { loadTiles } from "./tileElevation";
 import {
@@ -57,6 +57,7 @@ const defaults: Record<string, string> = {
   sens: "-100",
   fade: "10",
   environment: "none",
+  treeHeight: "",
   ...modelDefaults,
   radius: "6",
   radiusUnit: "mi",
@@ -140,6 +141,7 @@ const template = `
         <label>Environment
           <select name="environment">${environmentOptions()}</select>
         </label>
+        ${treeHeightFieldHtml()}
         <label>Detail
           <select name="detail">${Object.entries(detailLevels).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select>
         </label>
@@ -207,7 +209,7 @@ function cssColor(name: string): [number, number, number] {
 
 
 /** What the land-cover map found at the site and across the circle. */
-function landCoverSummary(lc: { site: LandCoverPoint; points: LandCoverPoint[][] }, freqHz: number, txH: number): string {
+function landCoverSummary(lc: { site: LandCoverPoint; points: LandCoverPoint[][] }, siteEnv: Environment, freqHz: number, txH: number): string {
   // Each point stands for a ring sector whose area grows with distance.
   const area = new Map<number, number>();
   let total = 0;
@@ -222,8 +224,8 @@ function landCoverSummary(lc: { site: LandCoverPoint; points: LandCoverPoint[][]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([cls, a]) => `${Math.round((100 * a) / total)}% ${landCoverNames[cls]?.toLowerCase() ?? "other"}`);
-  const siteLoss = clutterLossDb(lc.site.environment, freqHz, txH);
-  return `From the land-cover map: the site is in ${describePoint(lc.site)}${siteLoss > 0 ? `, adding ${siteLoss.toFixed(1)} dB` : ""}. Across the circle: ${top.join(", ") || "no data"}. Each point is charged for the clutter where it is, and terrain is checked from the clutter tops.`;
+  const siteLoss = clutterLossDb(siteEnv, freqHz, txH);
+  return `From the land-cover map: the site is in ${describePoint(lc.site)}${siteLoss > 0 ? `, adding ${siteLoss.toFixed(1)} dB` : ""}. Across the circle: ${top.join(", ") || "no data"}. Each point is charged for the clutter where it is, and terrain is checked from the clutter tops, or from the antenna itself under trees.`;
 }
 
 export const coverageCalculator: Calculator = {
@@ -235,6 +237,7 @@ export const coverageCalculator: Calculator = {
     form.className = "calculator two-col coverage";
     form.innerHTML = template;
     linkGroundToEnvironment(form);
+    bindTreeField(form, "heightUnit");
     form.addEventListener("submit", (e) => e.preventDefault());
 
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
@@ -433,23 +436,24 @@ export const coverageCalculator: Calculator = {
       }
       const r = radio();
       if (!(r.freqHz > 0) || !Number.isFinite(r.eirpDbm) || !Number.isFinite(r.sensitivityDbm)) return;
-      const env = findEnvironment(field("environment").value);
+      const trees = (e: Environment) => withFormTrees(form, "heightUnit", e);
+      const env = trees(findEnvironment(field("environment").value));
       const txH = toMetres(num("txHeight") || 0, heightUnit());
       const rxH = toMetres(num("rxHeight") || 0, heightUnit());
       const lc = autoCover() && cover?.samples === samples ? cover : undefined;
-      const siteEnv = lc ? lc.site.environment : env;
-      if (lc && (!clutterGrids || clutterGrids.samples !== samples || clutterGrids.key !== JSON.stringify([r.freqHz, rxH]))) {
-        const at = (rr: number, k: number) => lc.points[rr][k].environment;
+      const siteEnv = lc ? trees(lc.site.environment) : env;
+      if (lc && (!clutterGrids || clutterGrids.samples !== samples || clutterGrids.key !== JSON.stringify([r.freqHz, rxH, field("treeHeight").value, heightUnit()]))) {
+        const at = (rr: number, k: number) => trees(lc.points[rr][k].environment);
         clutterGrids = {
           samples,
-          key: JSON.stringify([r.freqHz, rxH]),
+          key: JSON.stringify([r.freqHz, rxH, field("treeHeight").value, heightUnit()]),
           heights: samples.elevations.map((e, rr) => e.map((_, k) => effectiveHeightM(at(rr, k), rxH))),
           loss: samples.elevations.map((e, rr) => e.map((_, k) => (k === 0 ? 0 : clutterLossDb(at(rr, k), r.freqHz, rxH)))),
         };
       }
       out("envNote").hidden = env.id === "none" && !autoCover();
       out("envNote").textContent = lc
-        ? landCoverSummary(lc, r.freqHz, txH)
+        ? landCoverSummary(lc, siteEnv, r.freqHz, txH)
         : autoCover()
           ? `Couldn't read the land-cover map${coverError ? ` (${coverError})` : ""}, so no clutter loss is added. Press Map coverage to try again.`
           : environmentNote(env, r.freqHz, txH, rxH);

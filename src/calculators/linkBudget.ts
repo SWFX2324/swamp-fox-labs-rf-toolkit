@@ -2,8 +2,8 @@ import { enhanceFields } from "./fieldHelp";
 import { linkBudgetGuide } from "./helpText";
 import type { Calculator } from ".";
 import { beyondCableRange, cableLossDb, cables, findCable, lossPer100Ft } from "../lib/coax";
-import { clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
-import { environmentNote, environmentOptions, landCoverNote } from "./environmentField";
+import { type Environment, clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
+import { bindTreeField, environmentNote, environmentOptions, landCoverNote, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { AUTO_ENVIRONMENT, type LandCoverPoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
@@ -44,6 +44,7 @@ const defaults: Record<string, string> = {
   dist: "3",
   distUnit: "mi",
   environment: "none",
+  treeHeight: "",
   extraLoss: "0",
   rxGain: "3",
   rxHeight: "30",
@@ -149,6 +150,7 @@ const template = `
         <label>Environment
           <select name="environment">${environmentOptions()}</select>
         </label>
+        ${treeHeightFieldHtml()}
         <label>Earth curvature (k)
           <select name="kFactor">${kFactors.map((f) => `<option value="${f.id}">${f.name}</option>`).join("")}</select>
         </label>
@@ -276,6 +278,7 @@ export const linkBudgetCalculator: Calculator = {
     form.className = "calculator link-budget";
     form.innerHTML = template;
     linkGroundToEnvironment(form);
+    bindTreeField(form, "txHeightUnit");
     form.addEventListener("submit", (e) => e.preventDefault());
 
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
@@ -383,9 +386,10 @@ export const linkBudgetCalculator: Calculator = {
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
       const auto = field("environment").value === AUTO_ENVIRONMENT;
       const ends = auto ? landCover() : undefined;
-      const env = findEnvironment(field("environment").value);
-      const txEnv = ends?.ends?.[0].environment ?? env;
-      const rxEnv = ends?.ends?.[1].environment ?? env;
+      const trees = (e: Environment) => withFormTrees(form, "txHeightUnit", e);
+      const env = trees(findEnvironment(field("environment").value));
+      const txEnv = trees(ends?.ends?.[0].environment ?? env);
+      const rxEnv = trees(ends?.ends?.[1].environment ?? env);
       const txHeightM = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
       const rxHeightM = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
       const inputs: LinkInputs = {
@@ -425,8 +429,9 @@ export const linkBudgetCalculator: Calculator = {
       const model = readModel(form);
       const profile = terrain.refresh({
         freqHz: inputs.freqHz,
-        // The terrain path runs from the top of the clutter; the clutter loss
-        // covers the rest. The horizon above stays on the real antennas.
+        // The terrain path runs from the top of the clutter (or the antenna
+        // itself in woodland); the clutter loss covers the rest. The horizon
+        // above stays on the real antennas.
         txHeightM: effectiveHeightM(txEnv, txHeightM),
         rxHeightM: effectiveHeightM(rxEnv, rxHeightM),
         distUnit,
@@ -449,7 +454,7 @@ export const linkBudgetCalculator: Calculator = {
       out("envNote").hidden = env.id === "none" && !auto;
       out("envNote").textContent = ends
         ? ends.ends
-          ? landCoverNote(ends.ends, ["The TX end", "the RX end"], freqHz, txHeightM, rxHeightM)
+          ? landCoverNote([{ ...ends.ends[0], environment: txEnv }, { ...ends.ends[1], environment: rxEnv }], ["The TX end", "the RX end"], freqHz, txHeightM, rxHeightM)
           : ends.note
         : environmentNote(env, freqHz, txHeightM, rxHeightM);
       inputs.terrainLossDb = profile?.loss.lossDb ?? 0;

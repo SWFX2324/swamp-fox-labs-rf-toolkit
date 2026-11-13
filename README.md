@@ -40,6 +40,7 @@ Link Budget, Mesh Planner and Coverage Map use the **Irregular Terrain Model** (
 Longley-Rice works from bare-earth elevation, so an **Environment** setting adds the clutter around each antenna using ITU-R P.2108.
 
 - Profiles: Open Water, Open Fields, Desert, Light Vegetation, Suburban, Urban, Dense Vegetation.
+- **Dense Vegetation** follows ITU-R P.833's measurements in woodland instead. An antenna below the canopy is worked from its real height, not lifted to the treetops, and loses the measured woodland loss on top: about 6 dB at 50 MHz, 10 dB at 150 MHz and 15 dB at 400 MHz. An antenna above the canopy loses nothing to the trees. Set **Tree height** to match your forest (20 m, or 66 ft, by default); mature southern pine is often 70–90 ft.
 - **From land-cover map** reads the profile at each end of every path from a 10 m satellite map. On the Coverage Map, every point gets the clutter where it is.
 - Picking a profile suggests a matching Ground (sea water for Open Water, poor ground for Desert and Urban) unless you've set Ground yourself.
 

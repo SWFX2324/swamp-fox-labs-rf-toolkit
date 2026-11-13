@@ -14,7 +14,7 @@ import { drawLinkLine, linkLegend } from "./linkLine";
 import { findEnvironment } from "../lib/environment";
 import { applySettings, createPlanBar, downloadFile } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
-import { environmentOptions } from "./environmentField";
+import { bindTreeField, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { AUTO_ENVIRONMENT, type LandCoverPoint, describePoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
@@ -61,6 +61,7 @@ const settingDefaults: Record<string, string> = {
   sens: "-100",
   fade: "10",
   environment: "none",
+  treeHeight: "",
   distUnit: "mi",
   height: "30",
   heightUnit: "ft",
@@ -128,6 +129,7 @@ const template = `
         <label>Environment
           <select name="environment">${environmentOptions()}</select>
         </label>
+        ${treeHeightFieldHtml()}
       </div>
       <div class="map mesh-map" data-out="map"></div>
       <div data-out="legend"></div>
@@ -197,6 +199,7 @@ export const meshCalculator: Calculator = {
     form.className = "calculator two-col mesh";
     form.innerHTML = template;
     linkGroundToEnvironment(form);
+    bindTreeField(form, "heightUnit");
     form.querySelector('[data-out="legend"]')!.replaceWith(linkLegend());
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -398,7 +401,7 @@ export const meshCalculator: Calculator = {
         cableLossDb: num("cable") || 0,
         sensitivityDbm: num("sens"),
         fadeMarginDb: num("fade") || 0,
-        environment: findEnvironment(field("environment").value),
+        environment: withFormTrees(form, "heightUnit", findEnvironment(field("environment").value)),
         model: readModel(form),
         k: parseKFactor(field("kFactor").value),
       };
@@ -421,7 +424,9 @@ export const meshCalculator: Calculator = {
           Array.isArray(elev) ? elev : undefined,
           antennaLoss(nodes[a], nodes[b], distanceM, Array.isArray(elev) ? elev : undefined, radio.gainDbi, radio.k) +
             antennaLoss(nodes[b], nodes[a], distanceM, Array.isArray(elev) ? [...elev].reverse() : undefined, radio.gainDbi, radio.k),
-          landCover?.points ? [landCover.points[a].environment, landCover.points[b].environment] : undefined,
+          landCover?.points
+            ? [withFormTrees(form, "heightUnit", landCover.points[a].environment), withFormTrees(form, "heightUnit", landCover.points[b].environment)]
+            : undefined,
         );
         return { a, b, link, distanceM: distanceBetweenM(nodes[a], nodes[b]), terrainState: elev === undefined ? "pending" : elev === "error" ? "error" : "ok" };
       });
@@ -461,7 +466,7 @@ export const meshCalculator: Calculator = {
         out("envNote").textContent = landCover.points
           ? `From the land-cover map: ${landCover.points.map((p, i) => `node ${i + 1} is in ${describePoint(p)}`).join("; ")}. Clutter adds ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB per link, included in the margins below.`
           : landCover.note;
-      } else out("envNote").textContent = `${env.name} adds about ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB to each link, included in the margins below. An estimate; the Terrain column is checked from the top of the clutter.`;
+      } else out("envNote").textContent = `${env.name} adds about ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB to each link, included in the margins below. An estimate; ${env.model === "forest" ? "below the canopy the Terrain column is checked from each antenna's real height (ITU-R P.833 woodland)" : "the Terrain column is checked from the top of the clutter"}.`;
       out("up").textContent = `${up.length} of ${results.length}`;
       out("upSub").textContent = `${solid.length} solid, ${up.length - solid.length} marginal`;
       out("hops").textContent = groups.length === 1 ? String(maxHops) : "—";
