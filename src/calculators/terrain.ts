@@ -52,11 +52,16 @@ export interface TerrainCard {
   showLink(quality: LinkQuality | undefined): void;
 }
 
+// Line of sight only, not a verdict on the link: the terrain loss from an
+// obstruction is already in the budget, which says whether the link works. So
+// no red here; red is kept for the budget's "won't close".
 const statusText: Record<ProfileStatus, [string, string]> = {
-  clear: ["Clear", "s-good"],
-  fresnel: ["Fresnel obstructed", "s-marginal"],
-  blocked: ["Blocked by terrain", "s-fail"],
+  clear: ["Clear line of sight", "s-good"],
+  fresnel: ["Fresnel zone partly blocked", "s-marginal"],
+  blocked: ["No line of sight", "s-marginal"],
 };
+const losNote =
+  "Line of sight only. The extra loss from this terrain is already counted in the link budget, so go by the budget's verdict: a link can still work over a ridge, by diffraction, if the margin holds.";
 
 const template = `
   <div class="card-head">
@@ -81,6 +86,7 @@ const template = `
   </div>
   <p class="note" data-t="status"></p>
   <div class="profile-chart" data-t="chart" hidden></div>
+  <p class="note" data-t="losNote" hidden></p>
   <table class="ledger geometry" data-t="facts" hidden><tbody></tbody></table>
   <div class="terrain-actions">
     <button type="button" class="secondary" data-t="export">Export KMZ</button>
@@ -438,7 +444,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     const facts = el("facts");
     lineOfSight = undefined;
     if (!tx || !rx || !elevations || !params.applies || !(params.freqHz > 0)) {
-      pill.hidden = chart.hidden = facts.hidden = true;
+      pill.hidden = chart.hidden = facts.hidden = el("losNote").hidden = true;
       if (!params.applies && tx && rx) setStatus(hfNote);
       else if (el("status").textContent === hfNote) setStatus("");
       return undefined;
@@ -458,6 +464,9 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     pill.hidden = false;
     pill.className = `pill ${cls}`;
     pill.textContent = params.k === STANDARD_K ? text : `${text} at k = ${kLabel(params.k)}`;
+    pill.title = losNote;
+    el("losNote").textContent = losNote;
+    el("losNote").hidden = result.status === "clear";
     lineOfSight = result.status;
 
     chart.hidden = false;

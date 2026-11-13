@@ -181,7 +181,8 @@ export interface Control3D {
 }
 
 /**
- * A "3D" button under the recenter button. scene() describes what to show; the
+ * A "3D" button under the base-map button, top right (the left side fills up
+ * with zoom, recenter and offline buttons, and on a phone it ran into Clear map). scene() describes what to show; the
  * 2D map's view is used when there are no points. The 3D view (and MapLibre)
  * loads only when pressed.
  */
@@ -212,7 +213,7 @@ export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "
       return bar;
     },
   });
-  new Control({ position: "topleft" }).addTo(map);
+  new Control({ position: "topright" }).addTo(map);
   return {
     refresh() {
       if (view?.isOpen()) view.update(full());

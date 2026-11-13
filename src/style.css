@@ -614,11 +614,13 @@ main .leaflet-container { background: var(--card-2); }
   .power-item [data-f="total"] { grid-area: 3 / 5 / 4 / 7; align-self: center; }
   .power-plan[data-mode="simple"] .power-item [data-f="total"] { grid-area: 3 / 3 / 4 / 7; }
 }
+/* Sat Pointing's map matches the Mesh Planner's on desktop; phones keep 300px. */
+@media (min-width: 601px) { .sat-map { height: 380px; } }
 .chart-readout { color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* Large desktop screens: maps a little taller. Here so they win over the base heights. */
 @media (min-width: 1600px) and (min-height: 900px) {
-  .mesh-map, .coverage-map, .terrain .map { height: 520px; }
+  .mesh-map, .coverage-map, .terrain .map, .sat-map { height: 520px; }
 }
 
 /* ------------------------------------------------------------ 3D view */
