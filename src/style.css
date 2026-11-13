@@ -725,3 +725,16 @@ body:has(dialog.view3d[open]) { overflow: hidden; }
 .leaflet-bottom.leaflet-right .leaflet-control-attribution:focus-within {
   white-space: normal; overflow: visible; position: relative; z-index: 1001;
 }
+/* On phones the 3D site editor is a panel docked to the bottom of the map. */
+.view3d-sheet {
+  position: absolute; z-index: 3; left: 12px; right: 12px; bottom: 12px;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; box-shadow: 0 6px 24px rgb(0 0 0 / .45);
+}
+.view3d-sheet .view3d-editor { width: auto; max-height: min(55vh, 420px); }
+.view3d-sheet-close {
+  position: absolute; top: 6px; right: 8px; background: transparent; border: 0; color: var(--text-2);
+  font-size: 22px; line-height: 1; padding: 4px 8px; min-height: 0;
+}
+/* 16px text keeps phones from zooming in when a field gets focus. */
+.view3d-sheet input { font-size: 16px; }

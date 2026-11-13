@@ -471,7 +471,7 @@ export function open3DView(first: Scene3D): View3D {
   };
 
   // A site's pop-up editor: its fields as a small form; Apply sends what changed.
-  let editor: maplibregl.Popup | undefined;
+  let editor: { remove(): void } | undefined;
   const openEditor = (i: number, marker: maplibregl.Marker) => {
     const p = scene.points[i];
     if (!map || !p?.fields?.length || !scene.onEdit) return;
@@ -519,10 +519,30 @@ export function open3DView(first: Scene3D): View3D {
     });
     // Keys typed here are for the form, not the map's keyboard controls.
     form.addEventListener("keydown", (e) => e.stopPropagation());
-    editor = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "300px", offset: 34, className: "view3d-popup" })
+    // On a phone a pop-up beside the label runs off the screen, so the editor
+    // docks to the bottom of the map as a full-width panel instead.
+    if (window.matchMedia("(max-width: 600px)").matches) {
+      const sheet = document.createElement("div");
+      sheet.className = "view3d-sheet";
+      const shut = document.createElement("button");
+      shut.type = "button";
+      shut.className = "view3d-sheet-close";
+      shut.setAttribute("aria-label", "Close the editor");
+      shut.textContent = "×";
+      shut.addEventListener("click", () => {
+        editor?.remove();
+        editor = undefined;
+      });
+      sheet.append(shut, form);
+      el("map").append(sheet);
+      editor = { remove: () => sheet.remove() };
+      return;
+    }
+    const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "300px", offset: 34, className: "view3d-popup" })
       .setLngLat(marker.getLngLat())
       .setDOMContent(form)
       .addTo(map);
+    editor = popup;
     inputs[0]?.input.focus();
   };
 
