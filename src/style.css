@@ -620,3 +620,45 @@ main .leaflet-container { background: var(--card-2); }
 @media (min-width: 1600px) and (min-height: 900px) {
   .mesh-map, .coverage-map, .terrain .map { height: 520px; }
 }
+
+/* ------------------------------------------------------------ 3D view */
+.view3d-control a { font: 700 12px/30px system-ui, sans-serif; text-align: center; color: var(--text) !important; text-decoration: none; }
+.view3d {
+  position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none;
+  margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--text);
+  display: flex; flex-direction: column;
+}
+.view3d:not([open]) { display: none; }
+.view3d::backdrop { background: rgb(0 0 0 / .6); }
+.view3d-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--card);
+}
+.view3d-bar h2 { margin-right: auto; display: flex; align-items: baseline; gap: 8px; }
+.view3d-bar .meta { font-weight: 400; color: var(--muted); font-size: 13px; }
+.view3d-ex { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.view3d-ex select { min-height: 32px; padding: 4px 8px; }
+.view3d-map { flex: 1; min-height: 0; position: relative; background: var(--card-2); }
+.view3d-foot {
+  display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap;
+  padding: 8px 16px; border-top: 1px solid var(--border); background: var(--card);
+}
+.view3d-foot .link-legend { margin: 0; }
+.view3d-foot .note { margin: 0; font-size: 12px; }
+.view3d-error { padding: 24px; }
+.view3d-pin {
+  padding: 2px 7px; border-radius: 6px; font: 600 12px/1.4 system-ui, sans-serif;
+  background: var(--card); color: var(--text); border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .35); white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 600px) {
+  .view3d-bar { padding: 8px 12px; gap: 8px; }
+  .view3d-bar h2 { width: 100%; }
+  .view3d-bar [data-v="close"] { margin-left: auto; }
+  .view3d-foot .note { display: none; }
+}
+.view3d-loading {
+  position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0;
+  padding: 8px 14px; border-radius: 8px; background: var(--card); color: var(--text-2); border: 1px solid var(--border);
+  pointer-events: none;
+}

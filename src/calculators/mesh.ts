@@ -5,7 +5,7 @@ import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
 import { meshGuide } from "./helpText";
 import * as L from "leaflet";
-import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { buildKml, fileName, buildZip } from "../lib/export";
@@ -564,6 +564,14 @@ export const meshCalculator: Calculator = {
         else showDefaultView(m);
       });
       clearControl = addClearControl(map, "the nodes", clearNodes);
+      add3DControl(map, () => ({
+        title: "Mesh Planner",
+        points: nodes.map((n, i) => ({ lat: n.lat, lon: n.lon, label: nodeLabel(i), heightM: heightM(n) })),
+        links: lastLinks
+          .filter((r) => r.a < nodes.length && r.b < nodes.length)
+          .map((r) => ({ a: r.a, b: r.b, style: linkLineStyle(r.link.status, r.link.profile) })),
+        k: parseKFactor(field("kFactor").value),
+      }));
       map.on("click", (e: L.LeafletMouseEvent) => addNode({ lat: e.latlng.lat, lon: e.latlng.lng }));
       drawMarkers();
       recompute();

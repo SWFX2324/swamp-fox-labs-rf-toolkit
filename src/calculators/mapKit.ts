@@ -8,12 +8,13 @@ import "leaflet/dist/leaflet.css";
 import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
 import { addOfflineControl } from "./offlineControl";
 import { THEME_EVENT, isDarkTheme } from "./theme";
+import type { Scene3D } from "../lib/scene3d";
 
 const LAYER_KEY = "rf-toolkit:map-layer";
-const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+export const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-const SENTINEL_ATTRIBUTION = `<a href="https://cloudless.eox.at">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${SENTINEL_YEAR})`;
-const USGS_ATTRIBUTION = '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map">USGS The National Map</a>';
+export const SENTINEL_ATTRIBUTION = `<a href="https://cloudless.eox.at">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${SENTINEL_YEAR})`;
+export const USGS_ATTRIBUTION = '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map">USGS The National Map</a>';
 
 type LayerName = "Streets" | "Dark" | "Satellite";
 
@@ -170,4 +171,34 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
   }).observe(container);
   recenter(map);
   return map;
+}
+
+/**
+ * A "3D" button under the recenter button. scene() describes what to show; the
+ * 2D map's view is used when there are no points. The 3D view (and MapLibre)
+ * loads only when pressed.
+ */
+export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "zoom">): void {
+  const Control = L.Control.extend({
+    onAdd() {
+      const bar = L.DomUtil.create("div", "leaflet-bar view3d-control");
+      const button = L.DomUtil.create("a", "", bar);
+      button.href = "#";
+      button.title = "3D view";
+      button.textContent = "3D";
+      button.setAttribute("role", "button");
+      button.setAttribute("aria-label", "Open a 3D view of this area");
+      L.DomEvent.disableClickPropagation(bar);
+      L.DomEvent.on(button, "click", (e) => {
+        L.DomEvent.preventDefault(e);
+        const c = map.getCenter();
+        const full: Scene3D = { ...scene(), center: { lat: c.lat, lon: c.lng }, zoom: map.getZoom() };
+        import("./view3d")
+          .then((m) => m.open3DView(full))
+          .catch(() => alert("The 3D view couldn't load. It needs a connection the first time it's used."));
+      });
+      return bar;
+    },
+  });
+  new Control({ position: "topleft" }).addTo(map);
 }

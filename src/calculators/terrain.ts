@@ -2,7 +2,8 @@
 // elevation profile between them, and how well the path clears it.
 
 import * as L from "leaflet";
-import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import type { Point3D } from "../lib/scene3d";
 import { buildKml, buildZip } from "../lib/export";
 import { downloadFile } from "./planBar";
 import { drawLinkLine, linkLegend } from "./linkLine";
@@ -250,6 +251,13 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       pinsChanged();
     });
     clearControl = addClearControl(map, "the pins and terrain profile", reset);
+    add3DControl(map, () => {
+      const points: Point3D[] = [];
+      if (tx) points.push({ ...tx, label: "TX", heightM: lastParams?.txHeightM ?? 2 });
+      if (rx) points.push({ ...rx, label: "RX", heightM: lastParams?.rxHeightM ?? 2 });
+      const links = tx && rx && quality ? [{ a: 0, b: 1, style: linkLineStyle(quality, lineOfSight) }] : [];
+      return { title: "Link Budget", points, links, k: lastParams?.k ?? STANDARD_K };
+    });
     syncPins();
   };
   // Leaflet needs the container in the page before it starts. A timer rather

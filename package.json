@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "leaflet": "^1.9.4",
+    "maplibre-gl": "6.16.0",
     "mgrs": "^2.2.0"
   }
 }

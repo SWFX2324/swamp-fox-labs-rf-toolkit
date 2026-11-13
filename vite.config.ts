@@ -4,6 +4,8 @@ import { VitePWA } from "vite-plugin-pwa";
 // GitHub Pages serves the site from /<repo>/, so assets need that base path.
 export default defineConfig({
   base: "/swamp-fox-labs-rf-toolkit/",
+  // The 3D view is one large chunk (MapLibre), loaded only when opened.
+  build: { chunkSizeWarningLimit: 1200 },
   plugins: [
     VitePWA({
       registerType: "autoUpdate",
@@ -23,8 +25,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // App shell plus the bundled SVGs (the topographic page background), so it all works offline.
-        globPatterns: ["**/*.{js,css,html,svg}"],
+        // App shell plus the bundled SVGs (the topographic page background) and the
+        // 3D view with its MapLibre worker (.mjs), so it all works offline.
+        globPatterns: ["**/*.{js,mjs,css,html,svg}"],
         // Keep map tiles the user has looked at, so the map background still
         // shows offline. Stale-while-revalidate refreshes them when online.
         // OpenStreetMap tiles are never downloaded in bulk (per its tile usage

@@ -55,6 +55,7 @@ Longley-Rice works from bare-earth elevation, so an **Environment** setting adds
 - **Base maps:** Streets, Dark or Satellite. Dark mode starts on Dark, light mode on Streets, and each remembers your choice.
 - **Buttons:** recenter, and Clear map to remove pins, nodes or coverage.
 - **Plans:** the Mesh Planner and Coverage Map save named plans, share them by link, and export KML or KMZ for ATAK, WinTAK or Google Earth. The terrain profile exports its path as KMZ, and tapping its chart reads out that point.
+- **3D view:** the 3D button on the Link Budget and Mesh Planner maps opens the area on real terrain that you can tilt and turn, with satellite or map imagery and adjustable height. Each link's line of sight is drawn in the air between antenna tops, lowered for the earth's curve so its clearance matches the 2D check, with a faint curtain down to the ground: where a ridge rises through it, the link is blocked.
 
 ## Everywhere in the app
 
@@ -94,5 +95,5 @@ Bug reports, field results and fixes are welcome. See [CONTRIBUTING.md](CONTRIBU
 - Terrain propagation: the [Irregular Terrain Model](https://github.com/NTIA/itm) (ITM v1.4) by the National Telecommunications and Information Administration (NTIA), a U.S. Government work not subject to copyright in the United States, provided by NTIA as is. Ported to TypeScript by Swamp Fox Labs in November 2026 (point-to-point mode only); the port is tested against NTIA's test cases.
 - Land cover ("From land-cover map"): [Sentinel-2 10 m Land Use/Land Cover](https://www.arcgis.com/home/item.html?id=cfcb7609de5f478eb7666240902d4d3d) by Impact Observatory, Microsoft and Esri (the 2025 map). The land-cover data is CC BY 4.0; it's read from Esri's public image service, which is provided under Esri's terms of use.
 - MGRS conversion: [mgrs](https://github.com/proj4js/mgrs) by the proj4js project (MIT).
-- Map tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, drawn with [Leaflet](https://leafletjs.com/).
+- Map tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, drawn with [Leaflet](https://leafletjs.com/); the 3D view uses [MapLibre GL JS](https://maplibre.org/) (BSD 3-Clause).
 - Satellite layer: [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map) imagery in the US (public domain), and worldwide [EOxCloudless](https://cloudless.eox.at) by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2024), used under its non-commercial CC BY-NC-SA 4.0 license. Any commercial use of this toolkit would need to replace the worldwide layer first.
