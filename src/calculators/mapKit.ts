@@ -9,6 +9,7 @@ import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL
 import { addOfflineControl } from "./offlineControl";
 import { THEME_EVENT, isDarkTheme } from "./theme";
 import type { Scene3D } from "../lib/scene3d";
+import type { View3D } from "./view3d";
 
 const LAYER_KEY = "rf-toolkit:map-layer";
 export const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
@@ -173,12 +174,23 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
   return map;
 }
 
+/** The 3D button on a map. */
+export interface Control3D {
+  /** Call after the page redraws, so an open 3D view shows the change. */
+  refresh(): void;
+}
+
 /**
  * A "3D" button under the recenter button. scene() describes what to show; the
  * 2D map's view is used when there are no points. The 3D view (and MapLibre)
  * loads only when pressed.
  */
-export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "zoom">): void {
+export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "zoom">): Control3D {
+  let view: View3D | undefined;
+  const full = (): Scene3D => {
+    const c = map.getCenter();
+    return { ...scene(), center: { lat: c.lat, lon: c.lng }, zoom: map.getZoom() };
+  };
   const Control = L.Control.extend({
     onAdd() {
       const bar = L.DomUtil.create("div", "leaflet-bar view3d-control");
@@ -191,14 +203,19 @@ export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "
       L.DomEvent.disableClickPropagation(bar);
       L.DomEvent.on(button, "click", (e) => {
         L.DomEvent.preventDefault(e);
-        const c = map.getCenter();
-        const full: Scene3D = { ...scene(), center: { lat: c.lat, lon: c.lng }, zoom: map.getZoom() };
         import("./view3d")
-          .then((m) => m.open3DView(full))
+          .then((m) => {
+            view = m.open3DView(full());
+          })
           .catch(() => alert("The 3D view couldn't load. It needs a connection the first time it's used."));
       });
       return bar;
     },
   });
   new Control({ position: "topleft" }).addTo(map);
+  return {
+    refresh() {
+      if (view?.isOpen()) view.update(full());
+    },
+  };
 }

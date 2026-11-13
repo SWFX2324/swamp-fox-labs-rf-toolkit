@@ -1,7 +1,7 @@
 // Geometry for the 3D view: where a link's line of sight runs in the air, and
 // which way to look at it. Kept free of any map library so it can be tested.
 
-import { type LatLon, bearingDeg, distanceBetweenM, samplePath } from "./geo";
+import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM, samplePath } from "./geo";
 import { STANDARD_K, earthBulgeM } from "./horizon";
 import type { LinkLineStyle } from "./linkLines";
 
@@ -23,6 +23,12 @@ export interface Scene3D {
   title: string;
   points: Point3D[];
   links: Link3D[];
+  /** A coverage image to drape on the terrain, with its corners in degrees. */
+  overlay?: { url: string; bounds: { north: number; south: number; east: number; west: number } };
+  /** A circle to outline on the ground, such as the coverage radius. */
+  ring?: { center: LatLon; radiusM: number };
+  /** Called when a point is dragged to a new spot in the 3D view. */
+  onMove?: (index: number, p: LatLon) => void;
   /** Effective earth radius factor, so the line dips by the same bulge the 2D checks use. */
   k: number;
   /** Where to look when there are no points: the 2D map's view. */
@@ -62,4 +68,14 @@ export function viewBearing(points: LatLon[]): number {
   if (points.length !== 2 || distanceBetweenM(points[0], points[1]) < 1) return 0;
   const b = bearingDeg(points[0], points[1]) - 90;
   return ((b % 360) + 540) % 360 - 180;
+}
+
+/** A closed outline of a circle on the ground, as [lon, lat] pairs. */
+export function ringCoordinates(center: LatLon, radiusM: number, steps = 128): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const p = destinationPoint(center, (i / steps) * 360, radiusM);
+    out.push([p.lon, p.lat]);
+  }
+  return out;
 }

@@ -662,3 +662,6 @@ main .leaflet-container { background: var(--card-2); }
   padding: 8px 14px; border-radius: 8px; background: var(--card); color: var(--text-2); border: 1px solid var(--border);
   pointer-events: none;
 }
+.view3d-pin.draggable { cursor: grab; }
+.view3d-pin.draggable:active { cursor: grabbing; }
+.view3d-los { font-size: 13px; color: var(--text-2); }

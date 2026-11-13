@@ -55,7 +55,7 @@ Longley-Rice works from bare-earth elevation, so an **Environment** setting adds
 - **Base maps:** Streets, Dark or Satellite. Dark mode starts on Dark, light mode on Streets, and each remembers your choice.
 - **Buttons:** recenter, and Clear map to remove pins, nodes or coverage.
 - **Plans:** the Mesh Planner and Coverage Map save named plans, share them by link, and export KML or KMZ for ATAK, WinTAK or Google Earth. The terrain profile exports its path as KMZ, and tapping its chart reads out that point.
-- **3D view:** the 3D button on the Link Budget and Mesh Planner maps opens the area on real terrain that you can tilt and turn, with satellite or map imagery and adjustable height. Each link's line of sight is drawn in the air between antenna tops, lowered for the earth's curve so its clearance matches the 2D check, with a faint curtain down to the ground: where a ridge rises through it, the link is blocked.
+- **3D view:** the 3D button on the Link Budget, Mesh Planner and Coverage Map maps opens the area on real terrain that you can tilt and turn, with satellite or map imagery and adjustable height. Links follow the ground in the same colours and dashes as the 2D key, and coverage shading drapes over the hills inside its radius. Drag a pin, node or site to move it; the tab recalculates (the Coverage Map maps again) and the 3D view follows. Turn on **Line of sight** to see each link's straight path between antenna tops, lowered for the earth's curve so clearance matches the 2D check: where a ridge rises through it, the link is blocked.
 
 ## Everywhere in the app
 

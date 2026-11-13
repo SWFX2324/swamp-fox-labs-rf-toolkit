@@ -4,7 +4,7 @@ import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
 import { coverageGuide } from "./helpText";
 import * as L from "leaflet";
-import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type RadialSamples, coveragePathLoss, coveragePatternLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials, sumGrids } from "../lib/coverage";
@@ -277,6 +277,7 @@ export const coverageCalculator: Calculator = {
     let pathLoss: { samples: RadialSamples; key: string; loss: Float32Array[] } | undefined;
     let patternLoss: { samples: RadialSamples; key: string; loss: Float32Array[] | undefined } | undefined;
     let aimLine: L.Polyline | undefined;
+    let view3d: Control3D | undefined;
     // Land cover at the site and every radial point, read with the terrain.
     let cover: { samples: RadialSamples; site: LandCoverPoint; points: LandCoverPoint[][] } | undefined;
     let coverError = "";
@@ -322,6 +323,7 @@ export const coverageCalculator: Calculator = {
       ring?.remove();
       ring = r > 0 ? L.circle([p.lat, p.lon], { radius: r, className: "coverage-ring", interactive: false }).addTo(map) : undefined;
       if (recenter && ring) map.fitBounds(ring.getBounds(), { padding: [10, 10] });
+      view3d?.refresh();
     };
 
     const txBeam = () => beam(field("txPattern").value, num("txGain") || 0, num("txAzimuth"), num("txTilt"));
@@ -413,6 +415,7 @@ export const coverageCalculator: Calculator = {
         [s.site.lat + dLat, s.site.lon + dLon],
       ], { interactive: false, className: "coverage-overlay" }).addTo(map);
       ring?.bringToFront();
+      view3d?.refresh();
     };
 
     const recompute = () => {
@@ -425,6 +428,7 @@ export const coverageCalculator: Calculator = {
         overlay?.remove();
         overlay = undefined;
         readingsCard.refresh();
+        view3d?.refresh();
         return;
       }
       const r = radio();
@@ -591,6 +595,27 @@ export const coverageCalculator: Calculator = {
         else showDefaultView(m);
       });
       clearControl = addClearControl(map, "the site and coverage", clearCoverage);
+      view3d = add3DControl(map, () => {
+        const p = site();
+        const r = radiusM();
+        return {
+          title: "Coverage Map",
+          points: p ? [{ ...p, label: "Site", heightM: toMetres(num("txHeight") || 0, heightUnit()) }] : [],
+          links: [],
+          // Only shading that matches the current settings, as on this map.
+          overlay: overlay && lastOverlay ? lastOverlay : undefined,
+          ring: p && r > 0 ? { center: p, radiusM: r } : undefined,
+          k: 4 / 3,
+          // Moving the site in 3D maps its coverage again straight away, so
+          // there is something to see there.
+          onMove: (_i, q) => {
+            field("site").value = formatCoordinates(q);
+            setStatus("");
+            inputsChanged();
+            void run();
+          },
+        };
+      });
       map.on("click", (e: L.LeafletMouseEvent) => {
         const q = { lat: e.latlng.lat, lon: e.latlng.lng };
         if (readingsCard.takeMapTap(q)) return;

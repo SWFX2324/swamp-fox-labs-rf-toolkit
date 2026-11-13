@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { earthBulgeM } from "./horizon";
-import { LINK_SAMPLES, lineOfSightHeights, linkSamples, viewBearing } from "./scene3d";
+import { distanceBetweenM } from "./geo";
+import { LINK_SAMPLES, lineOfSightHeights, linkSamples, ringCoordinates, viewBearing } from "./scene3d";
 
 describe("lineOfSightHeights", () => {
   it("runs from one antenna top to the other", () => {
@@ -48,5 +49,15 @@ describe("viewBearing", () => {
     expect(viewBearing([])).toBe(0);
     expect(viewBearing([{ lat: 0, lon: 0 }])).toBe(0);
     expect(viewBearing([{ lat: 0, lon: 0 }, { lat: 0, lon: 1 }, { lat: 1, lon: 1 }])).toBe(0);
+  });
+});
+
+describe("ringCoordinates", () => {
+  it("draws a closed circle at the given radius", () => {
+    const center = { lat: 35, lon: -80 };
+    const ring = ringCoordinates(center, 10_000, 16);
+    expect(ring).toHaveLength(17);
+    expect(ring[0]).toEqual(ring[16]);
+    for (const [lon, lat] of ring) expect(distanceBetweenM(center, { lat, lon })).toBeCloseTo(10_000, -1);
   });
 });

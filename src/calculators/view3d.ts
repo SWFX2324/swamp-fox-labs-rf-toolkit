@@ -1,6 +1,7 @@
-// The 3D view: the area around a link or mesh on real terrain that you can tilt
-// and turn, with each link's line of sight drawn in the air between antenna
-// tops. Loaded only when someone opens it, since MapLibre is large.
+// The 3D view: the area around a link, mesh or coverage site on real terrain
+// that you can tilt and turn, with links draped on the ground and, optionally,
+// each link's line of sight in the air between antenna tops. Loaded only when
+// someone opens it, since MapLibre is large.
 //
 // Terrain uses the same Terrain Tiles as the elevation math, and the base maps
 // use the same tile addresses as the 2D maps, so areas cached for offline use
@@ -12,7 +13,7 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { distanceBetweenM } from "../lib/geo";
 import { linkLineOrder, type LinkLineStyle } from "../lib/linkLines";
 import { SENTINEL_MAX_ZOOM, SENTINEL_URL, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
-import { LINK_SAMPLES, type Scene3D, lineOfSightHeights, linkSamples, viewBearing } from "../lib/scene3d";
+import { LINK_SAMPLES, type Scene3D, lineOfSightHeights, linkSamples, ringCoordinates, viewBearing } from "../lib/scene3d";
 import { TILE_URL } from "../lib/terrainTiles";
 import { linkLegend } from "./linkLine";
 import { OSM_ATTRIBUTION, SENTINEL_ATTRIBUTION, USGS_ATTRIBUTION } from "./mapKit";
@@ -23,6 +24,7 @@ maplibregl.setWorkerUrl(workerUrl);
 
 const BASE_KEY = "rf-toolkit:3d-base";
 const EXAGGERATION_KEY = "rf-toolkit:3d-exaggeration";
+const LOS_KEY = "rf-toolkit:3d-los";
 const EXAGGERATIONS = [1, 1.5, 2, 3];
 const TERRAIN_ATTRIBUTION = "Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey";
 // Roughly the area USGS imagery covers, so the view doesn't ask for tiles that 404 elsewhere.
@@ -87,11 +89,12 @@ void main() {
 }`;
 
 /**
- * Draws the links in the air: for each, a solid band along the line of sight
- * with a faint curtain hanging from it to the ground, and a mast at each
- * antenna. Where terrain rises through the line, the ground hides it.
+ * The optional line of sight in the air: for each link, a solid band from one
+ * antenna top to the other with a faint curtain hanging from it to the ground,
+ * and a mast at each antenna. Where terrain rises through the line, the ground
+ * hides it.
  */
-function airLayer(scene: Scene3D, getExaggeration: () => number): maplibregl.CustomLayerInterface & { rebuild(): void } {
+function airLayer(getScene: () => Scene3D, getExaggeration: () => number): maplibregl.CustomLayerInterface & { rebuild(force?: boolean): void; showLos: boolean } {
   let map: maplibregl.Map;
   let gl: WebGL2RenderingContext;
   let program: WebGLProgram | null = null;
@@ -100,16 +103,13 @@ function airLayer(scene: Scene3D, getExaggeration: () => number): maplibregl.Cus
   let origin = { x: 0, y: 0, z: 0 };
   let lastKey = "";
 
-  // Size bands and masts to the scene, so they read at any scale.
-  const extentM = Math.max(
-    200,
-    ...scene.links.map((l) => distanceBetweenM(scene.points[l.a], scene.points[l.b])),
-  );
-  const bandM = Math.min(120, Math.max(4, extentM * 0.004));
-  const mastM = bandM * 0.8;
-
-  const build = (): Float32Array | undefined => {
+  const build = (showLos: boolean): Float32Array | undefined => {
+    const scene = getScene();
     const ex = getExaggeration();
+    // Size bands and masts to the scene, so they read at any scale.
+    const extentM = Math.max(200, scene.ring?.radiusM ?? 0, ...scene.links.map((l) => distanceBetweenM(scene.points[l.a], scene.points[l.b])));
+    const bandM = Math.min(120, Math.max(4, extentM * 0.004));
+    const mastM = bandM * 0.8;
     const ground = (p: { lat: number; lon: number }) => map.queryTerrainElevation([p.lon, p.lat]);
     const data: number[] = [];
     const center = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter(), 0);
@@ -123,7 +123,7 @@ function airLayer(scene: Scene3D, getExaggeration: () => number): maplibregl.Cus
       for (const v of [a, b, c, c, b, d]) data.push(v[0], v[1], v[2], ...rgba);
     };
 
-    for (const link of scene.links) {
+    for (const link of showLos ? scene.links : []) {
       const A = scene.points[link.a];
       const B = scene.points[link.b];
       const distanceM = distanceBetweenM(A, B);
@@ -170,11 +170,12 @@ function airLayer(scene: Scene3D, getExaggeration: () => number): maplibregl.Cus
     return new Float32Array(data);
   };
 
-  return {
+  const layer = {
     id: "rf-air",
-    type: "custom",
-    renderingMode: "3d",
-    onAdd(m, context) {
+    type: "custom" as const,
+    renderingMode: "3d" as const,
+    showLos: false,
+    onAdd(m: maplibregl.Map, context: WebGL2RenderingContext) {
       map = m;
       gl = context;
       const compile = (type: number, source: string) => {
@@ -189,12 +190,15 @@ function airLayer(scene: Scene3D, getExaggeration: () => number): maplibregl.Cus
       gl.linkProgram(program);
       buffer = gl.createBuffer();
     },
-    rebuild() {
+    rebuild(force = false) {
       if (!map || !buffer) return;
-      const data = build();
+      if (force) lastKey = "";
+      const data = build(layer.showLos);
       if (!data) return;
       // Only redraw when something moved, or each redraw would set off another.
-      const key = `${data.length}:${data[2] ?? 0}:${data[data.length - 5] ?? 0}:${origin.x}:${origin.y}`;
+      let sum = 0;
+      for (let i = 2; i < data.length; i += 7) sum += data[i];
+      const key = `${data.length}:${sum}:${origin.x}:${origin.y}`;
       if (key === lastKey) return;
       lastKey = key;
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -202,7 +206,7 @@ function airLayer(scene: Scene3D, getExaggeration: () => number): maplibregl.Cus
       count = data.length / 7;
       map.triggerRepaint();
     },
-    render(_gl, options) {
+    render(_gl: WebGL2RenderingContext, options: maplibregl.CustomRenderMethodInput) {
       if (!program || !buffer || !count) return;
       // Shift the matrix to the scene's origin, so vertices stay small enough
       // for 32-bit floats to place them to the metre.
@@ -224,9 +228,10 @@ function airLayer(scene: Scene3D, getExaggeration: () => number): maplibregl.Cus
       gl.drawArrays(gl.TRIANGLES, 0, count);
     },
   };
+  return layer;
 }
 
-/** Link ground tracks, draped on the terrain, for orientation under the lines in the air. */
+/** Links as lines on the ground, draped over the terrain like the 2D map's. */
 function groundTracks(scene: Scene3D): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
@@ -244,6 +249,24 @@ function groundTracks(scene: Scene3D): GeoJSON.FeatureCollection {
   };
 }
 
+const ringData = (scene: Scene3D): GeoJSON.FeatureCollection => ({
+  type: "FeatureCollection",
+  features: scene.ring
+    ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: ringCoordinates(scene.ring.center, scene.ring.radiusM) } }]
+    : [],
+});
+
+type Corners = [[number, number], [number, number], [number, number], [number, number]];
+const overlayCorners = (b: NonNullable<Scene3D["overlay"]>["bounds"]): Corners => [
+  [b.west, b.north],
+  [b.east, b.north],
+  [b.east, b.south],
+  [b.west, b.south],
+];
+
+// Matches the key under the 2D Coverage Map.
+const COVERAGE_LEGEND = `<div class="legend coverage-legend"><span class="key"><span class="sw cov-strong"></span>Strong</span><span class="key"><span class="sw cov-solid"></span>Solid</span><span class="key"><span class="sw cov-marginal"></span>Marginal</span></div>`;
+
 const template = (title: string) => `
   <div class="view3d-bar">
     <h2>3D view <span class="meta">${title}</span></h2>
@@ -254,35 +277,73 @@ const template = (title: string) => `
     <label class="view3d-ex">Height
       <select data-v="ex" aria-label="Terrain height exaggeration">${EXAGGERATIONS.map((e) => `<option value="${e}">${e}×</option>`).join("")}</select>
     </label>
+    <label class="check view3d-los" data-v="losWrap" hidden><input type="checkbox" data-v="los" /> Line of sight</label>
     <button type="button" class="secondary" data-v="close">Close</button>
   </div>
   <div class="view3d-map" data-v="map"><p class="view3d-loading" data-v="loading" role="status">Loading terrain…</p></div>
   <div class="view3d-foot">
     <span data-v="legend"></span>
-    <span class="note" data-v="hint">Drag to move. Right-drag or Ctrl-drag to tilt and turn; two fingers on a phone. Lines in the air are lowered for the earth's curve, so clearance matches the 2D check.</span>
+    <span class="note" data-v="hint"></span>
   </div>
 `;
 
-export function open3DView(scene: Scene3D): void {
+/** An open 3D view: give it a new scene after the page recalculates. */
+export interface View3D {
+  update(scene: Scene3D): void;
+  isOpen(): boolean;
+}
+
+export function open3DView(first: Scene3D): View3D {
+  let scene = first;
+  let open = true;
   const dialog = document.createElement("dialog");
   dialog.className = "view3d";
   dialog.setAttribute("aria-label", `3D view, ${scene.title}`);
   dialog.innerHTML = template(scene.title);
   const el = <T extends HTMLElement = HTMLElement>(name: string) => dialog.querySelector<T>(`[data-v="${name}"]`)!;
-  const styles = [...new Set(scene.links.map((l) => l.style))];
-  if (styles.length) el("legend").replaceWith(linkLegend(linkLineOrder.filter((s) => styles.includes(s))));
-  else el("legend").remove();
   document.body.append(dialog);
   dialog.showModal();
+
+  // The key follows what's on screen: link styles, or the coverage shades.
+  let legend: Element = el("legend");
+  let legendKey = "";
+  const setLegend = () => {
+    const styles = linkLineOrder.filter((s) => scene.links.some((l) => l.style === s));
+    const key = styles.length ? styles.join(",") : scene.overlay ? "coverage" : "";
+    if (key === legendKey) return;
+    legendKey = key;
+    let next: Element;
+    if (styles.length) next = linkLegend(styles);
+    else {
+      next = document.createElement("span");
+      if (scene.overlay) next.innerHTML = COVERAGE_LEGEND;
+    }
+    legend.replaceWith(next);
+    legend = next;
+  };
+  const setHint = () => {
+    const move = !scene.onMove ? "" : scene.ring || scene.points.length === 1 ? " Drag the site's label to move it." : " Drag a label to move that pin or node.";
+    el("hint").textContent = `Drag to pan. Right-drag or Ctrl-drag to tilt and turn; two fingers on a phone.${move}`;
+    el("losWrap").hidden = scene.links.length === 0;
+  };
+  setLegend();
+  setHint();
 
   let base: Base = read(BASE_KEY) === "map" ? "map" : "satellite";
   const savedEx = Number(read(EXAGGERATION_KEY));
   let exaggeration = EXAGGERATIONS.includes(savedEx) ? savedEx : 1.5;
   const exSelect = el<HTMLSelectElement>("ex");
   exSelect.value = String(exaggeration);
+  const losBox = el<HTMLInputElement>("los");
+  losBox.checked = read(LOS_KEY) === "1";
 
   let map: maplibregl.Map | undefined;
+  let markers: maplibregl.Marker[] = [];
+  // Set once the style has loaded. (isStyleLoaded() also turns false while tiles
+  // load, which would drop updates.)
+  let ready = false;
   const close = () => {
+    open = false;
     map?.remove();
     map = undefined;
     dialog.close();
@@ -294,21 +355,38 @@ export function open3DView(scene: Scene3D): void {
     close();
   });
 
+  const handle: View3D = { update: () => {}, isOpen: () => open };
   const dark = isDarkTheme();
   const visible = (on: boolean) => (on ? "visible" : "none") as "visible" | "none";
-  const trackLayers: maplibregl.LineLayerSpecification[] = linkLineOrder.map((s) => ({
-    id: `track-${s}`,
-    type: "line",
-    source: "tracks",
-    filter: ["==", ["get", "style"], s],
-    layout: { "line-cap": "round" },
-    paint: {
-      "line-color": tokenHex(styleToken[s], "#888888"),
-      "line-width": 2,
-      "line-opacity": 0.55 * styleAlpha[s],
-      ...(s === "good-clear" ? {} : { "line-dasharray": s === "good-obstructed" ? [3, 2.5] : s === "marginal" ? [0.8, 2.2] : [0.1, 2] }),
-    },
-  }));
+  // Dash lengths are in line widths, echoing the 2D standard.
+  const dashFor = (s: LinkLineStyle) => (s === "good-clear" ? undefined : s === "good-obstructed" ? [3, 2] : s === "marginal" ? [0.6, 1.4] : [0.1, 1.4]);
+  // Like the 2D map: a dark casing under each coloured line, so it reads on imagery.
+  const trackLayers: maplibregl.LineLayerSpecification[] = linkLineOrder.flatMap((s): maplibregl.LineLayerSpecification[] => {
+    const dash = dashFor(s);
+    const filter: maplibregl.FilterSpecification = ["==", ["get", "style"], s];
+    // Wider than on the 2D map: draped lines thin out with distance once tilted.
+    const width = s === "fail" ? 6 : 7;
+    const opacity = s === "fail" ? 0.9 : 1;
+    return [
+      {
+        id: `track-casing-${s}`,
+        type: "line",
+        source: "tracks",
+        filter,
+        layout: { "line-cap": "round", "line-join": "round" },
+        // Same dash length on the ground as the line above it.
+        paint: { "line-color": "#000000", "line-opacity": 0.6 * opacity, "line-width": width + 4, ...(dash ? { "line-dasharray": dash.map((d) => (d * width) / (width + 4)) } : {}) },
+      },
+      {
+        id: `track-${s}`,
+        type: "line",
+        source: "tracks",
+        filter,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": tokenHex(styleToken[s], "#888888"), "line-opacity": opacity, "line-width": width, ...(dash ? { "line-dasharray": dash } : {}) },
+      },
+    ];
+  });
 
   try {
     map = new maplibregl.Map({
@@ -328,6 +406,7 @@ export function open3DView(scene: Scene3D): void {
           sentinel: { type: "raster", tiles: [SENTINEL_URL], tileSize: 256, maxzoom: SENTINEL_MAX_ZOOM, attribution: SENTINEL_ATTRIBUTION },
           usgs: { type: "raster", tiles: [USGS_URL], tileSize: 256, maxzoom: USGS_MAX_ZOOM, bounds: USGS_BOUNDS, attribution: USGS_ATTRIBUTION },
           tracks: { type: "geojson", data: groundTracks(scene) },
+          ring: { type: "geojson", data: ringData(scene) },
         },
         layers: [
           { id: "background", type: "background", paint: { "background-color": tokenHex("--card-2", "#232321") } },
@@ -347,6 +426,7 @@ export function open3DView(scene: Scene3D): void {
             layout: { visibility: visible(base === "map") },
             paint: { "hillshade-exaggeration": 0.45 },
           },
+          { id: "ring", type: "line", source: "ring", paint: { "line-color": tokenHex("--accent", "#3987e5"), "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.9 } },
           ...trackLayers,
         ],
         terrain: { source: "dem", exaggeration },
@@ -354,27 +434,86 @@ export function open3DView(scene: Scene3D): void {
     });
   } catch {
     el("map").innerHTML = '<p class="note view3d-error">The 3D view needs WebGL, which this browser or device doesn\'t offer. The 2D map still works.</p>';
-    return;
+    return handle;
   }
 
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
   // Missing tiles (no imagery for a spot, or offline) shouldn't fill the console.
   map.on("error", () => {});
 
-  const air = airLayer(scene, () => exaggeration);
-  map.on("load", () => {
+  const air = airLayer(() => scene, () => exaggeration);
+  air.showLos = losBox.checked;
+
+  // The coverage shading, draped on the terrain under the ring and links.
+  // Its image carries its own transparency.
+  const setOverlay = () => {
     if (!map) return;
-    // Start the credits folded to their (i) button; MapLibre opens them on load.
-    el("map").querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show");
-    map.addLayer(air);
-    for (const p of scene.points) {
+    const source = map.getSource("coverage") as maplibregl.ImageSource | undefined;
+    if (!scene.overlay) {
+      if (map.getLayer("coverage")) map.removeLayer("coverage");
+      if (source) map.removeSource("coverage");
+      return;
+    }
+    const coordinates = overlayCorners(scene.overlay.bounds);
+    if (source) {
+      source.updateImage({ url: scene.overlay.url, coordinates });
+      return;
+    }
+    map.addSource("coverage", { type: "image", url: scene.overlay.url, coordinates });
+    map.addLayer({ id: "coverage", type: "raster", source: "coverage", paint: { "raster-fade-duration": 0, "raster-resampling": "linear" } }, "ring");
+  };
+
+  const setMarkers = () => {
+    if (!map) return;
+    for (const m of markers) m.remove();
+    markers = scene.points.map((p, i) => {
       const pin = document.createElement("div");
       pin.className = "view3d-pin";
       pin.textContent = p.label; // user text: set as text, not markup
-      new maplibregl.Marker({ element: pin, anchor: "bottom", offset: [0, -6] }).setLngLat([p.lon, p.lat]).addTo(map);
-    }
-    // First look: frame the points, side-on to a single link.
-    if (scene.points.length >= 2) {
+      const marker = new maplibregl.Marker({ element: pin, anchor: "bottom", offset: [0, -6], draggable: !!scene.onMove })
+        .setLngLat([p.lon, p.lat])
+        .addTo(map!);
+      if (scene.onMove) {
+        pin.classList.add("draggable");
+        pin.title = `Drag to move ${p.label}`;
+        marker.on("dragend", () => {
+          const at = marker.getLngLat();
+          scene.onMove?.(i, { lat: at.lat, lon: at.lng });
+        });
+      }
+      return marker;
+    });
+  };
+
+  const applyScene = () => {
+    if (!open || !ready || !map) return;
+    (map.getSource("tracks") as maplibregl.GeoJSONSource).setData(groundTracks(scene));
+    (map.getSource("ring") as maplibregl.GeoJSONSource).setData(ringData(scene));
+    setOverlay();
+    setMarkers();
+    setLegend();
+    setHint();
+    air.rebuild(true);
+  };
+  handle.update = (next) => {
+    scene = next;
+    applyScene();
+  };
+
+  map.on("load", () => {
+    if (!map) return;
+    ready = true;
+    // Start the credits folded to their (i) button; MapLibre opens them on load.
+    el("map").querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show");
+    map.addLayer(air);
+    // Catch up on anything that changed while the style loaded.
+    applyScene();
+    // First look: frame the coverage circle, or the points side-on to a single link.
+    if (scene.ring) {
+      const bounds = new maplibregl.LngLatBounds();
+      for (const c of ringCoordinates(scene.ring.center, scene.ring.radiusM, 32)) bounds.extend(c);
+      map.fitBounds(bounds, { padding: 40, maxZoom: 14, bearing: 0, pitch: 55, duration: 0 });
+    } else if (scene.points.length >= 2) {
       const bounds = new maplibregl.LngLatBounds();
       for (const p of scene.points) bounds.extend([p.lon, p.lat]);
       map.fitBounds(bounds, { padding: 90, maxZoom: 14, bearing: viewBearing(scene.points), pitch: 62, duration: 0 });
@@ -384,7 +523,7 @@ export function open3DView(scene: Scene3D): void {
       map.jumpTo({ center: [scene.points[0].lon, scene.points[0].lat], zoom: 12.5, pitch: 62 });
     }
   });
-  // Terrain arrives tile by tile: place the lines again once it settles.
+  // Terrain arrives tile by tile: place the masts (and line of sight) again once it settles.
   map.on("idle", () => {
     dialog.querySelector("[data-v=loading]")?.remove();
     air.rebuild();
@@ -394,7 +533,7 @@ export function open3DView(scene: Scene3D): void {
     base = next;
     write(BASE_KEY, next);
     for (const b of dialog.querySelectorAll<HTMLButtonElement>("[data-base]")) b.setAttribute("aria-pressed", String(b.dataset.base === next));
-    if (!map?.isStyleLoaded()) return;
+    if (!ready || !map) return;
     map.setLayoutProperty("osm", "visibility", visible(next === "map"));
     map.setLayoutProperty("shade", "visibility", visible(next === "map"));
     map.setLayoutProperty("sentinel", "visibility", visible(next === "satellite"));
@@ -408,4 +547,10 @@ export function open3DView(scene: Scene3D): void {
     write(EXAGGERATION_KEY, String(exaggeration));
     map?.setTerrain({ source: "dem", exaggeration });
   });
+  losBox.addEventListener("change", () => {
+    write(LOS_KEY, losBox.checked ? "1" : "0");
+    air.showLos = losBox.checked;
+    air.rebuild(true);
+  });
+  return handle;
 }

@@ -2,7 +2,7 @@
 // elevation profile between them, and how well the path clears it.
 
 import * as L from "leaflet";
-import { type ClearControl, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Point3D } from "../lib/scene3d";
 import { buildKml, buildZip } from "../lib/export";
 import { downloadFile } from "./planBar";
@@ -150,6 +150,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   let txMarker: L.Marker | undefined;
   let rxMarker: L.Marker | undefined;
   let line: L.LayerGroup | undefined;
+  let view3d: Control3D | undefined;
   // The line's style comes from the budget's verdict and the profile's.
   let quality: LinkQuality | undefined;
   let lineOfSight: ProfileStatus | undefined;
@@ -157,6 +158,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   const drawPath = () => {
     line?.remove();
     line = map && tx && rx && quality ? drawLinkLine(map, tx, rx, linkLineStyle(quality, lineOfSight)) : undefined;
+    view3d?.refresh();
   };
 
   const setStatus = (text: string, warn = false) => {
@@ -251,12 +253,25 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       pinsChanged();
     });
     clearControl = addClearControl(map, "the pins and terrain profile", reset);
-    add3DControl(map, () => {
+    view3d = add3DControl(map, () => {
       const points: Point3D[] = [];
-      if (tx) points.push({ ...tx, label: "TX", heightM: lastParams?.txHeightM ?? 2 });
-      if (rx) points.push({ ...rx, label: "RX", heightM: lastParams?.rxHeightM ?? 2 });
+      const ends: ("tx" | "rx")[] = [];
+      if (tx) {
+        points.push({ ...tx, label: "TX", heightM: lastParams?.txHeightM ?? 2 });
+        ends.push("tx");
+      }
+      if (rx) {
+        points.push({ ...rx, label: "RX", heightM: lastParams?.rxHeightM ?? 2 });
+        ends.push("rx");
+      }
       const links = tx && rx && quality ? [{ a: 0, b: 1, style: linkLineStyle(quality, lineOfSight) }] : [];
-      return { title: "Link Budget", points, links, k: lastParams?.k ?? STANDARD_K };
+      // A pin dragged in 3D moves just as if it were dragged on this map.
+      const onMove = (i: number, p: LatLon) => {
+        if (ends[i] === "tx") tx = p;
+        else rx = p;
+        pinsChanged();
+      };
+      return { title: "Link Budget", points, links, k: lastParams?.k ?? STANDARD_K, onMove };
     });
     syncPins();
   };

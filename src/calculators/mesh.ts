@@ -5,7 +5,7 @@ import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
 import { meshGuide } from "./helpText";
 import * as L from "leaflet";
-import { type ClearControl, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { buildKml, fileName, buildZip } from "../lib/export";
@@ -246,6 +246,7 @@ export const meshCalculator: Calculator = {
     let lines: L.LayerGroup[] = [];
     let aimLines: L.Polyline[] = [];
     let lastLinks: { a: number; b: number; link: MeshLink; distanceM: number }[] = [];
+    let view3d: Control3D | undefined;
 
     const heightM = (n: MeshNode) =>
       toMetres(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, asDistanceUnit(field("heightUnit").value));
@@ -385,7 +386,10 @@ export const meshCalculator: Calculator = {
       out("empty").hidden = ready;
       out("results").hidden = !ready;
       out("pill").hidden = !ready;
-      if (!ready) return;
+      if (!ready) {
+        view3d?.refresh();
+        return;
+      }
 
       const radio = {
         freqHz: toHz(num("freq"), asFrequencyUnit(field("freqUnit").value)),
@@ -491,6 +495,7 @@ export const meshCalculator: Calculator = {
       if (map) {
         lines = results.map((r) => drawLinkLine(map!, nodes[r.a], nodes[r.b], linkLineStyle(r.link.status, r.link.profile)));
       }
+      view3d?.refresh();
     };
 
     const loadTerrain = async () => {
@@ -564,13 +569,20 @@ export const meshCalculator: Calculator = {
         else showDefaultView(m);
       });
       clearControl = addClearControl(map, "the nodes", clearNodes);
-      add3DControl(map, () => ({
+      view3d = add3DControl(map, () => ({
         title: "Mesh Planner",
         points: nodes.map((n, i) => ({ lat: n.lat, lon: n.lon, label: nodeLabel(i), heightM: heightM(n) })),
         links: lastLinks
           .filter((r) => r.a < nodes.length && r.b < nodes.length)
           .map((r) => ({ a: r.a, b: r.b, style: linkLineStyle(r.link.status, r.link.profile) })),
         k: parseKFactor(field("kFactor").value),
+        // A node dragged in 3D moves just as if it were dragged on this map.
+        onMove: (i, p) => {
+          if (!nodes[i]) return;
+          nodes[i].lat = p.lat;
+          nodes[i].lon = p.lon;
+          nodesChanged(false);
+        },
       }));
       map.on("click", (e: L.LeafletMouseEvent) => addNode({ lat: e.latlng.lat, lon: e.latlng.lng }));
       drawMarkers();
