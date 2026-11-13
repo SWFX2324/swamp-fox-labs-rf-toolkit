@@ -22,6 +22,8 @@ import { applySettings, createPlanBar, downloadFile, pngBytes } from "./planBar"
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { bindTreeField, environmentNote, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { tabStateToSave, tabValues } from "../lib/appSettings";
+import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { loadTiles } from "./tileElevation";
 import {
   type DistanceUnit,
@@ -38,7 +40,9 @@ import {
 
 const STORAGE_KEY = "rf-toolkit:coverage";
 
-const defaults: Record<string, string> = {
+// The built-in defaults from before Settings existed. Settings now override the
+// fields they cover; these still fill the rest and recognise untouched old saves.
+const legacyDefaults: Record<string, string> = {
   site: "",
   freq: "915",
   freqUnit: "MHz",
@@ -178,6 +182,7 @@ const template = `
         </div>
         <p class="note" data-out="envNote" hidden></p>
         <p class="note" data-out="corrNote" hidden></p>
+        <p class="note" data-out="derateNote" hidden></p>
         <p class="note" data-out="probe"></p>
       </div>
       <details class="about"><summary>About this calculation</summary><p>Free-space loss plus terrain loss from the Irregular Terrain Model (Longley-Rice) over bare-earth terrain, sampled along radials from the site, at the reliability and confidence you set. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. ${LAND_COVER_CREDIT}. Tiles you've loaded work offline.</p></details>
@@ -185,10 +190,29 @@ const template = `
   </aside>
 `;
 
-function loadState(): Record<string, string> {
+/** The defaults now: the built-in ones, with Settings on top for everything Settings covers. */
+function currentDefaults(): Record<string, string> {
+  const s = sharedFields();
+  return {
+    ...legacyDefaults,
+    ...modelFromSettings(),
+    fade: s.fade,
+    txGain: s.gain,
+    rxGain: s.gain,
+    txCable: s.cableAndConnectors,
+    rxCable: s.cableAndConnectors,
+    environment: s.environment,
+    treeHeight: s.treeHeight,
+    txHeight: s.height,
+    rxHeight: s.height,
+    heightUnit: s.heightUnit,
+    radiusUnit: s.distanceUnit,
+  };
+}
+
+function loadState(defaults: Record<string, string>): Record<string, string> {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return { ...defaults, ...(typeof saved === "object" && saved ? saved : {}) };
+    return tabValues(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"), defaults, legacyDefaults);
   } catch {
     return { ...defaults };
   }
@@ -234,6 +258,7 @@ export const coverageCalculator: Calculator = {
   shortTitle: "Coverage",
   render() {
     const form = document.createElement("form");
+    const defaults = currentDefaults();
     form.className = "calculator two-col coverage";
     form.innerHTML = template;
     linkGroundToEnvironment(form);
@@ -244,7 +269,7 @@ export const coverageCalculator: Calculator = {
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
     const num = (name: string) => Number.parseFloat(field(name).value);
 
-    for (const [name, value] of Object.entries(loadState())) {
+    for (const [name, value] of Object.entries(loadState(defaults))) {
       const el = form.elements.namedItem(name);
       if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
     }
@@ -256,7 +281,7 @@ export const coverageCalculator: Calculator = {
       const state: Record<string, string> = {};
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tabStateToSave(state, defaults)));
       } catch {
         // Storage blocked: settings just won't be remembered.
       }
@@ -350,7 +375,7 @@ export const coverageCalculator: Calculator = {
         if (!mapped()) return undefined;
         const v = marginAt(samples!, margins!, bearingDeg(samples!.site, p), distanceBetweenM(samples!.site, p));
         // Margins include any correction; predictions are compared without it.
-        return Number.isFinite(v) ? v - readingsCard.correctionDb() + num("sens") : undefined;
+        return Number.isFinite(v) ? v - readingsCard.correctionDb() + deratedSensitivity(num("sens")) : undefined;
       },
       coverAt: (p) => {
         const at = cover && cover.samples === samples && mapped() ? nearestPoint(p) : undefined;
@@ -367,7 +392,7 @@ export const coverageCalculator: Calculator = {
       eirpDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)) - (num("txCable") || 0) + (num("txGain") || 0),
       rxGainDbi: num("rxGain") || 0,
       rxCableLossDb: num("rxCable") || 0,
-      sensitivityDbm: num("sens"),
+      sensitivityDbm: deratedSensitivity(num("sens")),
     });
 
     const drawOverlay = () => {
@@ -437,7 +462,8 @@ export const coverageCalculator: Calculator = {
       const r = radio();
       if (!(r.freqHz > 0) || !Number.isFinite(r.eirpDbm) || !Number.isFinite(r.sensitivityDbm)) return;
       const trees = (e: Environment) => withFormTrees(form, "heightUnit", e);
-      const env = trees(findEnvironment(field("environment").value));
+      // Where the land-cover map has no data yet, the Settings fallback stands in.
+      const env = trees(autoCover() ? fallbackEnvironment() : findEnvironment(field("environment").value));
       const txH = toMetres(num("txHeight") || 0, heightUnit());
       const rxH = toMetres(num("rxHeight") || 0, heightUnit());
       const lc = autoCover() && cover?.samples === samples ? cover : undefined;
@@ -455,7 +481,9 @@ export const coverageCalculator: Calculator = {
       out("envNote").textContent = lc
         ? landCoverSummary(lc, siteEnv, r.freqHz, txH)
         : autoCover()
-          ? `Couldn't read the land-cover map${coverError ? ` (${coverError})` : ""}, so no clutter loss is added. Press Map coverage to try again.`
+          ? coverError
+            ? `Couldn't read the land-cover map (${coverError}), so ${env.name} is used everywhere instead (the land-cover fallback in Settings). Press Map coverage to try again.`
+            : `The land-cover map isn't loaded for this area yet, so ${env.name} is used everywhere (the land-cover fallback in Settings). Press Map coverage to read it.`
           : environmentNote(env, r.freqHz, txH, rxH);
       // The terrain work only reruns when what it depends on changes.
       const model = readModel(form);
@@ -474,6 +502,8 @@ export const coverageCalculator: Calculator = {
       }
       const correction = readingsCard.correctionDb();
       out("corrNote").hidden = correction === 0;
+      out("derateNote").textContent = derateNote();
+      out("derateNote").hidden = !derateNote();
       out("corrNote").textContent = `Corrected by ${correction > 0 ? "+" : ""}${fmt(correction)} dB, the average error of your field readings.`;
       margins = marginsFromLoss(
         pathLoss.loss,

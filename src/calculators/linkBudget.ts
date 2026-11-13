@@ -7,6 +7,8 @@ import { bindTreeField, environmentNote, environmentOptions, landCoverNote, tree
 import { AUTO_ENVIRONMENT, type LandCoverPoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { tabStateToSave, tabValues } from "../lib/appSettings";
+import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { type ModelSettings, timeAvailable } from "../lib/propagation";
 import { STANDARD_K, kFactors, midpointClearance, parseKFactor } from "../lib/horizon";
 import { createTerrainCard } from "./terrain";
@@ -29,7 +31,9 @@ import {
 
 const STORAGE_KEY = "rf-toolkit:link-budget";
 
-const defaults: Record<string, string> = {
+// The built-in defaults from before Settings existed. Settings now override the
+// fields they cover; these still fill the rest and recognise untouched old saves.
+const legacyDefaults: Record<string, string> = {
   freq: "915",
   freqUnit: "MHz",
   txPower: "1",
@@ -158,6 +162,7 @@ const template = `
         ${modelFieldsHtml()}
       </div>
       <p class="note" data-out="envNote" hidden></p>
+      <p class="note" data-out="derateNote" hidden></p>
       <p class="note" data-out="distNote" hidden>
         Distance comes from the map pins in Terrain profile. Clear the pins to type one.
       </p>
@@ -218,10 +223,31 @@ const template = `
   </div>
 `;
 
-function loadState(): Record<string, string> {
+/** The defaults now: the built-in ones, with Settings on top for everything Settings covers. */
+function currentDefaults(): Record<string, string> {
+  const s = sharedFields();
+  return {
+    ...legacyDefaults,
+    ...modelFromSettings(),
+    fadeMargin: s.fade,
+    txGain: s.gain,
+    rxGain: s.gain,
+    txOther: s.connectors,
+    rxOther: s.connectors,
+    txHeight: s.height,
+    rxHeight: s.height,
+    txHeightUnit: s.heightUnit,
+    rxHeightUnit: s.heightUnit,
+    distUnit: s.distanceUnit,
+    environment: s.environment,
+    treeHeight: s.treeHeight,
+    kFactor: s.kFactor,
+  };
+}
+
+function loadState(defaults: Record<string, string>): Record<string, string> {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return { ...defaults, ...(typeof saved === "object" && saved ? saved : {}) };
+    return tabValues(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"), defaults, legacyDefaults);
   } catch {
     return { ...defaults };
   }
@@ -275,6 +301,7 @@ export const linkBudgetCalculator: Calculator = {
   shortTitle: "Link",
   render() {
     const form = document.createElement("form");
+    const defaults = currentDefaults();
     form.className = "calculator link-budget";
     form.innerHTML = template;
     linkGroundToEnvironment(form);
@@ -285,7 +312,7 @@ export const linkBudgetCalculator: Calculator = {
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
     const num = (name: string) => Number.parseFloat(field(name).value);
 
-    const state = loadState();
+    const state = loadState(defaults);
     const fill = (values: Record<string, string>) => {
       for (const [name, value] of Object.entries(values)) {
         const el = form.elements.namedItem(name);
@@ -301,7 +328,7 @@ export const linkBudgetCalculator: Calculator = {
     let cover: { key: string; ends?: [LandCoverPoint, LandCoverPoint]; error?: string } | undefined;
     const landCover = (): { ends?: [LandCoverPoint, LandCoverPoint]; note: string } => {
       const pins = terrain.pins();
-      if (!pins) return { note: "Drop both pins in Terrain profile to read the land cover at each end. Until then no clutter loss is added." };
+      if (!pins) return { note: `Drop both pins in Terrain profile to read the land cover at each end. Until then ${fallbackEnvironment().name} is used (the land-cover fallback in Settings).` };
       const key = JSON.stringify(pins);
       if (cover?.key !== key) {
         const mine = { key } as NonNullable<typeof cover>;
@@ -313,8 +340,8 @@ export const linkBudgetCalculator: Calculator = {
           })
           .finally(() => cover === mine && update());
       }
-      if (cover.error) return { note: `Couldn't read the land-cover map (${cover.error}), so no clutter loss is added.` };
-      if (!cover.ends) return { note: "Reading the land-cover map…" };
+      if (cover.error) return { note: `Couldn't read the land-cover map (${cover.error}), so ${fallbackEnvironment().name} is used instead (the land-cover fallback in Settings).` };
+      if (!cover.ends) return { note: `Reading the land-cover map… ${fallbackEnvironment().name} is used until it loads.` };
       return { ends: cover.ends, note: "" };
     };
 
@@ -381,13 +408,13 @@ export const linkBudgetCalculator: Calculator = {
       if (pinned !== undefined) distInput.value = String(Number(fromMetres(pinned, distUnit).toFixed(3)));
 
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
-      saveState(state);
+      saveState(tabStateToSave(state, defaults));
 
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
       const auto = field("environment").value === AUTO_ENVIRONMENT;
       const ends = auto ? landCover() : undefined;
       const trees = (e: Environment) => withFormTrees(form, "txHeightUnit", e);
-      const env = trees(findEnvironment(field("environment").value));
+      const env = trees(auto ? fallbackEnvironment() : findEnvironment(field("environment").value));
       const txEnv = trees(ends?.ends?.[0].environment ?? env);
       const rxEnv = trees(ends?.ends?.[1].environment ?? env);
       const txHeightM = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
@@ -403,7 +430,7 @@ export const linkBudgetCalculator: Calculator = {
         rxGainDbi: num("rxGain") || 0,
         rxCableLossDb: sideCable("rx", freqHz),
         rxOtherLossDb: num("rxOther") || 0,
-        rxSensitivityDbm: num("rxSens"),
+        rxSensitivityDbm: deratedSensitivity(num("rxSens")),
         fadeMarginDb: num("fadeMargin") || 0,
         txHeightM,
         rxHeightM,
@@ -457,6 +484,8 @@ export const linkBudgetCalculator: Calculator = {
           ? landCoverNote([{ ...ends.ends[0], environment: txEnv }, { ...ends.ends[1], environment: rxEnv }], ["The TX end", "the RX end"], freqHz, txHeightM, rxHeightM)
           : ends.note
         : environmentNote(env, freqHz, txHeightM, rxHeightM);
+      out("derateNote").textContent = derateNote();
+      out("derateNote").hidden = !derateNote();
       inputs.terrainLossDb = profile?.loss.lossDb ?? 0;
       const r = linkBudget(inputs);
       const rating = rateMargin(r.marginDb);
@@ -527,7 +556,7 @@ export const linkBudgetCalculator: Calculator = {
       if (inputs.rxOtherLossDb) step("RX other losses", -inputs.rxOtherLossDb);
       step("Received signal", null, true);
       rows.push(
-        `<tr><td>RX sensitivity</td><td></td><td class="num mono">${fmt(inputs.rxSensitivityDbm)}</td></tr>` +
+        `<tr><td>RX sensitivity${derateNote() ? " (derated)" : ""}</td><td></td><td class="num mono">${fmt(inputs.rxSensitivityDbm)}</td></tr>` +
           `<tr class="total"><td>Link margin</td><td></td><td class="num mono">${fmt(r.marginDb)} dB</td></tr>`,
       );
       out("ledger").innerHTML = rows.join("");

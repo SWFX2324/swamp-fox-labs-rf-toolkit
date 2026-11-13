@@ -18,6 +18,8 @@ import { bindTreeField, environmentOptions, treeHeightFieldHtml, withFormTrees }
 import { AUTO_ENVIRONMENT, type LandCoverPoint, describePoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { tabStateToSave, tabValues } from "../lib/appSettings";
+import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM, samplePath } from "../lib/geo";
 import { beam, elevationAngleDeg, patternLossDb, patterns } from "../lib/pattern";
@@ -51,7 +53,9 @@ interface MeshNode extends LatLon {
   aim?: string;
 }
 
-const settingDefaults: Record<string, string> = {
+// The built-in defaults from before Settings existed. Settings now override the
+// fields they cover; these still fill the rest and recognise untouched old saves.
+const legacySettingDefaults: Record<string, string> = {
   freq: "915",
   freqUnit: "MHz",
   power: "1",
@@ -159,6 +163,7 @@ const template = `
       <div data-out="results" hidden>
         <p class="callout" data-out="split" hidden></p>
         <p class="note" data-out="envNote" hidden></p>
+        <p class="note" data-out="derateNote" hidden></p>
         <div class="tiles">
           <div class="tile"><span class="label">Links up</span><span class="value" data-out="up"></span><span class="sub" data-out="upSub"></span></div>
           <div class="tile"><span class="label">Most hops</span><span class="value" data-out="hops"></span><span class="sub" data-out="hopsSub"></span></div>
@@ -175,13 +180,31 @@ const template = `
   </aside>
 `;
 
-function loadState(): { settings: Record<string, string>; nodes: MeshNode[] } {
+/** The defaults now: the built-in ones, with Settings on top for everything Settings covers. */
+function currentSettingDefaults(): Record<string, string> {
+  const s = sharedFields();
+  return {
+    ...legacySettingDefaults,
+    ...modelFromSettings(),
+    fade: s.fade,
+    gain: s.gain,
+    cable: s.cableAndConnectors,
+    environment: s.environment,
+    treeHeight: s.treeHeight,
+    distUnit: s.distanceUnit,
+    height: s.height,
+    heightUnit: s.heightUnit,
+    kFactor: s.kFactor,
+  };
+}
+
+function loadState(settingDefaults: Record<string, string>): { settings: Record<string, string>; nodes: MeshNode[] } {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
     const nodes = Array.isArray(saved.nodes)
       ? saved.nodes.filter((n: MeshNode) => Number.isFinite(n?.lat) && Number.isFinite(n?.lon)).slice(0, MAX_NODES)
       : [];
-    return { settings: { ...settingDefaults, ...(saved.settings ?? {}) }, nodes };
+    return { settings: tabValues(saved.settings, settingDefaults, legacySettingDefaults), nodes };
   } catch {
     return { settings: { ...settingDefaults }, nodes: [] };
   }
@@ -196,6 +219,7 @@ export const meshCalculator: Calculator = {
   shortTitle: "Mesh",
   render() {
     const form = document.createElement("form");
+    const settingDefaults = currentSettingDefaults();
     form.className = "calculator two-col mesh";
     form.innerHTML = template;
     linkGroundToEnvironment(form);
@@ -218,7 +242,7 @@ export const meshCalculator: Calculator = {
       setItem: (k, v) => localStorage.setItem(k, v),
     });
 
-    const state = loadState();
+    const state = loadState(settingDefaults);
     let nodes = state.nodes;
     for (const [name, value] of Object.entries(state.settings)) {
       const el = form.elements.namedItem(name);
@@ -230,7 +254,7 @@ export const meshCalculator: Calculator = {
       const settings: Record<string, string> = {};
       for (const name of Object.keys(settingDefaults)) settings[name] = field(name).value;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ settings, nodes }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ settings: tabStateToSave(settings, settingDefaults), nodes }));
       } catch {
         // Storage blocked: the plan just won't be remembered.
       }
@@ -363,8 +387,8 @@ export const meshCalculator: Calculator = {
           })
           .finally(() => cover === mine && recompute());
       }
-      if (cover.error) return { note: `Couldn't read the land-cover map (${cover.error}), so no clutter loss is added.` };
-      if (!cover.points) return { note: "Reading the land-cover map…" };
+      if (cover.error) return { note: `Couldn't read the land-cover map (${cover.error}), so ${fallbackEnvironment().name} is used instead (the land-cover fallback in Settings).` };
+      if (!cover.points) return { note: `Reading the land-cover map… ${fallbackEnvironment().name} is used until it loads.` };
       return { points: cover.points, note: "" };
     };
 
@@ -399,9 +423,14 @@ export const meshCalculator: Calculator = {
         txPowerDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)),
         gainDbi: num("gain") || 0,
         cableLossDb: num("cable") || 0,
-        sensitivityDbm: num("sens"),
+        sensitivityDbm: deratedSensitivity(num("sens")),
         fadeMarginDb: num("fade") || 0,
-        environment: withFormTrees(form, "heightUnit", findEnvironment(field("environment").value)),
+        // Where the land-cover map has no data yet, the Settings fallback stands in.
+        environment: withFormTrees(
+          form,
+          "heightUnit",
+          field("environment").value === AUTO_ENVIRONMENT ? fallbackEnvironment() : findEnvironment(field("environment").value),
+        ),
         model: readModel(form),
         k: parseKFactor(field("kFactor").value),
       };
@@ -467,6 +496,8 @@ export const meshCalculator: Calculator = {
           ? `From the land-cover map: ${landCover.points.map((p, i) => `node ${i + 1} is in ${describePoint(p)}`).join("; ")}. Clutter adds ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB per link, included in the margins below.`
           : landCover.note;
       } else out("envNote").textContent = `${env.name} adds about ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB to each link, included in the margins below. An estimate; ${env.model === "forest" ? "below the canopy the Terrain column is checked from each antenna's real height (ITU-R P.833 woodland)" : "the Terrain column is checked from the top of the clutter"}.`;
+      out("derateNote").textContent = derateNote();
+      out("derateNote").hidden = !derateNote();
       out("up").textContent = `${up.length} of ${results.length}`;
       out("upSub").textContent = `${solid.length} solid, ${up.length - solid.length} marginal`;
       out("hops").textContent = groups.length === 1 ? String(maxHops) : "—";

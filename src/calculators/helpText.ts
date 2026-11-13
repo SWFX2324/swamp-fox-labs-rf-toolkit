@@ -216,3 +216,31 @@ export const converterGuide: FieldGuide = {
   },
   advanced: ["power-dbw", "power-uv", "[data-card=\"power\"] .ledger", "[data-card=\"power\"] .about", "mismatch-gamma", "[data-card=\"gain\"] .ledger", "ratio-vr"],
 };
+
+export const settingsGuide: FieldGuide = {
+  help: {
+    reliability: modelHelp.reliability,
+    confidence: modelHelp.confidence,
+    fadeMarginDb: shared.fade,
+    kFactor: kFactorHelp,
+    antennaGainDbi:
+      "What every antenna starts at on the planning tabs, in dBi. −3 dBi is a fair, slightly cautious figure for whips on portable and vehicle radios at VHF and UHF, which rarely reach their advertised gain without a good ground plane. Change it on a tab for a known antenna, such as a Yagi.",
+    defaultHeight: "The height antennas start at on the planning tabs: new links, mesh nodes and coverage sites. About 6 ft suits a radio carried or set on a vehicle.",
+    cableLossDb:
+      "Flat cable loss at each end, for the Mesh Planner and Coverage Map. The Link Budget works its cable loss from the cable type and length instead.",
+    connectorLossDb: "Loss per connector, adapter or coupler. 0.25 dB is a fair figure for each good, clean connection.",
+    connectorsPerEnd: "How many connections sit between each radio and its antenna. Two is typical: radio to jumper, jumper to antenna.",
+    sensitivityDerateDb:
+      "Takes receivers as this much less sensitive than the number you type, applied on every planning tab. Field radios rarely match the bench figure: vehicle and generator noise, nearby emitters and wear all raise the noise floor. Use 0 to plan on the datasheet value.",
+    environment: shared.environment,
+    fallbackEnvironment:
+      "What to use where the land-cover map has no data: offline in an area not saved, before it loads, or if the service fails. Without a fallback those spots would get no clutter at all, the most optimistic answer. Dense Vegetation errs pessimistic.",
+    treeHeight: shared.treeHeight,
+    climate: modelHelp.climate,
+    ground: modelHelp.ground,
+    polarization: modelHelp.polarization,
+    heightUnit: "Feet or metres for antenna and tree heights on the planning tabs.",
+    distanceUnit: "Miles or kilometres for distances and coverage radius on the planning tabs.",
+    coordFormat: "How locations are shown and typed: decimal latitude/longitude, or MGRS. The Lat/Lon / MGRS switch in the top bar changes the same setting.",
+  },
+};

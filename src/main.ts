@@ -3,6 +3,7 @@ import { registerSW } from "virtual:pwa-register";
 import { calculators } from "./calculators";
 import { THEME_EVENT, isDarkTheme } from "./calculators/theme";
 import { type CoordFormat, getCoordFormat, setCoordFormat } from "./lib/coords";
+import { COORD_EVENT } from "./calculators/settings";
 
 registerSW({ immediate: true });
 
@@ -10,6 +11,7 @@ const tabs = document.querySelector<HTMLElement>("#tabs")!;
 const app = document.querySelector<HTMLElement>("#app")!;
 
 for (const calc of calculators) {
+  if (calc.inTabBar === false) continue;
   const link = document.createElement("a");
   link.href = `#${calc.id}`;
   link.innerHTML = `<span class="long"></span><span class="short"></span>`;
@@ -27,6 +29,7 @@ function show(): void {
   for (const link of tabs.querySelectorAll<HTMLAnchorElement>("a")) {
     link.toggleAttribute("aria-current", link.dataset.id === calc.id);
   }
+  document.querySelector("#settingsLink")?.toggleAttribute("aria-current", calc.id === "settings");
   // On phones the tab row scrolls sideways; keep the current tab in view.
   const current = tabs.querySelector<HTMLAnchorElement>("a[aria-current]");
   if (current && tabs.scrollWidth > tabs.clientWidth) {
@@ -43,6 +46,8 @@ const markFormat = () => {
     button.setAttribute("aria-pressed", String(button.dataset.format === getCoordFormat()));
   }
 };
+// The Settings tab changes the same format; keep the switch showing it.
+window.addEventListener(COORD_EVENT, markFormat);
 coordToggle.addEventListener("click", (e) => {
   const button = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-format]");
   if (!button) return;

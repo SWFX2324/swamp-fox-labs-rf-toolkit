@@ -21,6 +21,7 @@ It runs entirely in the browser. Once a page has loaded, it keeps working offlin
 | Coax Loss | Available | Loss, power delivered and SWR at the radio for a coax run, including the extra loss a high SWR causes, with every cable compared side by side for the same frequency and length. |
 | Power Plan | Available | List your gear with data plate watts, or volts and amps (AC or DC), and how many of each. Totals every line and the whole load, and recommends the smallest generator, from 5 to 60 kW, that carries it inside a planning limit, 80% by default. Save gear you use often to your equipment list and add it again with just a new quantity. Exports a CSV for Excel with every line and the total load. |
 | RF Converter | Available | Linked converters for watts, dBm, dBW, microvolts and S-meter readings; SWR, return loss, reflection coefficient and mismatch loss; dBi and dBd; and decibel ratios. |
+| Settings | Available | Opened from the gear in the top right. The starting values for the Link Budget, Mesh Planner and Coverage Map: prediction standard, equipment, environment, Longley-Rice inputs and units. See [Settings](#settings) below. |
 
 ## How the modeling works
 
@@ -58,11 +59,33 @@ Longley-Rice works from bare-earth elevation, so an **Environment** setting adds
 - **Plans:** the Mesh Planner and Coverage Map save named plans, share them by link, and export KML or KMZ for ATAK, WinTAK or Google Earth. The terrain profile exports its path as KMZ, and tapping its chart reads out that point.
 - **3D view:** the 3D button on the Link Budget, Mesh Planner and Coverage Map maps opens the area on real terrain that you can tilt and turn, with satellite or map imagery and adjustable height. Links follow the ground in the same colours and dashes as the 2D key, and coverage shading drapes over the hills inside its radius. Drag a pin, node or site to move it; the tab recalculates (the Coverage Map maps again) and the 3D view follows. Turn on **Line of sight** to see each link's straight path between antenna tops, lowered for the earth's curve so clearance matches the 2D check: where a ridge rises through it, the link is blocked.
 
+## Settings
+
+One place for the assumptions behind every prediction. The Link Budget, Mesh Planner and Coverage Map start from these values; change a field on one of those tabs for a particular link and it keeps your value there until you press that tab's Reset, while everything you haven't touched follows Settings. Saved plans and share links carry the sender's values, so a plan reads the same on any device.
+
+The defaults lean cautious, since a prediction that says a link won't work when it would is far cheaper than one that says it will when it won't:
+
+| Setting | Default |
+| --- | --- |
+| Reliability / Confidence | 90% / 90% |
+| Fade margin | 10 dB |
+| Earth curvature (k) | 2/3 |
+| Antenna gain | −3 dBi |
+| Antenna height | 6 ft |
+| Cable loss (Mesh Planner, Coverage Map) | 0.5 dB per end; the Link Budget works cable loss from cable type and length |
+| Connector / coupler loss | 0.25 dB each, 2 per end |
+| Sensitivity derating | 3 dB: receivers are taken as this much less sensitive than the number typed |
+| Environment | From land-cover map |
+| Land-cover fallback | Dense Vegetation, wherever the map has no data (offline, not loaded yet, or failed) |
+| Tree height | 66 ft (20 m) |
+| Radio climate / Ground / Polarization | Continental temperate / Average ground / Vertical |
+| Units | Feet, miles, Lat/Lon (the top-bar switch changes the same setting) |
+
 ## Everywhere in the app
 
 - **Simple and Advanced:** tabs open in Simple mode with just the essentials. Advanced shows every setting; hidden ones keep sensible defaults.
 - **Help:** every field has an ⓘ with a plain-language explanation and typical values.
-- **Coordinates:** location boxes accept decimal lat/lon or MGRS, and a switch in the top bar sets which one the app shows.
+- **Coordinates:** location boxes accept decimal lat/lon or MGRS. The switch in the top bar and the one in Settings set which one the app shows.
 
 ## Coax data
 
