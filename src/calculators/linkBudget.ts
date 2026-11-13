@@ -37,8 +37,8 @@ const STORAGE_KEY = "rf-toolkit:link-budget";
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
 const legacyDefaults: Record<string, string> = {
-  txSens: "",
-  rxPower: "",
+  txSens: "-100",
+  rxPower: "1",
   rxPowerUnit: "W",
   txName: "",
   rxName: "",
@@ -146,7 +146,7 @@ const template = `
         ${numberField("Other losses", "txOther", "dB", 'min="0" title="Connectors, lightning arrestor, filters"')}
         ${numberField("Antenna gain", "txGain", "dBi")}
         ${unitField("Antenna height", "txHeight", ["ft", "m"], "txHeightUnit")}
-        ${numberField("Sensitivity", "txSens", "dBm", 'placeholder="Same as Site B" title="From the radio datasheet, for the data rate or mode you use"')}
+        ${numberField("Sensitivity", "txSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
       </div>
       <div class="tile subtotal">
         <span class="label">EIRP</span>
@@ -161,12 +161,7 @@ const template = `
         <label>Name
           <input name="rxName" type="text" autocomplete="off" maxlength="40" placeholder="Site B" />
         </label>
-        <label>TX power
-          <span class="input-unit">
-            <input name="rxPower" type="number" inputmode="decimal" step="any" min="0" placeholder="Same as Site A" />
-            <select name="rxPowerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
-          </span>
-        </label>
+        ${unitField("TX power", "rxPower", powerUnits, "rxPowerUnit")}
         ${numberField("Antenna gain", "rxGain", "dBi")}
         ${unitField("Antenna height", "rxHeight", ["ft", "m"], "rxHeightUnit")}
         ${cableFields("rx")}
@@ -518,19 +513,14 @@ export const linkBudgetCalculator: Calculator = {
       return { auto, ends, env, txEnv: trees(ends?.ends?.[0].environment ?? env), rxEnv: trees(ends?.ends?.[1].environment ?? env), relayEnv: env };
     };
 
-    // Each site's radio: power and derated sensitivity. A blank power or
-    // sensitivity at one end means "same as the other end".
+    // Each site's radio: power and derated sensitivity.
     const sitePower = (site: SiteId): number => {
       if (site === "relay") return relayPowerDbm();
-      const a = toDbm(num("txPower"), asPowerUnit(field("txPowerUnit").value));
-      if (site === "tx" || field("rxPower").value.trim() === "") return a;
-      return toDbm(num("rxPower"), asPowerUnit(field("rxPowerUnit").value));
+      const name = site === "tx" ? "txPower" : "rxPower";
+      return toDbm(num(name), asPowerUnit(field(`${name}Unit`).value));
     };
-    const siteSens = (site: SiteId): number => {
-      if (site === "relay") return deratedSensitivity(num("relaySens"));
-      if (site === "rx" || field("txSens").value.trim() === "") return deratedSensitivity(num("rxSens"));
-      return deratedSensitivity(num("txSens"));
-    };
+    const siteSens = (site: SiteId): number =>
+      deratedSensitivity(num(site === "relay" ? "relaySens" : site === "tx" ? "txSens" : "rxSens"));
 
     /** Both hops' radios for the relay finder, or why it can't run. */
     const finderInputs = (): RelayFinderInputs | string => {
@@ -639,9 +629,9 @@ export const linkBudgetCalculator: Calculator = {
         !(inputs.freqHz > 0) ? "Enter a frequency above zero."
         : !(inputs.distanceM > 0) ? "Enter a distance above zero."
         : !Number.isFinite(inputs.txPowerDbm) ? `Enter ${siteName("tx")}'s TX power.`
-        : !Number.isFinite(reverse.txPowerDbm) ? `Enter ${siteName("rx")}'s TX power, or leave it blank to match ${siteName("tx")}.`
+        : !Number.isFinite(reverse.txPowerDbm) ? `Enter ${siteName("rx")}'s TX power.`
         : !Number.isFinite(inputs.rxSensitivityDbm) ? `Enter ${siteName("rx")}'s sensitivity.`
-        : !Number.isFinite(reverse.rxSensitivityDbm) ? `Enter ${siteName("tx")}'s sensitivity, or leave it blank to match ${siteName("rx")}.`
+        : !Number.isFinite(reverse.rxSensitivityDbm) ? `Enter ${siteName("tx")}'s sensitivity.`
         : "";
 
       out("error").hidden = !problem;
