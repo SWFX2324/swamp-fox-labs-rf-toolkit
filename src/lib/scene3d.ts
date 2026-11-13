@@ -5,10 +5,21 @@ import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM, samplePath
 import { STANDARD_K, earthBulgeM } from "./horizon";
 import type { LinkLineStyle } from "./linkLines";
 
+/** A value the 3D view lets you change at a site, by clicking its label. */
+export interface EditField {
+  key: string;
+  label: string;
+  value: string;
+  unit?: string;
+  type: "text" | "number";
+}
+
 /** An antenna: where it stands, what to call it, and how high it is off the ground. */
 export interface Point3D extends LatLon {
   label: string;
   heightM: number;
+  /** What its pop-up editor shows, if it has one. */
+  fields?: EditField[];
 }
 
 /** A link between two of the scene's points, by index. */
@@ -27,6 +38,8 @@ export interface Scene3D {
   overlay?: { url: string; bounds: { north: number; south: number; east: number; west: number } };
   /** A circle to outline on the ground, such as the coverage radius. */
   ring?: { center: LatLon; radiusM: number };
+  /** Called with the values changed in a site's pop-up editor. */
+  onEdit?: (index: number, values: Record<string, string>) => void;
   /** Called when a point is dragged to a new spot in the 3D view. */
   onMove?: (index: number, p: LatLon) => void;
   /** Effective earth radius factor, so the line dips by the same bulge the 2D checks use. */

@@ -323,7 +323,8 @@ export function open3DView(first: Scene3D): View3D {
   };
   const setHint = () => {
     const move = !scene.onMove ? "" : scene.ring || scene.points.length === 1 ? " Drag the site's label to move it." : " Drag a label to move that pin or node.";
-    el("hint").textContent = `Drag to pan. Right-drag or Ctrl-drag to tilt and turn; two fingers on a phone.${move}`;
+    const edit = scene.onEdit && scene.points.some((p) => p.fields?.length) ? " Click a label to edit that site." : "";
+    el("hint").textContent = `Drag to pan. Right-drag or Ctrl-drag to tilt and turn; two fingers on a phone.${move}${edit}`;
     el("losWrap").hidden = scene.links.length === 0;
   };
   setLegend();
@@ -469,6 +470,62 @@ export function open3DView(first: Scene3D): View3D {
     map.addLayer({ id: "coverage", type: "raster", source: "coverage", paint: { "raster-fade-duration": 0, "raster-resampling": "linear" } }, "ring");
   };
 
+  // A site's pop-up editor: its fields as a small form; Apply sends what changed.
+  let editor: maplibregl.Popup | undefined;
+  const openEditor = (i: number, marker: maplibregl.Marker) => {
+    const p = scene.points[i];
+    if (!map || !p?.fields?.length || !scene.onEdit) return;
+    editor?.remove();
+    const form = document.createElement("form");
+    form.className = "view3d-editor";
+    const title = document.createElement("h3");
+    title.textContent = p.label; // user text
+    form.append(title);
+    const inputs = p.fields.map((f) => {
+      const label = document.createElement("label");
+      label.textContent = f.label;
+      const wrap = document.createElement("span");
+      wrap.className = "input-unit";
+      const input = document.createElement("input");
+      input.type = f.type;
+      if (f.type === "number") {
+        input.step = "any";
+        input.inputMode = "decimal";
+      } else input.autocomplete = "off";
+      input.value = f.value;
+      input.dataset.key = f.key;
+      wrap.append(input);
+      if (f.unit) {
+        const unit = document.createElement("span");
+        unit.className = "unit";
+        unit.textContent = f.unit;
+        wrap.append(unit);
+      }
+      label.append(wrap);
+      form.append(label);
+      return { f, input };
+    });
+    const apply = document.createElement("button");
+    apply.type = "submit";
+    apply.textContent = "Apply";
+    form.append(apply);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const changed: Record<string, string> = {};
+      for (const { f, input } of inputs) if (input.value.trim() !== f.value) changed[f.key] = input.value.trim();
+      editor?.remove();
+      editor = undefined;
+      if (Object.keys(changed).length) scene.onEdit?.(i, changed);
+    });
+    // Keys typed here are for the form, not the map's keyboard controls.
+    form.addEventListener("keydown", (e) => e.stopPropagation());
+    editor = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "300px", offset: 34, className: "view3d-popup" })
+      .setLngLat(marker.getLngLat())
+      .setDOMContent(form)
+      .addTo(map);
+    inputs[0]?.input.focus();
+  };
+
   const setMarkers = () => {
     if (!map) return;
     for (const m of markers) m.remove();
@@ -479,12 +536,24 @@ export function open3DView(first: Scene3D): View3D {
       const marker = new maplibregl.Marker({ element: pin, anchor: "bottom", offset: [0, -6], draggable: !!scene.onMove })
         .setLngLat([p.lon, p.lat])
         .addTo(map!);
+      // A drag ends with a click too; only a plain click opens the editor.
+      let dragged = false;
       if (scene.onMove) {
         pin.classList.add("draggable");
         pin.title = `Drag to move ${p.label}`;
+        marker.on("dragstart", () => (dragged = true));
         marker.on("dragend", () => {
           const at = marker.getLngLat();
+          setTimeout(() => (dragged = false), 0);
           scene.onMove?.(i, { lat: at.lat, lon: at.lng });
+        });
+      }
+      if (p.fields?.length && scene.onEdit) {
+        pin.classList.add("editable");
+        pin.title = scene.onMove ? `Click to edit ${p.label}, or drag to move it` : `Click to edit ${p.label}`;
+        pin.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!dragged) openEditor(i, marker);
         });
       }
       return marker;

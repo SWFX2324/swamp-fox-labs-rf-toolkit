@@ -8,10 +8,13 @@ import { AUTO_ENVIRONMENT, type LandCoverPoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
 import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { tabStateToSave, tabValues } from "../lib/appSettings";
+import type { EditField } from "../lib/scene3d";
+import type { RelayFinderInputs } from "./relayFinder";
 import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { type ModelSettings, timeAvailable } from "../lib/propagation";
 import { STANDARD_K, kFactors, midpointClearance, parseKFactor } from "../lib/horizon";
-import { createTerrainCard } from "./terrain";
+import { type SiteId, createTerrainCard } from "./terrain";
+import { type LatLon, distanceBetweenM } from "../lib/geo";
 import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
 import { linkQuality } from "../lib/linkLines";
 import {
@@ -34,6 +37,16 @@ const STORAGE_KEY = "rf-toolkit:link-budget";
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
 const legacyDefaults: Record<string, string> = {
+  txName: "",
+  rxName: "",
+  relayName: "",
+  relayPower: "1",
+  relayPowerUnit: "W",
+  relayCable: "1",
+  relayGain: "3",
+  relayHeight: "30",
+  relayHeightUnit: "ft",
+  relaySens: "-100",
   freq: "915",
   freqUnit: "MHz",
   txPower: "1",
@@ -121,6 +134,9 @@ const template = `
     <section class="card">
       <div class="card-head"><h2>Transmitter</h2><span class="meta">Sets EIRP</span></div>
       <div class="fields">
+        <label>Name
+          <input name="txName" type="text" autocomplete="off" maxlength="40" placeholder="TX" />
+        </label>
         ${unitField("Frequency", "freq", Object.keys(frequencyUnits), "freqUnit")}
         ${unitField("TX power", "txPower", powerUnits, "txPowerUnit")}
         ${cableFields("tx")}
@@ -138,12 +154,30 @@ const template = `
     <section class="card">
       <div class="card-head"><h2>Receiver</h2><span class="meta">Sets the margin</span></div>
       <div class="fields">
+        <label>Name
+          <input name="rxName" type="text" autocomplete="off" maxlength="40" placeholder="RX" />
+        </label>
         ${numberField("Antenna gain", "rxGain", "dBi")}
         ${unitField("Antenna height", "rxHeight", ["ft", "m"], "rxHeightUnit")}
         ${cableFields("rx")}
         ${numberField("Other losses", "rxOther", "dB", 'min="0"')}
         ${numberField("Sensitivity", "rxSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
         ${numberField("Fade margin wanted", "fadeMargin", "dB", 'min="0" title="Used for the max range"')}
+      </div>
+    </section>
+
+    <section class="card" data-card="relay" hidden>
+      <div class="card-head"><h2>Relay</h2><span class="meta">Retransmits between the two</span></div>
+      <p class="note top" data-out="relayIntro"></p>
+      <div class="fields">
+        <label>Name
+          <input name="relayName" type="text" autocomplete="off" maxlength="40" placeholder="Relay" />
+        </label>
+        ${unitField("TX power", "relayPower", powerUnits, "relayPowerUnit")}
+        ${numberField("Cable & connector loss", "relayCable", "dB", 'min="0"')}
+        ${numberField("Antenna gain", "relayGain", "dBi")}
+        ${unitField("Antenna height", "relayHeight", ["ft", "m"], "relayHeightUnit")}
+        ${numberField("Sensitivity", "relaySens", "dBm")}
       </div>
     </section>
 
@@ -213,6 +247,14 @@ const template = `
         <thead><tr><th>Stage</th><th class="num">Change</th><th class="num">Level</th></tr></thead>
         <tbody data-out="ledger"></tbody>
       </table>
+      <div class="relay-results" data-out="relayResults" hidden>
+        <div class="card-head"><h3>Through the relay</h3><span class="pill" data-out="relayRating"></span></div>
+        <table class="ledger">
+          <thead><tr><th>Hop</th><th class="num">Distance</th><th class="num">Margin</th></tr></thead>
+          <tbody data-out="relayHops"></tbody>
+        </table>
+        <p class="note" data-out="relayNote"></p>
+      </div>
       <details class="about"><summary>About this calculation</summary><p>Margin guide: 20 dB or more is solid, 10–20 workable, 0–10 marginal. Without map pins, free-space loss is the best case with a clear line of sight. With pins, the Irregular Terrain Model (Longley-Rice) adds the terrain along the path, at the reliability and confidence you set; the margin then shows how much of the time the link holds. Cable loss assumes a well-matched antenna; high SWR adds more.</p></details>
     </section>
   </aside>
@@ -234,6 +276,10 @@ function currentDefaults(): Record<string, string> {
     rxGain: s.gain,
     txOther: s.connectors,
     rxOther: s.connectors,
+    relayGain: s.gain,
+    relayCable: s.cableAndConnectors,
+    relayHeight: s.height,
+    relayHeightUnit: s.heightUnit,
     txHeight: s.height,
     rxHeight: s.height,
     txHeightUnit: s.heightUnit,
@@ -321,7 +367,41 @@ export const linkBudgetCalculator: Calculator = {
     };
     fill(state);
 
-    const terrain = createTerrainCard(() => update());
+    // What each site shows in the 3D view's editor, by field name.
+    const siteFields = (site: SiteId): EditField[] => {
+      const f = (key: string, label: string, unit?: string, type: "text" | "number" = "number"): EditField => ({ key, label, value: field(key).value, unit, type });
+      const unitOf = (name: string) => field(name).value;
+      if (site === "tx")
+        return [f("txName", "Name", undefined, "text"), f("txPower", "TX power", unitOf("txPowerUnit")), f("txGain", "Antenna gain", "dBi"), f("txHeight", "Antenna height", unitOf("txHeightUnit"))];
+      if (site === "rx")
+        return [f("rxName", "Name", undefined, "text"), f("rxSens", "Sensitivity", "dBm"), f("rxGain", "Antenna gain", "dBi"), f("rxHeight", "Antenna height", unitOf("rxHeightUnit"))];
+      return [
+        f("relayName", "Name", undefined, "text"),
+        f("relayPower", "TX power", unitOf("relayPowerUnit")),
+        f("relaySens", "Sensitivity", "dBm"),
+        f("relayGain", "Antenna gain", "dBi"),
+        f("relayHeight", "Antenna height", unitOf("relayHeightUnit")),
+      ];
+    };
+    // A change from the 3D editor lands in the field, as if typed there.
+    const editSite = (_site: SiteId, values: Record<string, string>) => {
+      for (const [key, value] of Object.entries(values)) {
+        const control = field(key);
+        if (!control) continue;
+        control.value = value;
+        control.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      terrain.namesChanged();
+    };
+
+    const terrain = createTerrainCard(() => update(), {
+      names: () => ({ tx: field("txName").value, rx: field("rxName").value, relay: field("relayName").value }),
+      fields: siteFields,
+      edit: editSite,
+      finderInputs: () => finderInputs(),
+      fadeMarginDb: () => num("fadeMargin") || 0,
+    });
+    for (const name of ["txName", "rxName", "relayName"]) field(name).addEventListener("input", () => terrain.namesChanged());
     form.querySelector('[data-card="path"]')!.after(terrain.element);
 
     // Land cover at the two pins, when Environment is "From land-cover map".
@@ -398,6 +478,62 @@ export const linkBudgetCalculator: Calculator = {
     };
     const dash = "—";
 
+    const siteName = (site: SiteId) => field(`${site}Name`).value.trim() || { tx: "TX", rx: "RX", relay: "Relay" }[site];
+    const relayHeightM = () => toMetres(num("relayHeight") || 0, asDistanceUnit(field("relayHeightUnit").value));
+    const relayPowerDbm = () => toDbm(num("relayPower"), asPowerUnit(field("relayPowerUnit").value));
+
+    // The environment at each site: the land-cover map at TX and RX when
+    // chosen; the relay takes the chosen profile, or the Settings fallback.
+    const siteEnvironments = () => {
+      const auto = field("environment").value === AUTO_ENVIRONMENT;
+      const ends = auto ? landCover() : undefined;
+      const trees = (e: Environment) => withFormTrees(form, "txHeightUnit", e);
+      const env = trees(auto ? fallbackEnvironment() : findEnvironment(field("environment").value));
+      return { auto, ends, env, txEnv: trees(ends?.ends?.[0].environment ?? env), rxEnv: trees(ends?.ends?.[1].environment ?? env), relayEnv: env };
+    };
+
+    /** Both hops' radios for the relay finder, or why it can't run. */
+    const finderInputs = (): RelayFinderInputs | string => {
+      const pins = terrain.pins();
+      if (!pins) return "Drop both TX and RX first.";
+      const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
+      if (!(freqHz > 0) || !freeSpaceApplies(freqHz)) return "The relay finder needs a frequency of 30 MHz or more.";
+      const txPower = toDbm(num("txPower"), asPowerUnit(field("txPowerUnit").value));
+      const relayPower = relayPowerDbm();
+      if (!Number.isFinite(txPower) || !Number.isFinite(relayPower)) return "Enter TX power for both TX and the relay.";
+      if (!Number.isFinite(num("rxSens")) || !Number.isFinite(num("relaySens"))) return "Enter the sensitivity of both RX and the relay.";
+      const { txEnv, rxEnv, relayEnv } = siteEnvironments();
+      const txH = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
+      const rxH = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
+      const relayH = relayHeightM();
+      const extra = num("extraLoss") || 0;
+      const relayCable = num("relayCable") || 0;
+      const relayGain = num("relayGain") || 0;
+      return {
+        a: pins.tx,
+        b: pins.rx,
+        freqHz,
+        model: readModel(form),
+        aHeightM: effectiveHeightM(txEnv, txH),
+        bHeightM: effectiveHeightM(rxEnv, rxH),
+        relayHeightM: effectiveHeightM(relayEnv, relayH),
+        hop1: {
+          eirpDbm: txPower - sideCable("tx", freqHz) - (num("txOther") || 0) + (num("txGain") || 0),
+          rxGainDbi: relayGain,
+          rxCableLossDb: relayCable,
+          sensitivityDbm: deratedSensitivity(num("relaySens")),
+          clutterLossDb: clutterLossDb(txEnv, freqHz, txH) + clutterLossDb(relayEnv, freqHz, relayH) + extra,
+        },
+        hop2: {
+          eirpDbm: relayPower - relayCable + relayGain,
+          rxGainDbi: num("rxGain") || 0,
+          rxCableLossDb: sideCable("rx", freqHz) + (num("rxOther") || 0),
+          sensitivityDbm: deratedSensitivity(num("rxSens")),
+          clutterLossDb: clutterLossDb(relayEnv, freqHz, relayH) + clutterLossDb(rxEnv, freqHz, rxH) + extra,
+        },
+      };
+    };
+
     const update = () => {
       const distUnit = asDistanceUnit(field("distUnit").value);
       // With both pins down, the map sets the distance.
@@ -411,12 +547,7 @@ export const linkBudgetCalculator: Calculator = {
       saveState(tabStateToSave(state, defaults));
 
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
-      const auto = field("environment").value === AUTO_ENVIRONMENT;
-      const ends = auto ? landCover() : undefined;
-      const trees = (e: Environment) => withFormTrees(form, "txHeightUnit", e);
-      const env = trees(auto ? fallbackEnvironment() : findEnvironment(field("environment").value));
-      const txEnv = trees(ends?.ends?.[0].environment ?? env);
-      const rxEnv = trees(ends?.ends?.[1].environment ?? env);
+      const { auto, ends, env, txEnv, rxEnv, relayEnv } = siteEnvironments();
       const txHeightM = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
       const rxHeightM = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
       const inputs: LinkInputs = {
@@ -454,7 +585,7 @@ export const linkBudgetCalculator: Calculator = {
       out("geoWarn").hidden = true;
 
       const model = readModel(form);
-      const profile = terrain.refresh({
+      const terrainParams = {
         freqHz: inputs.freqHz,
         // The terrain path runs from the top of the clutter (or the antenna
         // itself in woodland); the clutter loss covers the rest. The horizon
@@ -466,7 +597,12 @@ export const linkBudgetCalculator: Calculator = {
         applies: !hf && !problem,
         model,
         k: inputs.k ?? STANDARD_K,
-      });
+        relayHeightM: effectiveHeightM(relayEnv, relayHeightM()),
+      };
+      const profile = terrain.refresh(terrainParams);
+      const relayAt = terrain.relay();
+      form.querySelector<HTMLElement>('[data-card="relay"]')!.hidden = !relayAt;
+      out("relayIntro").textContent = `Receives from ${siteName("tx")} and retransmits to ${siteName("rx")}. Place or move it on the Terrain profile map.`;
 
       if (problem) {
         for (const name of ["eirp", "eirpW", "fspl", "rxIso", "rsl", "margin", "marginSub", "range", "rangeSub", "barRsl", "barMargin"]) {
@@ -474,7 +610,9 @@ export const linkBudgetCalculator: Calculator = {
         }
         out("rating").hidden = true;
         out("ledger").replaceChildren();
+        out("relayResults").hidden = true;
         terrain.showLink(undefined);
+        terrain.showHops(undefined, undefined);
         return;
       }
 
@@ -560,6 +698,80 @@ export const linkBudgetCalculator: Calculator = {
           `<tr class="total"><td>Link margin</td><td></td><td class="num mono">${fmt(r.marginDb)} dB</td></tr>`,
       );
       out("ledger").innerHTML = rows.join("");
+
+      // Through the relay: each hop as its own budget; the weaker one sets the link.
+      out("relayResults").hidden = !relayAt || hf;
+      if (!relayAt || hf) {
+        terrain.showHops(undefined, undefined);
+        return;
+      }
+      const pins = terrain.pins();
+      const hops = terrain.hops(terrainParams);
+      const relayH = relayHeightM();
+      const relayGain = num("relayGain") || 0;
+      const relayCable = num("relayCable") || 0;
+      const hopBudget = (from: LatLon, to: LatLon, terrainLossDb: number | undefined, side: 1 | 2) =>
+        linkBudget({
+          ...inputs,
+          distanceM: distanceBetweenM(from, to),
+          terrainLossDb: terrainLossDb ?? 0,
+          ...(side === 1
+            ? {
+                rxGainDbi: relayGain,
+                rxCableLossDb: relayCable,
+                rxOtherLossDb: 0,
+                rxSensitivityDbm: deratedSensitivity(num("relaySens")),
+                rxHeightM: relayH,
+                clutterLossDb: clutterLossDb(txEnv, freqHz, txHeightM) + clutterLossDb(relayEnv, freqHz, relayH),
+              }
+            : {
+                txPowerDbm: relayPowerDbm(),
+                txCableLossDb: relayCable,
+                txOtherLossDb: 0,
+                txGainDbi: relayGain,
+                txHeightM: relayH,
+                clutterLossDb: clutterLossDb(relayEnv, freqHz, relayH) + clutterLossDb(rxEnv, freqHz, rxHeightM),
+              }),
+        });
+      const tbody = out("relayHops");
+      tbody.replaceChildren();
+      if (!pins) {
+        out("relayRating").hidden = true;
+        out("relayNote").textContent = `Drop both ${siteName("tx")} and ${siteName("rx")} to see the two hops.`;
+        terrain.showHops(undefined, undefined);
+        return;
+      }
+      const h1 = hopBudget(pins.tx, relayAt, hops.hop1?.loss.lossDb, 1);
+      const h2 = hopBudget(relayAt, pins.rx, hops.hop2?.loss.lossDb, 2);
+      const fade = inputs.fadeMarginDb;
+      const rows2: [string, typeof h1][] = [
+        [`1 · ${siteName("tx")} → ${siteName("relay")}`, h1],
+        [`2 · ${siteName("relay")} → ${siteName("rx")}`, h2],
+      ];
+      for (const [label, h] of rows2) {
+        const tr = document.createElement("tr");
+        const name = document.createElement("td");
+        name.textContent = label; // names are user text
+        const dist = document.createElement("td");
+        dist.className = "num mono";
+        dist.textContent = `${fmt(fromMetres(distanceBetweenM(...(h === h1 ? [pins.tx, relayAt] : [relayAt, pins.rx]) as [LatLon, LatLon]), distUnit))} ${distUnit}`;
+        const margin = document.createElement("td");
+        margin.className = "num";
+        const rating = rateMargin(h.marginDb);
+        margin.innerHTML = `<span class="mono">${fmt(h.marginDb)} dB</span> <span class="pill s-${rating}">${ratingText[rating]}</span>`;
+        tr.append(name, dist, margin);
+        tbody.append(tr);
+      }
+      const weaker = Math.min(h1.marginDb, h2.marginDb);
+      const overall = rateMargin(weaker);
+      out("relayRating").hidden = false;
+      out("relayRating").className = `pill s-${overall}`;
+      out("relayRating").textContent = ratingText[overall];
+      const loading = !hops.hop1 || !hops.hop2;
+      out("relayNote").textContent =
+        (loading ? "Terrain for the hops is still loading, so these are free-space figures for now. " : "") +
+        `The weaker hop sets the link: ${fmt(weaker)} dB through the relay, against ${fmt(r.marginDb)} dB direct.`;
+      terrain.showHops(linkQuality(h1.marginDb, fade), linkQuality(h2.marginDb, fade));
     };
 
     form.addEventListener("input", update);

@@ -685,3 +685,27 @@ main .leaflet-container { background: var(--card-2); }
 /* Close stands apart from the view controls. */
 .view3d-bar [data-v="close"] { margin-left: 12px; }
 @media (max-width: 600px) { .view3d-bar [data-v="close"] { margin-left: auto; } }
+
+/* The 3D view's site editor, in the app's colours rather than MapLibre's white. */
+.view3d-popup { max-width: none !important; }
+.view3d-popup .maplibregl-popup-content { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 16px rgb(0 0 0 / .35); }
+.view3d-popup .maplibregl-popup-tip { border-top-color: var(--card) !important; border-bottom-color: var(--card) !important; }
+.view3d-popup .maplibregl-popup-close-button { color: var(--text-2); font-size: 18px; padding: 2px 8px; }
+/* Two columns keep it short enough to fit under a label; it scrolls if the window is tiny. */
+.view3d-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; width: min(300px, 80vw); max-height: min(60vh, 420px); overflow: auto; }
+.view3d-editor h3, .view3d-editor label:first-of-type, .view3d-editor label:last-of-type, .view3d-editor button[type="submit"] { grid-column: 1 / -1; }
+.view3d-editor h3 { margin: 0 18px 2px 0; font-size: 14px; }
+.view3d-editor input { width: 100%; }
+.view3d-editor button[type="submit"] { justify-self: end; margin-top: 2px; }
+.view3d-pin.editable { cursor: pointer; }
+
+/* Relay controls and pin names on the terrain map. */
+.relay-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.relay-legend { align-items: center; }
+.relay-legend-note { color: var(--muted); }
+.leaflet-tooltip.pin-name {
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+  padding: 1px 6px; font: 600 12px/1.4 system-ui, sans-serif; box-shadow: 0 1px 3px rgb(0 0 0 / .3);
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.leaflet-tooltip.pin-name::before { display: none; }

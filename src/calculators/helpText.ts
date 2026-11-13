@@ -47,6 +47,14 @@ const kFactorHelp =
 
 export const linkBudgetGuide: FieldGuide = {
   help: {
+    txName: "A name for this site, such as a hilltop or call sign. It labels the pin on the map, the terrain profile, the 3D view and exported KMZ files.",
+    rxName: "A name for this site, such as a hilltop or call sign. It labels the pin on the map, the terrain profile, the 3D view and exported KMZ files.",
+    relayName: "A name for this site, such as a hilltop or call sign. It labels the pin on the map, the terrain profile, the 3D view and exported KMZ files.",
+    relayPower: "What the relay transmits on its hop to the receiver.",
+    relayCable: "All the loss between the relay radio and its antenna: coax, connectors, duplexer or couplers. It counts on both hops, receiving and sending.",
+    relayGain: "The relay antenna's gain, used for both hops. A relay often uses an omni so it hears both sites.",
+    relayHeight: "The relay antenna's height above the ground where it stands. A taller relay mast is often what makes a hop close.",
+    relaySens: "The weakest signal the relay can still decode on its hop from the transmitter. Settings' sensitivity derating applies here too.",
     freq: shared.freq,
     txPower: shared.power,
     txCable: shared.coax,

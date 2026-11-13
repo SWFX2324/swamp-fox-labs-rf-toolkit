@@ -1,9 +1,12 @@
-// Terrain profile card for the link budget: a map with TX and RX pins, the
-// elevation profile between them, and how well the path clears it.
+// Terrain profile card for the link budget: a map with TX and RX pins (and an
+// optional relay between them), the elevation profile between TX and RX, and
+// how well the path clears it.
 
 import * as L from "leaflet";
 import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
-import type { Point3D } from "../lib/scene3d";
+import type { EditField, Link3D, Point3D } from "../lib/scene3d";
+import type { RelaySurface } from "../lib/relay";
+import { type RelayFinderInputs, findRelay, surfaceImage } from "./relayFinder";
 import { buildKml, buildZip } from "../lib/export";
 import { downloadFile } from "./planBar";
 import { drawLinkLine, linkLegend } from "./linkLine";
@@ -34,9 +37,35 @@ export interface TerrainParams {
   model: ModelSettings;
   /** Effective earth radius factor for the clearance check. */
   k: number;
+  /** The relay's antenna height for its hops' paths, metres. */
+  relayHeightM?: number;
 }
 
 export type TerrainAnalysis = ProfileResult & { loss: TerrainLoss };
+
+export type SiteId = "tx" | "rx" | "relay";
+
+/** One hop through the relay: its length, terrain loss and line of sight. */
+export interface HopAnalysis {
+  distanceM: number;
+  loss: TerrainLoss;
+  status: ProfileStatus;
+}
+
+/** What the card needs from the Link Budget about each site. */
+export interface SiteHooks {
+  /** Display names; blank means the default ("TX", "RX", "Relay"). */
+  names(): Record<SiteId, string>;
+  /** The site's values for the 3D view's editor (location is added here). */
+  fields(site: SiteId): EditField[];
+  /** Values changed in the 3D editor (location is handled here). */
+  edit(site: SiteId, values: Record<string, string>): void;
+  /** Everything the relay finder needs, or why it can't run. */
+  finderInputs(): RelayFinderInputs | string;
+  fadeMarginDb(): number;
+}
+
+const siteDefaults: Record<SiteId, string> = { tx: "TX", rx: "RX", relay: "Relay" };
 
 export interface TerrainCard {
   element: HTMLElement;
@@ -44,6 +73,14 @@ export interface TerrainCard {
   pathDistanceM(): number | undefined;
   /** Both pins, when both are down. */
   pins(): { tx: LatLon; rx: LatLon } | undefined;
+  /** The relay, when one is placed. */
+  relay(): LatLon | undefined;
+  /** The two hops through the relay, once their terrain has loaded. */
+  hops(params: TerrainParams): { hop1?: HopAnalysis; hop2?: HopAnalysis };
+  /** How strong each hop is, to style their lines. */
+  showHops(hop1: LinkQuality | undefined, hop2: LinkQuality | undefined): void;
+  /** Redraw names on pins and in the 3D view. */
+  namesChanged(): void;
   /** Re-run the analysis for new frequency or heights; returns it if there is one. */
   refresh(params: TerrainParams): TerrainAnalysis | undefined;
   /** Remove both pins and the profile. */
@@ -70,7 +107,7 @@ const template = `
     <button type="button" class="secondary" data-t="toggle" aria-expanded="false">Show</button>
   </div>
   <div class="terrain-body" data-t="body" hidden>
-  <p class="note top">Tap the map for TX, then RX. Drag a pin to move it.</p>
+  <p class="note top">Tap the map for TX, then RX. Drag a pin to move it. To bridge a weak link, add a relay: place it yourself or let the app find the best spot.</p>
   <div class="map" data-t="map"></div>
   <div data-t="legend"></div>
   <div class="fields coords">
@@ -83,6 +120,20 @@ const template = `
     <label>RX location
       <input name="rxLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
     </label>
+    <label data-t="relayLocWrap" hidden>Relay location
+      <input name="relayLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+    </label>
+  </div>
+  <div class="relay-actions">
+    <button type="button" class="secondary" data-t="addRelay">Place relay</button>
+    <button type="button" class="secondary" data-t="findRelay">Find relay spot</button>
+    <button type="button" class="secondary" data-t="removeRelay" hidden>Remove relay</button>
+  </div>
+  <div class="legend relay-legend" data-t="relayLegend" hidden>
+    <span class="key"><span class="sw cov-strong"></span>Relay: strong</span>
+    <span class="key"><span class="sw cov-solid"></span>Solid</span>
+    <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
+    <span class="relay-legend-note">Where a relay would close both hops</span>
   </div>
   <p class="note" data-t="status"></p>
   <div class="profile-chart" data-t="chart" hidden></div>
@@ -109,18 +160,18 @@ const template = `
   </div>
 `;
 
-function loadPins(): { tx?: LatLon; rx?: LatLon } {
+function loadPins(): { tx?: LatLon; rx?: LatLon; relay?: LatLon } {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return { tx: parseLatLon(saved.tx ?? ""), rx: parseLatLon(saved.rx ?? "") };
+    return { tx: parseLatLon(saved.tx ?? ""), rx: parseLatLon(saved.rx ?? ""), relay: parseLatLon(saved.relay ?? "") };
   } catch {
     return {};
   }
 }
 
-function savePins(tx?: LatLon, rx?: LatLon): void {
+function savePins(tx?: LatLon, rx?: LatLon, relay?: LatLon): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tx: tx && formatLatLon(tx), rx: rx && formatLatLon(rx) }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tx: tx && formatLatLon(tx), rx: rx && formatLatLon(rx), relay: relay && formatLatLon(relay) }));
   } catch {
     // Storage blocked: pins just won't be remembered.
   }
@@ -129,14 +180,15 @@ function savePins(tx?: LatLon, rx?: LatLon): void {
 const fmt = (value: number, digits: number) =>
   value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
-export function createTerrainCard(onPathChange: () => void): TerrainCard {
+export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): TerrainCard {
   const card = document.createElement("section");
   card.className = "card terrain";
   card.innerHTML = template;
   card.querySelector('[data-t="legend"]')!.replaceWith(linkLegend());
   const el = (name: string) => card.querySelector<HTMLElement>(`[data-t="${name}"]`)!;
   const input = (name: string) => card.querySelector<HTMLInputElement>(`input[name="${name}"]`)!;
-  input("txLoc").placeholder = input("rxLoc").placeholder = coordPlaceholder();
+  input("txLoc").placeholder = input("rxLoc").placeholder = input("relayLoc").placeholder = coordPlaceholder();
+  const nameOf = (site: SiteId) => hooks.names()[site].trim() || siteDefaults[site];
 
   const store = createPathStore({
     getItem: (key) => {
@@ -148,7 +200,17 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     },
     setItem: (key, value) => localStorage.setItem(key, value),
   });
-  let { tx, rx } = loadPins();
+  let { tx, rx, relay } = loadPins();
+  // The relay's two paths: TX to relay, and relay to RX.
+  let relayElevations: [number[] | undefined, number[] | undefined] = [undefined, undefined];
+  let relayLoading: AbortController | undefined;
+  let relayMarker: L.Marker | undefined;
+  let placingRelay = false;
+  let hopQuality: [LinkQuality | undefined, LinkQuality | undefined] = [undefined, undefined];
+  let hopStatus: [ProfileStatus | undefined, ProfileStatus | undefined] = [undefined, undefined];
+  let finding: AbortController | undefined;
+  let surface: { image: { url: string; bounds: { north: number; south: number; east: number; west: number } }; data: RelaySurface } | undefined;
+  let surfaceOverlay: L.ImageOverlay | undefined;
   let elevations: number[] | undefined;
   let loading: AbortController | undefined;
   let map: L.Map | undefined;
@@ -156,6 +218,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   let txMarker: L.Marker | undefined;
   let rxMarker: L.Marker | undefined;
   let line: L.LayerGroup | undefined;
+  let hopLines: L.LayerGroup[] = [];
   let view3d: Control3D | undefined;
   // The line's style comes from the budget's verdict and the profile's.
   let quality: LinkQuality | undefined;
@@ -163,8 +226,35 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   // Without a rating (a field missing, or HF) there's no line, just the pins.
   const drawPath = () => {
     line?.remove();
+    for (const l of hopLines) l.remove();
+    hopLines = [];
     line = map && tx && rx && quality ? drawLinkLine(map, tx, rx, linkLineStyle(quality, lineOfSight)) : undefined;
+    if (map && relay) {
+      if (tx && hopQuality[0]) hopLines.push(drawLinkLine(map, tx, relay, linkLineStyle(hopQuality[0], hopStatus[0])));
+      if (rx && hopQuality[1]) hopLines.push(drawLinkLine(map, relay, rx, linkLineStyle(hopQuality[1], hopStatus[1])));
+    }
     view3d?.refresh();
+  };
+
+  // The relay finder's shading, kept until a site moves.
+  const setSurface = (next: typeof surface) => {
+    surface = next;
+    surfaceOverlay?.remove();
+    surfaceOverlay = undefined;
+    el("relayLegend").hidden = !surface;
+    if (!map || !surface) return;
+    const b = surface.image.bounds;
+    surfaceOverlay = L.imageOverlay(surface.image.url, [
+      [b.south, b.west],
+      [b.north, b.east],
+    ], { interactive: false, className: "coverage-overlay" }).addTo(map);
+  };
+
+  // A label beside each pin with the site's name (set as text: it's user input).
+  const nameTag = (site: SiteId) => {
+    const tag = document.createElement("span");
+    tag.textContent = nameOf(site);
+    return tag;
   };
 
   const setStatus = (text: string, warn = false) => {
@@ -176,26 +266,43 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   const syncPins = () => {
     input("txLoc").value = tx ? formatCoordinates(tx) : "";
     input("rxLoc").value = rx ? formatCoordinates(rx) : "";
-    savePins(tx, rx);
-    clearControl?.setVisible(!!(tx || rx));
+    input("relayLoc").value = relay ? formatCoordinates(relay) : "";
+    el("relayLocWrap").hidden = !relay;
+    el("removeRelay").hidden = !relay;
+    el("addRelay").textContent = placingRelay ? "Cancel" : relay ? "Move relay" : "Place relay";
+    savePins(tx, rx, relay);
+    clearControl?.setVisible(!!(tx || rx || relay));
     if (!map) return;
-    const place = (marker: L.Marker | undefined, at: LatLon | undefined, label: "tx" | "rx") => {
+    const place = (marker: L.Marker | undefined, at: LatLon | undefined, site: SiteId) => {
       if (!at) {
         marker?.remove();
         return undefined;
       }
-      if (marker) return marker.setLatLng([at.lat, at.lon]);
-      const m = L.marker([at.lat, at.lon], { icon: radioMarker(label.toUpperCase()), draggable: true }).addTo(map!);
+      if (marker) {
+        marker.setLatLng([at.lat, at.lon]);
+        marker.setTooltipContent(nameTag(site));
+        return marker;
+      }
+      const icon = radioMarker(site === "relay" ? "RT" : site.toUpperCase());
+      const m = L.marker([at.lat, at.lon], { icon, draggable: true }).addTo(map!);
+      m.bindTooltip(nameTag(site), { permanent: true, direction: "right", offset: [8, -16], className: "pin-name" });
       m.on("dragend", () => {
         const p = m.getLatLng();
-        if (label === "tx") tx = { lat: p.lat, lon: p.lng };
-        else rx = { lat: p.lat, lon: p.lng };
+        const moved = { lat: p.lat, lon: p.lng };
+        if (site === "relay") {
+          relay = moved;
+          relayChanged();
+          return;
+        }
+        if (site === "tx") tx = moved;
+        else rx = moved;
         pinsChanged();
       });
       return m;
     };
     txMarker = place(txMarker, tx, "tx");
     rxMarker = place(rxMarker, rx, "rx");
+    relayMarker = place(relayMarker, relay, "relay");
     drawPath();
   };
 
@@ -237,7 +344,108 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     onPathChange();
   };
 
+  // Terrain along both hops, from the saved-path store when it has them.
+  const loadRelayProfiles = async () => {
+    relayLoading?.abort();
+    relayElevations = [undefined, undefined];
+    if (!relay || !tx || !rx) return;
+    const controller = new AbortController();
+    relayLoading = controller;
+    const pairs: [LatLon, LatLon][] = [
+      [tx, relay],
+      [relay, rx],
+    ];
+    try {
+      const results = await Promise.all(
+        pairs.map(async ([a, b]) => {
+          const d = distanceBetweenM(a, b);
+          if (d < 50) return undefined;
+          const kept = store.lookup(a, b);
+          if (kept) return kept;
+          const e = await fetchPathElevations(samplePath(a, b, sampleCount(d)), controller.signal);
+          store.remember(a, b, e);
+          return e;
+        }),
+      );
+      if (controller.signal.aborted) return;
+      relayElevations = [results[0], results[1]];
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setStatus(`Couldn't load terrain for the relay's hops: ${(err as Error).message}`, true);
+    }
+    onPathChange();
+  };
+
+  const relayChanged = () => {
+    placingRelay = false;
+    syncPins();
+    onPathChange();
+    void loadRelayProfiles();
+  };
+
+  const removeRelay = () => {
+    finding?.abort();
+    relayLoading?.abort();
+    relay = undefined;
+    placingRelay = false;
+    relayElevations = [undefined, undefined];
+    hopQuality = [undefined, undefined];
+    setSurface(undefined);
+    setStatus("");
+    syncPins();
+    onPathChange();
+  };
+
+  const runFinder = async () => {
+    if (!tx || !rx) {
+      setStatus("Drop both TX and RX first: the relay bridges the link between them.", true);
+      return;
+    }
+    const inputs = hooks.finderInputs();
+    if (typeof inputs === "string") {
+      setStatus(inputs, true);
+      return;
+    }
+    finding?.abort();
+    const controller = new AbortController();
+    finding = controller;
+    el("findRelay").textContent = "Finding…";
+    el("findRelay").toggleAttribute("disabled", true);
+    try {
+      const found = await findRelay(inputs, (t) => setStatus(t), controller.signal);
+      if (controller.signal.aborted || !found) return;
+      const fade = hooks.fadeMarginDb();
+      setSurface({ image: { url: surfaceImage(found, fade), bounds: found.box }, data: found });
+      if (!found.best) {
+        setStatus("No spot in the search area is within reach of both sites.", true);
+        return;
+      }
+      const best = found.best;
+      relay = { lat: best.lat, lon: best.lon };
+      const verdict = best.marginDb >= fade ? "solid" : best.marginDb >= 0 ? "marginal" : "short";
+      setStatus(
+        verdict === "short"
+          ? `No spot closes both hops. The best is ${fmt(-best.marginDb, 1)} dB short; a taller relay mast, more power or better antennas would help. The relay is placed there for a closer look.`
+          : `Relay placed at the strongest spot: its weaker hop keeps ${fmt(best.marginDb, 1)} dB (${verdict}). Drag it to try nearby ground you can reach; shading shows where else works.`,
+        verdict === "short",
+      );
+      relayChanged();
+      if (map) map.fitBounds(L.latLngBounds([found.box.south, found.box.west], [found.box.north, found.box.east]), { padding: [10, 10] });
+    } catch (err) {
+      if (!controller.signal.aborted)
+        setStatus(navigator.onLine ? `Couldn't run the relay finder: ${(err as Error).message}` : "No connection, and this area's terrain isn't saved yet.", true);
+    } finally {
+      if (finding === controller) {
+        el("findRelay").textContent = "Find relay spot";
+        el("findRelay").toggleAttribute("disabled", false);
+      }
+    }
+  };
+
   const pinsChanged = () => {
+    // A site moved: the shading no longer fits, and the hops need new terrain.
+    setSurface(undefined);
+    void loadRelayProfiles();
     syncPins();
     if (tx && rx && map) map.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
     onPathChange();
@@ -253,31 +461,67 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     });
     map.on("click", (e: L.LeafletMouseEvent) => {
       const at = { lat: e.latlng.lat, lon: e.latlng.lng };
+      if (placingRelay) {
+        relay = at;
+        setStatus("");
+        relayChanged();
+        return;
+      }
       if (!tx) tx = at;
       else if (!rx) rx = at;
       else return;
       pinsChanged();
     });
-    clearControl = addClearControl(map, "the pins and terrain profile", reset);
+    clearControl = addClearControl(map, "the pins, relay and terrain profile", reset);
+    setSurface(surface);
     view3d = add3DControl(map, () => {
       const points: Point3D[] = [];
-      const ends: ("tx" | "rx")[] = [];
-      if (tx) {
-        points.push({ ...tx, label: "TX", heightM: lastParams?.txHeightM ?? 2 });
-        ends.push("tx");
+      const ids: SiteId[] = [];
+      const at: Partial<Record<SiteId, number>> = {};
+      const heights: Record<SiteId, number | undefined> = { tx: lastParams?.txHeightM, rx: lastParams?.rxHeightM, relay: lastParams?.relayHeightM };
+      for (const [site, p] of [["tx", tx], ["rx", rx], ["relay", relay]] as const) {
+        if (!p) continue;
+        at[site] = points.length;
+        ids.push(site);
+        const location: EditField = { key: "location", label: "Location", value: formatCoordinates(p), type: "text" };
+        points.push({ ...p, label: nameOf(site), heightM: heights[site] ?? 2, fields: [...hooks.fields(site), location] });
       }
-      if (rx) {
-        points.push({ ...rx, label: "RX", heightM: lastParams?.rxHeightM ?? 2 });
-        ends.push("rx");
+      const links: Link3D[] = [];
+      if (at.tx !== undefined && at.rx !== undefined && quality) links.push({ a: at.tx, b: at.rx, style: linkLineStyle(quality, lineOfSight) });
+      if (at.relay !== undefined) {
+        if (at.tx !== undefined && hopQuality[0]) links.push({ a: at.tx, b: at.relay, style: linkLineStyle(hopQuality[0], hopStatus[0]) });
+        if (at.rx !== undefined && hopQuality[1]) links.push({ a: at.relay, b: at.rx, style: linkLineStyle(hopQuality[1], hopStatus[1]) });
       }
-      const links = tx && rx && quality ? [{ a: 0, b: 1, style: linkLineStyle(quality, lineOfSight) }] : [];
-      // A pin dragged in 3D moves just as if it were dragged on this map.
-      const onMove = (i: number, p: LatLon) => {
-        if (ends[i] === "tx") tx = p;
+      const moveSite = (site: SiteId, p: LatLon) => {
+        if (site === "relay") {
+          relay = p;
+          relayChanged();
+          return;
+        }
+        if (site === "tx") tx = p;
         else rx = p;
         pinsChanged();
       };
-      return { title: "Link Budget", points, links, k: lastParams?.k ?? STANDARD_K, onMove };
+      return {
+        title: "Link Budget",
+        points,
+        links,
+        k: lastParams?.k ?? STANDARD_K,
+        overlay: surface?.image,
+        // A pin dragged in 3D moves just as if it were dragged on this map.
+        onMove: (i: number, p: LatLon) => moveSite(ids[i], p),
+        // The pop-up editor: location here, everything else on the Link Budget.
+        onEdit: (i: number, values: Record<string, string>) => {
+          const { location, ...rest } = values;
+          if (Object.keys(rest).length) hooks.edit(ids[i], rest);
+          if (location !== undefined) {
+            const p = parseCoordinates(location);
+            if (p) moveSite(ids[i], p);
+            else setStatus("That location wasn't understood. Use decimal degrees like 35.22710, -80.84310, or MGRS.", true);
+          }
+          view3d?.refresh();
+        },
+      };
     });
     syncPins();
   };
@@ -285,6 +529,27 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   // than requestAnimationFrame, which doesn't run while the tab is hidden.
   const waitForPage = () => (card.isConnected ? initMap() : setTimeout(waitForPage, 50));
   setTimeout(waitForPage, 0);
+
+  input("relayLoc").addEventListener("change", (e) => {
+    e.stopPropagation();
+    const text = (e.target as HTMLInputElement).value.trim();
+    if (!text) return removeRelay();
+    const parsed = parseCoordinates(text);
+    if (!parsed) {
+      setStatus("Enter decimal degrees like 35.22710, -80.84310, or MGRS like 17S NU 14277 98239.", true);
+      return;
+    }
+    relay = parsed;
+    relayChanged();
+  });
+  input("relayLoc").addEventListener("input", (e) => e.stopPropagation());
+  el("addRelay").addEventListener("click", () => {
+    placingRelay = !placingRelay;
+    setStatus(placingRelay ? "Tap the map where the relay should go." : "");
+    syncPins();
+  });
+  el("findRelay").addEventListener("click", () => void runFinder());
+  el("removeRelay").addEventListener("click", removeRelay);
 
   for (const side of ["tx", "rx"] as const) {
     input(`${side}Loc`).addEventListener("change", (e) => {
@@ -313,8 +578,13 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
   });
 
   const reset = () => {
-    tx = rx = undefined;
+    tx = rx = relay = undefined;
     loading?.abort();
+    relayLoading?.abort();
+    finding?.abort();
+    placingRelay = false;
+    relayElevations = [undefined, undefined];
+    setSurface(undefined);
     elevations = undefined;
     setStatus("");
     syncPins();
@@ -410,7 +680,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
           ? `terrain is ${h(q.clearanceM)} above the line of sight`
           : `${h(q.clearanceM)} clear, ${fmt(Math.max(0, q.clearanceRatio) * 100, 0)}% of the Fresnel zone`;
     el("chart").querySelector(".chart-readout")!.textContent =
-      `${fmt(fromMetres(q.distanceM, distUnit), 2)} ${distUnit} from TX: terrain ${h(q.terrainM)}, ${status}`;
+      `${fmt(fromMetres(q.distanceM, distUnit), 2)} ${distUnit} from ${nameOf("tx")}: terrain ${h(q.terrainM)}, ${status}`;
   };
   el("chart").addEventListener("pointerdown", readPoint);
   el("chart").addEventListener("pointermove", (e) => {
@@ -423,15 +693,21 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
       return;
     }
     const status = quality ? linkLineStyle(quality, lineOfSight) : undefined;
-    const kml = buildKml(
-      "RF Toolkit path",
-      [
-        { name: "TX", lat: tx.lat, lon: tx.lon },
-        { name: "RX", lat: rx.lat, lon: rx.lon },
-      ],
-      [{ name: "TX to RX", from: tx, to: rx, status, description: status ? `${linkLineLabels[status]}.` : "Not rated." }],
-      RADIO_FILE,
-    );
+    const [txName, rxName, relayName] = [nameOf("tx"), nameOf("rx"), nameOf("relay")];
+    const places = [
+      { name: txName, lat: tx.lat, lon: tx.lon },
+      { name: rxName, lat: rx.lat, lon: rx.lon },
+    ];
+    const lines = [{ name: `${txName} to ${rxName}`, from: tx, to: rx, status, description: status ? `${linkLineLabels[status]}.` : "Not rated." }];
+    if (relay) {
+      places.push({ name: relayName, lat: relay.lat, lon: relay.lon });
+      const hop = (i: 0 | 1) => (hopQuality[i] ? linkLineStyle(hopQuality[i]!, hopStatus[i]) : undefined);
+      const h1 = hop(0);
+      const h2 = hop(1);
+      lines.push({ name: `${txName} to ${relayName}`, from: tx, to: relay, status: h1, description: h1 ? `Hop 1. ${linkLineLabels[h1]}.` : "Hop 1. Not rated." });
+      lines.push({ name: `${relayName} to ${rxName}`, from: relay, to: rx, status: h2, description: h2 ? `Hop 2. ${linkLineLabels[h2]}.` : "Hop 2. Not rated." });
+    }
+    const kml = buildKml("RF Toolkit path", places, lines, RADIO_FILE);
     const kmz = buildZip([{ name: "doc.kml", data: new TextEncoder().encode(kml) }, radioIconFile()]);
     downloadFile("rf-toolkit-path.kmz", new Uint8Array(kmz), "application/vnd.google-earth.kmz");
     setStatus("Exported. Import the file in ATAK, WinTAK or Google Earth.");
@@ -471,7 +747,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
 
     chart.hidden = false;
     // Draw at the real width so the axis text stays its CSS size on phones.
-    chart.innerHTML = drawProfile(result, params, chart.clientWidth || 640);
+    chart.innerHTML = drawProfile(result, params, chart.clientWidth || 640, [nameOf("tx"), nameOf("rx")]);
     lastResult = result;
     lastParams = params;
 
@@ -510,12 +786,39 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
 
   syncPins();
   // After the page finishes building: a cached path calls onPathChange straight away.
-  if (tx && rx) queueMicrotask(() => void loadProfile());
+  if (tx && rx) queueMicrotask(() => {
+    void loadProfile();
+    if (relay) void loadRelayProfiles();
+  });
 
   return {
     element: card,
     pathDistanceM: () => (tx && rx ? distanceBetweenM(tx, rx) : undefined),
     pins: () => (tx && rx ? { tx, rx } : undefined),
+    relay: () => relay,
+    hops(params) {
+      hopStatus = [undefined, undefined];
+      if (!relay || !tx || !rx || !params.applies || !(params.freqHz > 0)) return {};
+      const relayH = params.relayHeightM ?? params.rxHeightM;
+      const one = (a: LatLon, b: LatLon, e: number[] | undefined, aH: number, bH: number): HopAnalysis | undefined => {
+        if (!e) return undefined;
+        const path = { freqHz: params.freqHz, distanceM: distanceBetweenM(a, b), elevationsM: e, txHeightM: aH, rxHeightM: bH };
+        return { distanceM: path.distanceM, loss: terrainLoss(path, params.model), status: analyzeProfile({ ...path, k: params.k }).status };
+      };
+      const hop1 = one(tx, relay, relayElevations[0], params.txHeightM, relayH);
+      const hop2 = one(relay, rx, relayElevations[1], relayH, params.rxHeightM);
+      hopStatus = [hop1?.status, hop2?.status];
+      return { hop1, hop2 };
+    },
+    showHops(q1, q2) {
+      hopQuality = [q1, q2];
+      drawPath();
+    },
+    namesChanged() {
+      syncPins();
+      if (lastResult && lastParams) el("chart").querySelectorAll(".end-label").forEach((t, i) => (t.textContent = nameOf(i === 0 ? "tx" : "rx")));
+      view3d?.refresh();
+    },
     refresh,
     reset,
     showLink(q) {
@@ -526,7 +829,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
 }
 
 /** SVG elevation profile: terrain, line of sight and the first Fresnel zone. */
-function drawProfile(r: ProfileResult, p: TerrainParams, width: number): string {
+function drawProfile(r: ProfileResult, p: TerrainParams, width: number, names: [string, string] = ["TX", "RX"]): string {
   const W = Math.max(300, Math.round(width));
   const H = W < 500 ? 200 : 220;
   const pad = { l: 58, r: 12, t: 14, b: 26 };
@@ -576,8 +879,8 @@ function drawProfile(r: ProfileResult, p: TerrainParams, width: number): string 
       ${mast(first)}${mast(last)}
       ${hits}
       ${xTicks.map((d, i) => `<text class="axis" x="${x(d)}" y="${H - 8}" text-anchor="${["start", "middle", "end"][i]}">${dLabel(d)}${i === 2 ? ` ${p.distUnit}` : ""}</text>`).join("")}
-      <text class="end-label" x="${x(0) + 4}" y="${y(first.losM) - 6}">TX</text>
-      <text class="end-label" x="${x(total) - 4}" y="${y(last.losM) - 6}" text-anchor="end">RX</text>
+      <text class="end-label" x="${x(0) + 4}" y="${y(first.losM) - 6}">${escapeXml(names[0])}</text>
+      <text class="end-label" x="${x(total) - 4}" y="${y(last.losM) - 6}" text-anchor="end">${escapeXml(names[1])}</text>
       <line class="crosshair" x1="0" x2="0" y1="${pad.t}" y2="${H - pad.b}" style="display:none"/>
     </svg>
     <p class="note chart-readout">Tap the chart to read any point.</p>
@@ -587,4 +890,9 @@ function drawProfile(r: ProfileResult, p: TerrainParams, width: number): string 
       <span class="key"><span class="ln dash zone60-key"></span>60% line</span>
       <span class="key"><span class="sw terrain-key"></span>Terrain + earth curve</span>
     </div>`;
+}
+
+/** Names are user text: make them safe inside SVG markup. */
+function escapeXml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
