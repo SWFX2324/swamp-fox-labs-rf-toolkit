@@ -1,6 +1,6 @@
-// Terrain profile card for the link budget: a map with TX and RX pins (and an
-// optional relay between them), the elevation profile between TX and RX, and
-// how well the path clears it.
+// Terrain profile card for Link Analysis: a map with pins for Site A and Site B
+// (and an optional relay between them), the elevation profile between them,
+// and how well the path clears it.
 
 import * as L from "leaflet";
 import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
@@ -54,7 +54,7 @@ export interface HopAnalysis {
 
 /** What the card needs from the Link Analysis about each site. */
 export interface SiteHooks {
-  /** Display names; blank means the default ("TX", "RX", "Relay"). */
+  /** Display names; blank means the default ("Site A", "Site B", "Relay"). */
   names(): Record<SiteId, string>;
   /** The site's values for the 3D view's editor (location is added here). */
   fields(site: SiteId): EditField[];
@@ -65,7 +65,7 @@ export interface SiteHooks {
   fadeMarginDb(): number;
 }
 
-const siteDefaults: Record<SiteId, string> = { tx: "TX", rx: "RX", relay: "Relay" };
+const siteDefaults: Record<SiteId, string> = { tx: "Site A", rx: "Site B", relay: "Relay" };
 
 export interface TerrainCard {
   element: HTMLElement;
@@ -107,17 +107,17 @@ const template = `
     <button type="button" class="secondary" data-t="toggle" aria-expanded="false">Show</button>
   </div>
   <div class="terrain-body" data-t="body" hidden>
-  <p class="note top">Tap the map for TX, then RX. Drag a pin to move it. To bridge a weak link, add a relay: place it yourself or let the app find the best spot.</p>
+  <p class="note top">Tap the map for Site A, then Site B. Drag a pin to move it. To bridge a weak link, add a relay: place it yourself or let the app find the best spot.</p>
   <div class="map" data-t="map"></div>
   <div data-t="legend"></div>
   <div class="fields coords">
-    <label>TX location
+    <label>Site A location
       <span class="input-unit">
         <input name="txLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         ${locateButton('data-t="locate"')}
       </span>
     </label>
-    <label>RX location
+    <label>Site B location
       <input name="rxLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
     </label>
     <label data-t="relayLocWrap" hidden>Relay location
@@ -201,7 +201,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     setItem: (key, value) => localStorage.setItem(key, value),
   });
   let { tx, rx, relay } = loadPins();
-  // The relay's two paths: TX to relay, and relay to RX.
+  // The relay's two paths: Site A to relay, and relay to Site B.
   let relayElevations: [number[] | undefined, number[] | undefined] = [undefined, undefined];
   let relayLoading: AbortController | undefined;
   let relayMarker: L.Marker | undefined;
@@ -283,7 +283,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
         marker.setTooltipContent(nameTag(site));
         return marker;
       }
-      const icon = radioMarker(site === "relay" ? "RT" : site.toUpperCase());
+      const icon = radioMarker(site === "relay" ? "RT" : site === "tx" ? "A" : "B");
       const m = L.marker([at.lat, at.lon], { icon, draggable: true }).addTo(map!);
       m.bindTooltip(nameTag(site), { permanent: true, direction: "right", offset: [8, -16], className: "pin-name" });
       m.on("dragend", () => {
@@ -398,7 +398,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
 
   const runFinder = async () => {
     if (!tx || !rx) {
-      setStatus("Drop both TX and RX first: the relay bridges the link between them.", true);
+      setStatus(`Drop both ${nameOf("tx")} and ${nameOf("rx")} first: the relay bridges the link between them.`, true);
       return;
     }
     const inputs = hooks.finderInputs();
@@ -761,10 +761,10 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     facts.hidden = false;
     facts.querySelector("tbody")!.innerHTML = [
       [loss.model === "itm" ? "Terrain loss (Longley-Rice)" : "Terrain loss (Bullington)", `${fmt(loss.lossDb, 1)} dB beyond free space`],
-      ["Tightest point", `${d(w.distanceM)} from TX`],
+      ["Tightest point", `${d(w.distanceM)} from ${escapeXml(nameOf("tx"))}`],
       [w.clearanceM < 0 ? "Terrain there is" : "Clearance there", tightest],
-      ["Ground at TX / RX", `${h(result.txGroundM)} / ${h(result.rxGroundM)}`],
-      ["Bearing TX → RX", `${fmt(bearingDeg(tx, rx), 1)}° (back ${fmt(bearingDeg(rx, tx), 1)}°)`],
+      [`Ground at ${escapeXml(nameOf("tx"))} / ${escapeXml(nameOf("rx"))}`, `${h(result.txGroundM)} / ${h(result.rxGroundM)}`],
+      [`Bearing ${escapeXml(nameOf("tx"))} → ${escapeXml(nameOf("rx"))}`, `${fmt(bearingDeg(tx, rx), 1)}° (back ${fmt(bearingDeg(rx, tx), 1)}°)`],
     ]
       .map(([k, v], idx) => `<tr${idx === 0 ? ' class="total"' : ""}><td>${k}</td><td class="num mono">${v}</td></tr>`)
       .join("");
@@ -829,7 +829,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
 }
 
 /** SVG elevation profile: terrain, line of sight and the first Fresnel zone. */
-function drawProfile(r: ProfileResult, p: TerrainParams, width: number, names: [string, string] = ["TX", "RX"]): string {
+function drawProfile(r: ProfileResult, p: TerrainParams, width: number, names: [string, string] = ["Site A", "Site B"]): string {
   const W = Math.max(300, Math.round(width));
   const H = W < 500 ? 200 : 220;
   const pad = { l: 58, r: 12, t: 14, b: 26 };
@@ -870,7 +870,7 @@ function drawProfile(r: ProfileResult, p: TerrainParams, width: number, names: [
   const xTicks = [0, total / 2, total];
 
   return `
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Terrain profile between TX and RX" data-left="${pad.l}" data-right="${pad.r}">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Terrain profile between the two sites" data-left="${pad.l}" data-right="${pad.r}">
       ${yTicks.map((m) => `<line class="gridline" x1="${pad.l}" x2="${W - pad.r}" y1="${y(m)}" y2="${y(m)}"/><text class="axis" x="${pad.l - 6}" y="${y(m) + 4}" text-anchor="end">${hLabel(m)}</text>`).join("")}
       <path class="zone" d="${zone}"/>
       <path class="zone60" d="${zone60}"/>

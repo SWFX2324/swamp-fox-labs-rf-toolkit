@@ -37,6 +37,9 @@ const STORAGE_KEY = "rf-toolkit:link-budget";
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
 const legacyDefaults: Record<string, string> = {
+  txSens: "",
+  rxPower: "",
+  rxPowerUnit: "W",
   txName: "",
   rxName: "",
   relayName: "",
@@ -132,10 +135,10 @@ function cableFields(side: "tx" | "rx"): string {
 const template = `
   <div class="inputs">
     <section class="card">
-      <div class="card-head"><h2>Transmitter</h2><span class="meta">Sets EIRP</span></div>
+      <div class="card-head"><h2>Site A</h2><span class="meta">One end of the link</span></div>
       <div class="fields">
         <label>Name
-          <input name="txName" type="text" autocomplete="off" maxlength="40" placeholder="TX" />
+          <input name="txName" type="text" autocomplete="off" maxlength="40" placeholder="Site A" />
         </label>
         ${unitField("Frequency", "freq", Object.keys(frequencyUnits), "freqUnit")}
         ${unitField("TX power", "txPower", powerUnits, "txPowerUnit")}
@@ -143,6 +146,7 @@ const template = `
         ${numberField("Other losses", "txOther", "dB", 'min="0" title="Connectors, lightning arrestor, filters"')}
         ${numberField("Antenna gain", "txGain", "dBi")}
         ${unitField("Antenna height", "txHeight", ["ft", "m"], "txHeightUnit")}
+        ${numberField("Sensitivity", "txSens", "dBm", 'placeholder="Same as Site B" title="From the radio datasheet, for the data rate or mode you use"')}
       </div>
       <div class="tile subtotal">
         <span class="label">EIRP</span>
@@ -152,10 +156,16 @@ const template = `
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Receiver</h2><span class="meta">Sets the margin</span></div>
+      <div class="card-head"><h2>Site B</h2><span class="meta">The other end</span></div>
       <div class="fields">
         <label>Name
-          <input name="rxName" type="text" autocomplete="off" maxlength="40" placeholder="RX" />
+          <input name="rxName" type="text" autocomplete="off" maxlength="40" placeholder="Site B" />
+        </label>
+        <label>TX power
+          <span class="input-unit">
+            <input name="rxPower" type="number" inputmode="decimal" step="any" min="0" placeholder="Same as Site A" />
+            <select name="rxPowerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
+          </span>
         </label>
         ${numberField("Antenna gain", "rxGain", "dBi")}
         ${unitField("Antenna height", "rxHeight", ["ft", "m"], "rxHeightUnit")}
@@ -163,6 +173,11 @@ const template = `
         ${numberField("Other losses", "rxOther", "dB", 'min="0"')}
         ${numberField("Sensitivity", "rxSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
         ${numberField("Fade margin wanted", "fadeMargin", "dB", 'min="0" title="Used for the max range"')}
+      </div>
+      <div class="tile subtotal">
+        <span class="label">EIRP</span>
+        <span class="value" data-out="eirpB"></span>
+        <span class="sub" data-out="eirpBW"></span>
       </div>
     </section>
 
@@ -242,7 +257,15 @@ const template = `
           <span class="sub" data-out="rangeSub"></span>
         </div>
       </div>
+      <p class="note" data-out="dirNote" hidden></p>
       <p class="error" data-out="error" hidden></p>
+      <div class="dir-switch" data-out="dirWrap" hidden>
+        <span class="note">Details for</span>
+        <div class="seg" role="group" aria-label="Direction shown">
+          <button type="button" data-dir="ab"></button>
+          <button type="button" data-dir="ba"></button>
+        </div>
+      </div>
       <table class="ledger">
         <thead><tr><th>Stage</th><th class="num">Change</th><th class="num">Level</th></tr></thead>
         <tbody data-out="ledger"></tbody>
@@ -260,7 +283,7 @@ const template = `
   </aside>
 
   <div class="summary-bar">
-    <span aria-hidden="true"><span class="k">RX</span> <b data-out="barRsl"></b></span>
+    <span aria-hidden="true"><span class="k">Signal</span> <b data-out="barRsl"></b></span>
     <span aria-hidden="true"><span class="k">Margin</span> <b data-out="barMargin"></b></span>
   </div>
 `;
@@ -375,9 +398,9 @@ export const linkBudgetCalculator: Calculator = {
       const f = (key: string, label: string, unit?: string, type: "text" | "number" = "number"): EditField => ({ key, label, value: field(key).value, unit, type });
       const unitOf = (name: string) => field(name).value;
       if (site === "tx")
-        return [f("txName", "Name", undefined, "text"), f("txPower", "TX power", unitOf("txPowerUnit")), f("txGain", "Antenna gain", "dBi"), f("txHeight", "Antenna height", unitOf("txHeightUnit"))];
+        return [f("txName", "Name", undefined, "text"), f("txPower", "TX power", unitOf("txPowerUnit")), f("txSens", "Sensitivity", "dBm"), f("txGain", "Antenna gain", "dBi"), f("txHeight", "Antenna height", unitOf("txHeightUnit"))];
       if (site === "rx")
-        return [f("rxName", "Name", undefined, "text"), f("rxSens", "Sensitivity", "dBm"), f("rxGain", "Antenna gain", "dBi"), f("rxHeight", "Antenna height", unitOf("rxHeightUnit"))];
+        return [f("rxName", "Name", undefined, "text"), f("rxPower", "TX power", unitOf("rxPowerUnit")), f("rxSens", "Sensitivity", "dBm"), f("rxGain", "Antenna gain", "dBi"), f("rxHeight", "Antenna height", unitOf("rxHeightUnit"))];
       return [
         f("relayName", "Name", undefined, "text"),
         f("relayPower", "TX power", unitOf("relayPowerUnit")),
@@ -481,7 +504,7 @@ export const linkBudgetCalculator: Calculator = {
     };
     const dash = "—";
 
-    const siteName = (site: SiteId) => field(`${site}Name`).value.trim() || { tx: "TX", rx: "RX", relay: "Relay" }[site];
+    const siteName = (site: SiteId) => field(`${site}Name`).value.trim() || { tx: "Site A", rx: "Site B", relay: "Relay" }[site];
     const relayHeightM = () => toMetres(num("relayHeight") || 0, asDistanceUnit(field("relayHeightUnit").value));
     const relayPowerDbm = () => toDbm(num("relayPower"), asPowerUnit(field("relayPowerUnit").value));
 
@@ -495,16 +518,29 @@ export const linkBudgetCalculator: Calculator = {
       return { auto, ends, env, txEnv: trees(ends?.ends?.[0].environment ?? env), rxEnv: trees(ends?.ends?.[1].environment ?? env), relayEnv: env };
     };
 
+    // Each site's radio: power and derated sensitivity. A blank power or
+    // sensitivity at one end means "same as the other end".
+    const sitePower = (site: SiteId): number => {
+      if (site === "relay") return relayPowerDbm();
+      const a = toDbm(num("txPower"), asPowerUnit(field("txPowerUnit").value));
+      if (site === "tx" || field("rxPower").value.trim() === "") return a;
+      return toDbm(num("rxPower"), asPowerUnit(field("rxPowerUnit").value));
+    };
+    const siteSens = (site: SiteId): number => {
+      if (site === "relay") return deratedSensitivity(num("relaySens"));
+      if (site === "rx" || field("txSens").value.trim() === "") return deratedSensitivity(num("rxSens"));
+      return deratedSensitivity(num("txSens"));
+    };
+
     /** Both hops' radios for the relay finder, or why it can't run. */
     const finderInputs = (): RelayFinderInputs | string => {
       const pins = terrain.pins();
-      if (!pins) return "Drop both TX and RX first.";
+      if (!pins) return `Drop both ${siteName("tx")} and ${siteName("rx")} first.`;
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
       if (!(freqHz > 0) || !freeSpaceApplies(freqHz)) return "The relay finder needs a frequency of 30 MHz or more.";
-      const txPower = toDbm(num("txPower"), asPowerUnit(field("txPowerUnit").value));
       const relayPower = relayPowerDbm();
-      if (!Number.isFinite(txPower) || !Number.isFinite(relayPower)) return "Enter TX power for both TX and the relay.";
-      if (!Number.isFinite(num("rxSens")) || !Number.isFinite(num("relaySens"))) return "Enter the sensitivity of both RX and the relay.";
+      if (![sitePower("tx"), sitePower("rx"), relayPower].every(Number.isFinite)) return "Enter TX power for both sites and the relay.";
+      if (![siteSens("tx"), siteSens("rx"), siteSens("relay")].every(Number.isFinite)) return "Enter the sensitivity of both sites and the relay.";
       const { txEnv, rxEnv, relayEnv } = siteEnvironments();
       const txH = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
       const rxH = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
@@ -512,6 +548,12 @@ export const linkBudgetCalculator: Calculator = {
       const extra = num("extraLoss") || 0;
       const relayCable = num("relayCable") || 0;
       const relayGain = num("relayGain") || 0;
+      const aLoss = sideCable("tx", freqHz) + (num("txOther") || 0);
+      const bLoss = sideCable("rx", freqHz) + (num("rxOther") || 0);
+      const aGain = num("txGain") || 0;
+      const bGain = num("rxGain") || 0;
+      const clutter1 = clutterLossDb(txEnv, freqHz, txH) + clutterLossDb(relayEnv, freqHz, relayH) + extra;
+      const clutter2 = clutterLossDb(relayEnv, freqHz, relayH) + clutterLossDb(rxEnv, freqHz, rxH) + extra;
       return {
         a: pins.tx,
         b: pins.rx,
@@ -520,20 +562,27 @@ export const linkBudgetCalculator: Calculator = {
         aHeightM: effectiveHeightM(txEnv, txH),
         bHeightM: effectiveHeightM(rxEnv, rxH),
         relayHeightM: effectiveHeightM(relayEnv, relayH),
-        hop1: {
-          eirpDbm: txPower - sideCable("tx", freqHz) - (num("txOther") || 0) + (num("txGain") || 0),
-          rxGainDbi: relayGain,
-          rxCableLossDb: relayCable,
-          sensitivityDbm: deratedSensitivity(num("relaySens")),
-          clutterLossDb: clutterLossDb(txEnv, freqHz, txH) + clutterLossDb(relayEnv, freqHz, relayH) + extra,
-        },
-        hop2: {
-          eirpDbm: relayPower - relayCable + relayGain,
-          rxGainDbi: num("rxGain") || 0,
-          rxCableLossDb: sideCable("rx", freqHz) + (num("rxOther") || 0),
-          sensitivityDbm: deratedSensitivity(num("rxSens")),
-          clutterLossDb: clutterLossDb(relayEnv, freqHz, relayH) + clutterLossDb(rxEnv, freqHz, rxH) + extra,
-        },
+        // Each hop both ways: the weaker direction is the one that limits.
+        hop1: [
+          {
+            eirpDbm: sitePower("tx") - aLoss + aGain,
+            rxGainDbi: relayGain,
+            rxCableLossDb: relayCable,
+            sensitivityDbm: siteSens("relay"),
+            clutterLossDb: clutter1,
+          },
+          { eirpDbm: relayPower - relayCable + relayGain, rxGainDbi: aGain, rxCableLossDb: aLoss, sensitivityDbm: siteSens("tx"), clutterLossDb: clutter1 },
+        ],
+        hop2: [
+          { eirpDbm: relayPower - relayCable + relayGain, rxGainDbi: bGain, rxCableLossDb: bLoss, sensitivityDbm: siteSens("rx"), clutterLossDb: clutter2 },
+          {
+            eirpDbm: sitePower("rx") - bLoss + bGain,
+            rxGainDbi: relayGain,
+            rxCableLossDb: relayCable,
+            sensitivityDbm: siteSens("relay"),
+            clutterLossDb: clutter2,
+          },
+        ],
       };
     };
 
@@ -572,11 +621,27 @@ export const linkBudgetCalculator: Calculator = {
         k: parseKFactor(field("kFactor").value),
       };
 
+      // B back to A: the same path, each end's own power, gains, losses and sensitivity.
+      const reverse: LinkInputs = {
+        ...inputs,
+        txPowerDbm: sitePower("rx"),
+        txCableLossDb: inputs.rxCableLossDb,
+        txOtherLossDb: inputs.rxOtherLossDb,
+        txGainDbi: inputs.rxGainDbi,
+        rxGainDbi: inputs.txGainDbi,
+        rxCableLossDb: inputs.txCableLossDb,
+        rxOtherLossDb: inputs.txOtherLossDb,
+        rxSensitivityDbm: siteSens("tx"),
+        txHeightM: rxHeightM,
+        rxHeightM: txHeightM,
+      };
       const problem =
         !(inputs.freqHz > 0) ? "Enter a frequency above zero."
         : !(inputs.distanceM > 0) ? "Enter a distance above zero."
-        : !Number.isFinite(inputs.txPowerDbm) ? "Enter a TX power above zero."
-        : !Number.isFinite(inputs.rxSensitivityDbm) ? "Enter the receiver sensitivity."
+        : !Number.isFinite(inputs.txPowerDbm) ? `Enter ${siteName("tx")}'s TX power.`
+        : !Number.isFinite(reverse.txPowerDbm) ? `Enter ${siteName("rx")}'s TX power, or leave it blank to match ${siteName("tx")}.`
+        : !Number.isFinite(inputs.rxSensitivityDbm) ? `Enter ${siteName("rx")}'s sensitivity.`
+        : !Number.isFinite(reverse.rxSensitivityDbm) ? `Enter ${siteName("tx")}'s sensitivity, or leave it blank to match ${siteName("rx")}.`
         : "";
 
       out("error").hidden = !problem;
@@ -608,7 +673,8 @@ export const linkBudgetCalculator: Calculator = {
       out("relayIntro").textContent = `Receives from ${siteName("tx")} and retransmits to ${siteName("rx")}. Place or move it on the Terrain profile map.`;
 
       if (problem) {
-        for (const name of ["eirp", "eirpW", "fspl", "rxIso", "rsl", "margin", "marginSub", "range", "rangeSub", "barRsl", "barMargin"]) {
+        out("dirNote").hidden = out("dirWrap").hidden = true;
+        for (const name of ["eirp", "eirpW", "eirpB", "eirpBW", "fspl", "rxIso", "rsl", "margin", "marginSub", "range", "rangeSub", "barRsl", "barMargin"]) {
           out(name).textContent = dash;
         }
         out("rating").hidden = true;
@@ -622,24 +688,47 @@ export const linkBudgetCalculator: Calculator = {
       out("envNote").hidden = env.id === "none" && !auto;
       out("envNote").textContent = ends
         ? ends.ends
-          ? landCoverNote([{ ...ends.ends[0], environment: txEnv }, { ...ends.ends[1], environment: rxEnv }], ["The TX end", "the RX end"], freqHz, txHeightM, rxHeightM)
+          ? landCoverNote([{ ...ends.ends[0], environment: txEnv }, { ...ends.ends[1], environment: rxEnv }], [siteName("tx"), siteName("rx")], freqHz, txHeightM, rxHeightM)
           : ends.note
         : environmentNote(env, freqHz, txHeightM, rxHeightM);
       out("derateNote").textContent = derateNote();
       out("derateNote").hidden = !derateNote();
-      inputs.terrainLossDb = profile?.loss.lossDb ?? 0;
-      const r = linkBudget(inputs);
-      const rating = rateMargin(r.marginDb);
+      inputs.terrainLossDb = reverse.terrainLossDb = profile?.loss.lossDb ?? 0;
+      const forward = linkBudget(inputs);
+      const backward = linkBudget(reverse);
+      // The weaker direction rates the link; the details follow the switch, or the weaker one.
+      const weakerDir: "ab" | "ba" = backward.marginDb < forward.marginDb ? "ba" : "ab";
+      const weakest = Math.min(forward.marginDb, backward.marginDb);
+      const dir = ledgerDir ?? weakerDir;
+      const r = dir === "ab" ? forward : backward;
+      const shown = dir === "ab" ? inputs : reverse;
+      const [fromName, toName] = dir === "ab" ? [siteName("tx"), siteName("rx")] : [siteName("rx"), siteName("tx")];
+      const rating = rateMargin(weakest);
       // The map line follows the same rule as the Mesh Planner: good once the fade margin is covered.
-      terrain.showLink(hf ? undefined : linkQuality(r.marginDb, inputs.fadeMarginDb));
+      terrain.showLink(hf ? undefined : linkQuality(weakest, inputs.fadeMarginDb));
 
-      out("eirp").innerHTML = dbm(r.eirpDbm);
-      out("eirpW").textContent = formatWatts(dbmToWatts(r.eirpDbm));
-      out("fspl").innerHTML = db(r.fsplDb);
-      out("rxIso").textContent = `Arrives at ${fmt(r.rxIsotropicDbm)} dBm before RX antenna gain`;
+      out("eirp").innerHTML = dbm(forward.eirpDbm);
+      out("eirpW").textContent = formatWatts(dbmToWatts(forward.eirpDbm));
+      out("eirpB").innerHTML = dbm(backward.eirpDbm);
+      out("eirpBW").textContent = formatWatts(dbmToWatts(backward.eirpDbm));
+      const ab = `${siteName("tx")} → ${siteName("rx")}`;
+      const ba = `${siteName("rx")} → ${siteName("tx")}`;
+      const same = Math.abs(forward.marginDb - backward.marginDb) < 0.05;
+      out("dirNote").hidden = hf;
+      out("dirNote").textContent = same
+        ? `Both directions match: ${fmt(forward.marginDb)} dB each way.`
+        : `${ab}: ${fmt(forward.marginDb)} dB. ${ba}: ${fmt(backward.marginDb)} dB. The weaker direction (${weakerDir === "ab" ? ab : ba}) sets the link.`;
+      out("dirWrap").hidden = hf || same;
+      for (const b of form.querySelectorAll<HTMLButtonElement>("[data-dir]")) {
+        b.textContent = b.dataset.dir === "ab" ? ab : ba;
+        b.setAttribute("aria-pressed", String(b.dataset.dir === dir));
+      }
+      out("fspl").innerHTML = db(forward.fsplDb);
+      out("rxIso").textContent = `Arrives at ${fmt(forward.rxIsotropicDbm)} dBm at ${siteName("rx")} before its antenna gain`;
       out("rsl").innerHTML = dbm(r.rslDbm);
       out("margin").innerHTML = db(r.marginDb);
       out("marginSub").textContent = profile?.loss.itm && !hf ? availabilityText(timeAvailable(profile.loss.itm, model, r.marginDb), model) : "";
+      out("margin").title = `${fromName} → ${toName}`;
       if (hf) {
         out("range").textContent = dash;
         out("rangeSub").textContent = "Not meaningful on HF";
@@ -649,7 +738,7 @@ export const linkBudgetCalculator: Calculator = {
         setValueWithUnit(out("range"), formatRange(r.budgetRangeM, distUnit), distUnit);
         out("rangeSub").textContent =
           `What the budget allows with ${fmt(inputs.fadeMarginDb, 0)} dB of fade margin. Terrain decides the rest.`;
-        showGeometry(inputs, r.horizonM, r.beyondHorizon, distUnit);
+        showGeometry(shown, r.horizonM, r.beyondHorizon, distUnit);
         out("geometry").hidden = out("geoWarn").hidden = true;
       } else {
         setValueWithUnit(out("range"), formatRange(r.maxRangeM, distUnit), distUnit);
@@ -657,7 +746,7 @@ export const linkBudgetCalculator: Calculator = {
           r.rangeLimit === "horizon"
             ? "Limited by the radio horizon at these antenna heights"
             : `Limited by the budget, keeping ${fmt(inputs.fadeMarginDb, 0)} dB of fade margin`;
-        showGeometry(inputs, r.horizonM, r.beyondHorizon, distUnit);
+        showGeometry(shown, r.horizonM, r.beyondHorizon, distUnit);
       }
       out("barRsl").textContent = `${fmt(r.rslDbm)} dBm`;
       out("barMargin").textContent = `${fmt(r.marginDb)} dB`;
@@ -673,7 +762,9 @@ export const linkBudgetCalculator: Calculator = {
         pill.textContent = ratingText[rating];
       }
 
-      let level = inputs.txPowerDbm;
+      let level = shown.txPowerDbm;
+      const from = escapeHtml(fromName);
+      const to = escapeHtml(toName);
       const rows: string[] = [];
       const step = (stage: string, change: number | null, total = false) => {
         if (change !== null) level += change;
@@ -683,21 +774,21 @@ export const linkBudgetCalculator: Calculator = {
             `<td class="num mono">${fmt(level)}</td></tr>`,
         );
       };
-      step("TX power", null);
-      if (inputs.txCableLossDb) step("TX coax", -inputs.txCableLossDb);
-      if (inputs.txOtherLossDb) step("TX other losses", -inputs.txOtherLossDb);
-      step("TX antenna", inputs.txGainDbi);
+      step(`${from} TX power`, null);
+      if (shown.txCableLossDb) step(`${from} coax`, -shown.txCableLossDb);
+      if (shown.txOtherLossDb) step(`${from} other losses`, -shown.txOtherLossDb);
+      step(`${from} antenna`, shown.txGainDbi);
       step("EIRP", null, true);
       step("Free-space loss", -r.fsplDb);
       if (inputs.extraPathLossDb) step("Extra path loss", -inputs.extraPathLossDb);
       if (inputs.clutterLossDb) step(auto ? "Clutter (land cover)" : env.name, -inputs.clutterLossDb);
       if (profile) step(profile.loss.model === "itm" ? "Terrain (Longley-Rice)" : "Terrain diffraction", -inputs.terrainLossDb);
-      step("RX antenna", inputs.rxGainDbi);
-      if (inputs.rxCableLossDb) step("RX coax", -inputs.rxCableLossDb);
-      if (inputs.rxOtherLossDb) step("RX other losses", -inputs.rxOtherLossDb);
-      step("Received signal", null, true);
+      step(`${to} antenna`, shown.rxGainDbi);
+      if (shown.rxCableLossDb) step(`${to} coax`, -shown.rxCableLossDb);
+      if (shown.rxOtherLossDb) step(`${to} other losses`, -shown.rxOtherLossDb);
+      step(`Received at ${to}`, null, true);
       rows.push(
-        `<tr><td>RX sensitivity${derateNote() ? " (derated)" : ""}</td><td></td><td class="num mono">${fmt(inputs.rxSensitivityDbm)}</td></tr>` +
+        `<tr><td>${to} sensitivity${derateNote() ? " (derated)" : ""}</td><td></td><td class="num mono">${fmt(shown.rxSensitivityDbm)}</td></tr>` +
           `<tr class="total"><td>Link margin</td><td></td><td class="num mono">${fmt(r.marginDb)} dB</td></tr>`,
       );
       out("ledger").innerHTML = rows.join("");
@@ -713,29 +804,40 @@ export const linkBudgetCalculator: Calculator = {
       const relayH = relayHeightM();
       const relayGain = num("relayGain") || 0;
       const relayCable = num("relayCable") || 0;
-      const hopBudget = (from: LatLon, to: LatLon, terrainLossDb: number | undefined, side: 1 | 2) =>
-        linkBudget({
+      // Each site's radio for the hops: losses, gain, height and surroundings.
+      const radio = (site: SiteId) =>
+        site === "tx"
+          ? { loss: inputs.txCableLossDb + inputs.txOtherLossDb, gain: inputs.txGainDbi, h: txHeightM, env: txEnv }
+          : site === "rx"
+            ? { loss: inputs.rxCableLossDb + inputs.rxOtherLossDb, gain: inputs.rxGainDbi, h: rxHeightM, env: rxEnv }
+            : { loss: relayCable, gain: relayGain, h: relayH, env: relayEnv };
+      const oneWay = (a: SiteId, b: SiteId, distanceM: number, terrainLossDb: number | undefined) => {
+        const A = radio(a);
+        const B = radio(b);
+        return linkBudget({
           ...inputs,
-          distanceM: distanceBetweenM(from, to),
+          distanceM,
           terrainLossDb: terrainLossDb ?? 0,
-          ...(side === 1
-            ? {
-                rxGainDbi: relayGain,
-                rxCableLossDb: relayCable,
-                rxOtherLossDb: 0,
-                rxSensitivityDbm: deratedSensitivity(num("relaySens")),
-                rxHeightM: relayH,
-                clutterLossDb: clutterLossDb(txEnv, freqHz, txHeightM) + clutterLossDb(relayEnv, freqHz, relayH),
-              }
-            : {
-                txPowerDbm: relayPowerDbm(),
-                txCableLossDb: relayCable,
-                txOtherLossDb: 0,
-                txGainDbi: relayGain,
-                txHeightM: relayH,
-                clutterLossDb: clutterLossDb(relayEnv, freqHz, relayH) + clutterLossDb(rxEnv, freqHz, rxHeightM),
-              }),
-        });
+          txPowerDbm: sitePower(a),
+          txCableLossDb: A.loss,
+          txOtherLossDb: 0,
+          txGainDbi: A.gain,
+          txHeightM: A.h,
+          rxGainDbi: B.gain,
+          rxCableLossDb: B.loss,
+          rxOtherLossDb: 0,
+          rxSensitivityDbm: siteSens(b),
+          rxHeightM: B.h,
+          clutterLossDb: clutterLossDb(A.env, freqHz, A.h) + clutterLossDb(B.env, freqHz, B.h),
+        }).marginDb;
+      };
+      /** A hop's margin each way; the weaker one limits it. */
+      const hopBudget = (a: SiteId, b: SiteId, pa: LatLon, pb: LatLon, terrainLossDb: number | undefined) => {
+        const d = distanceBetweenM(pa, pb);
+        const out1 = oneWay(a, b, d, terrainLossDb);
+        const back = oneWay(b, a, d, terrainLossDb);
+        return { marginDb: Math.min(out1, back), out: out1, back, distanceM: d };
+      };
       const tbody = out("relayHops");
       tbody.replaceChildren();
       if (!pins) {
@@ -744,12 +846,12 @@ export const linkBudgetCalculator: Calculator = {
         terrain.showHops(undefined, undefined);
         return;
       }
-      const h1 = hopBudget(pins.tx, relayAt, hops.hop1?.loss.lossDb, 1);
-      const h2 = hopBudget(relayAt, pins.rx, hops.hop2?.loss.lossDb, 2);
+      const h1 = hopBudget("tx", "relay", pins.tx, relayAt, hops.hop1?.loss.lossDb);
+      const h2 = hopBudget("relay", "rx", relayAt, pins.rx, hops.hop2?.loss.lossDb);
       const fade = inputs.fadeMarginDb;
       const rows2: [string, typeof h1][] = [
-        [`1 · ${siteName("tx")} → ${siteName("relay")}`, h1],
-        [`2 · ${siteName("relay")} → ${siteName("rx")}`, h2],
+        [`1 · ${siteName("tx")} ↔ ${siteName("relay")}`, h1],
+        [`2 · ${siteName("relay")} ↔ ${siteName("rx")}`, h2],
       ];
       for (const [label, h] of rows2) {
         const tr = document.createElement("tr");
@@ -757,11 +859,12 @@ export const linkBudgetCalculator: Calculator = {
         name.textContent = label; // names are user text
         const dist = document.createElement("td");
         dist.className = "num mono";
-        dist.textContent = `${fmt(fromMetres(distanceBetweenM(...(h === h1 ? [pins.tx, relayAt] : [relayAt, pins.rx]) as [LatLon, LatLon]), distUnit))} ${distUnit}`;
+        dist.textContent = `${fmt(fromMetres(h.distanceM, distUnit))} ${distUnit}`;
         const margin = document.createElement("td");
         margin.className = "num";
         const rating = rateMargin(h.marginDb);
         margin.innerHTML = `<span class="mono">${fmt(h.marginDb)} dB</span> <span class="pill s-${rating}">${ratingText[rating]}</span>`;
+        margin.title = `${fmt(h.out)} dB one way, ${fmt(h.back)} dB back`;
         tr.append(name, dist, margin);
         tbody.append(tr);
       }
@@ -773,10 +876,18 @@ export const linkBudgetCalculator: Calculator = {
       const loading = !hops.hop1 || !hops.hop2;
       out("relayNote").textContent =
         (loading ? "Terrain for the hops is still loading, so these are free-space figures for now. " : "") +
-        `The weaker hop sets the link: ${fmt(weaker)} dB through the relay, against ${fmt(r.marginDb)} dB direct.`;
+        `Each hop counts its weaker direction (Hop 1: ${fmt(h1.out)} dB out, ${fmt(h1.back)} dB back; Hop 2: ${fmt(h2.out)} dB out, ${fmt(h2.back)} dB back). The weakest sets the link: ${fmt(weaker)} dB through the relay, against ${fmt(weakest)} dB direct.`;
       terrain.showHops(linkQuality(h1.marginDb, fade), linkQuality(h2.marginDb, fade));
     };
 
+    // The ledger shows the weaker direction unless one is picked.
+    let ledgerDir: "ab" | "ba" | undefined;
+    form.querySelector('[data-out="dirWrap"]')!.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-dir]");
+      if (!b) return;
+      ledgerDir = b.dataset.dir as "ab" | "ba";
+      update();
+    });
     form.addEventListener("input", update);
     form.addEventListener("change", update);
     form.querySelector('[data-action="reset"]')!.addEventListener("click", () => {
@@ -789,3 +900,8 @@ export const linkBudgetCalculator: Calculator = {
     return form;
   },
 };
+
+/** Names are user text: make them safe inside the ledger's markup. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}

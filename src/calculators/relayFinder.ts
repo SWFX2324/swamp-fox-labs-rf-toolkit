@@ -21,10 +21,10 @@ export interface RelayFinderInputs {
   aHeightM: number;
   bHeightM: number;
   relayHeightM: number;
-  /** Site A to the relay. */
-  hop1: HopRadio;
-  /** The relay to site B (worked from B's end, as path loss is the same either way). */
-  hop2: HopRadio;
+  /** Between site A and the relay, each direction (the weaker counts). */
+  hop1: HopRadio[];
+  /** Between the relay and site B, each direction, worked from B's end (path loss is the same either way). */
+  hop2: HopRadio[];
 }
 
 const RADIALS = 120;
@@ -49,12 +49,18 @@ export async function findRelay(inputs: RelayFinderInputs, onStatus: (text: stri
   onStatus("Working out where a relay would reach both sites…");
   // Let the status paint before the heavy loop.
   await new Promise((resolve) => setTimeout(resolve, 30));
-  const m1 = marginsFromLoss(coveragePathLoss(s1, inputs.freqHz, inputs.aHeightM, inputs.relayHeightM, inputs.model), inputs.hop1);
+  const m1 = weakest(coveragePathLoss(s1, inputs.freqHz, inputs.aHeightM, inputs.relayHeightM, inputs.model), inputs.hop1);
   if (signal.aborted) return undefined;
   await new Promise((resolve) => setTimeout(resolve, 0));
-  const m2 = marginsFromLoss(coveragePathLoss(s2, inputs.freqHz, inputs.bHeightM, inputs.relayHeightM, inputs.model), inputs.hop2);
+  const m2 = weakest(coveragePathLoss(s2, inputs.freqHz, inputs.bHeightM, inputs.relayHeightM, inputs.model), inputs.hop2);
   if (signal.aborted) return undefined;
   return relaySurface(box, SURFACE_SIZE, SURFACE_SIZE, { samples: s1, margins: m1 }, { samples: s2, margins: m2 });
+}
+
+/** Margins for the weaker of several radios over the same path loss (a hop's two directions). */
+function weakest(loss: Float32Array[], radios: HopRadio[]): Float32Array[] {
+  const each = radios.map((r) => marginsFromLoss(loss, r));
+  return each[0].map((row, i) => row.map((v, k) => each.reduce((m, g) => Math.min(m, g[i][k]), v)));
 }
 
 function cssColor(name: string): [number, number, number] {
