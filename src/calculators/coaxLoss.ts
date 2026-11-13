@@ -5,6 +5,7 @@ import { enhanceFields } from "./fieldHelp";
 import { coaxGuide } from "./helpText";
 import type { Calculator } from ".";
 import { bandPresets } from "../lib/antenna";
+import { tabStateToSave, tabValues } from "../lib/appSettings";
 import {
   beyondCableRange,
   cableLossDb,
@@ -38,8 +39,12 @@ const defaults: Record<string, string> = {
   powerUnit: "W",
   swr: "1.0",
   connectors: "0",
-  cable: "lmr-400",
+  cable: "rg-213",
 };
+
+// Defaults before RG-213 took over from LMR-400: a saved value equal to one of
+// these wasn't a choice, so it follows the current default.
+const legacyDefaults: Record<string, string> = { ...defaults, cable: "lmr-400" };
 
 const template = `
   <div class="inputs">
@@ -121,8 +126,7 @@ const template = `
 
 function loadState(): Record<string, string> {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return { ...defaults, ...(typeof saved === "object" && saved ? saved : {}) };
+    return tabValues(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"), defaults, legacyDefaults);
   } catch {
     return { ...defaults };
   }
@@ -130,7 +134,7 @@ function loadState(): Record<string, string> {
 
 function saveState(state: Record<string, string>): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tabStateToSave(state, defaults)));
   } catch {
     // Storage blocked: inputs just won't be remembered.
   }

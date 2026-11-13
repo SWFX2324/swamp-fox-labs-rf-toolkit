@@ -274,6 +274,9 @@ function currentDefaults(): Record<string, string> {
     fadeMargin: s.fade,
     txGain: s.gain,
     rxGain: s.gain,
+    // RG-213 is the default coax; LMR-400 was, so old saves still on it follow.
+    txCable: "rg-213",
+    rxCable: "rg-213",
     txOther: s.connectors,
     rxOther: s.connectors,
     relayGain: s.gain,

@@ -38,9 +38,9 @@ export const cables: Cable[] = [
   { id: "lmr-900", name: "LMR-900", k1: 0.05177, k2: 0.00016, maxMHz: 5000, vf: 0.87 },
   { id: "lmr-1200", name: "LMR-1200", k1: 0.03737, k2: 0.00016, maxMHz: 3000, vf: 0.88 },
   { id: "lmr-1700", name: "LMR-1700", k1: 0.02646, k2: 0.00016, maxMHz: 2500, vf: 0.89 },
-  { id: "rg-58", name: "RG-58 (typical)", k1: 0.43741, k2: 0.00365, maxMHz: 1000, vf: 0.66 },
-  { id: "rg-8x", name: "RG-8X (typical)", k1: 0.35817, k2: 0.0023, maxMHz: 1000, vf: 0.78 },
-  { id: "rg-213", name: "RG-213 (typical)", k1: 0.20474, k2: 0.00204, maxMHz: 1000, vf: 0.66 },
+  { id: "rg-58", name: "RG-58", k1: 0.43741, k2: 0.00365, maxMHz: 1000, vf: 0.66 },
+  { id: "rg-8x", name: "RG-8X", k1: 0.35817, k2: 0.0023, maxMHz: 1000, vf: 0.78 },
+  { id: "rg-213", name: "RG-213", k1: 0.20474, k2: 0.00204, maxMHz: 1000, vf: 0.66 },
 ];
 
 export function findCable(id: string): Cable | undefined {
