@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg", "apple-touch-icon.png", "icon-192.png", "icon-512.png"],
+      includeAssets: ["icon.svg", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "swamp-fox-labs-logo.webp"],
       manifest: {
         name: "RF Toolkit",
         short_name: "RF Toolkit",
