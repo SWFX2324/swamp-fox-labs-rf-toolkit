@@ -742,3 +742,26 @@ body:has(dialog.view3d[open]) { overflow: hidden; }
 /* Link Analysis: which direction the ledger shows. */
 .dir-switch { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
 .dir-switch .note { margin: 0; }
+
+/* 3D view on a phone turned on its side: little height to spare, so the bar
+   and key shrink to one slim row each and the site editor docks down the right. */
+@media (max-height: 500px) {
+  .view3d-bar { flex-wrap: nowrap; overflow-x: auto; padding: 4px 12px; gap: 12px; }
+  .view3d-bar h2 { font-size: 15px; white-space: nowrap; width: auto; }
+  .view3d-bar .meta { display: none; }
+  .view3d-bar > * { flex-shrink: 0; }
+  .view3d-bar .seg button, .view3d-bar button.secondary, .view3d-ex select { min-height: 36px; }
+  .view3d-bar [data-v="close"] { margin-left: auto; }
+  .view3d-foot { padding: 3px 12px; flex-wrap: nowrap; overflow-x: auto; }
+  .view3d-foot .legend { flex-wrap: nowrap; white-space: nowrap; margin: 0; }
+  .view3d-foot .link-legend { display: flex; gap: 16px; }
+  .view3d-foot .link-legend svg { width: 30px; }
+  .view3d-foot .note { display: none; }
+  .view3d-sheet { left: auto; top: 8px; right: 8px; bottom: 8px; width: min(340px, 48vw); overflow: auto; padding: 10px 12px; }
+  .view3d-sheet .view3d-editor { max-height: none; }
+  .view3d-map .maplibregl-ctrl-top-right .maplibregl-ctrl { margin: 8px 8px 0 0; }
+  .view3d-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl { margin: 0 8px 8px 0; }
+  .view3d-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl { margin: 0 0 8px 8px; }
+}
+.view3d-editor select { width: 100%; }
+.view3d-sheet select { font-size: 16px; }

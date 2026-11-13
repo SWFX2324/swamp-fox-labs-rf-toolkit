@@ -26,6 +26,7 @@ import { beam, elevationAngleDeg, patternLossDb, patterns } from "../lib/pattern
 import { type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
 import { createPathStore, pathKey } from "../lib/pathStore";
 import { sampleCount } from "../lib/profile";
+import type { EditField } from "../lib/scene3d";
 import { kFactors, parseKFactor } from "../lib/horizon";
 import {
   type DistanceUnit,
@@ -605,9 +606,23 @@ export const meshCalculator: Calculator = {
         else showDefaultView(m);
       });
       clearControl = addClearControl(map, "the nodes", clearNodes);
+      // What the 3D view's editor shows for a node. A blank height uses the default.
+      const nodeFields = (n: MeshNode): EditField[] => [
+        { key: "name", label: "Name", value: n.name, type: "text", placeholder: "Optional" },
+        { key: "height", label: "Antenna height", value: n.height, unit: field("heightUnit").value, type: "number", placeholder: field("height").value },
+        {
+          key: "antenna",
+          label: "Antenna",
+          value: n.antenna ?? "omni",
+          type: "select",
+          options: patterns.map((p) => ({ value: p.id, label: p.id === "directional" ? "Directional" : p.name.replace(", ", " ") })),
+        },
+        ...(n.antenna && n.antenna !== "omni" ? [{ key: "aim", label: "Points", value: n.aim ?? "", unit: "° true", type: "number" as const, placeholder: "0" }] : []),
+        { key: "location", label: "Location", value: formatCoordinates(n), type: "text" },
+      ];
       view3d = add3DControl(map, () => ({
         title: "Mesh Planner",
-        points: nodes.map((n, i) => ({ lat: n.lat, lon: n.lon, label: nodeLabel(i), heightM: heightM(n) })),
+        points: nodes.map((n, i) => ({ lat: n.lat, lon: n.lon, label: nodeLabel(i), heightM: heightM(n), fields: nodeFields(n) })),
         links: lastLinks
           .filter((r) => r.a < nodes.length && r.b < nodes.length)
           .map((r) => ({ a: r.a, b: r.b, style: linkLineStyle(r.link.status, r.link.profile) })),
@@ -618,6 +633,24 @@ export const meshCalculator: Calculator = {
           nodes[i].lat = p.lat;
           nodes[i].lon = p.lon;
           nodesChanged(false);
+        },
+        // The pop-up editor: changes land in the node, as if typed in its row.
+        onEdit: (i, values) => {
+          const n = nodes[i];
+          if (!n) return;
+          if (values.name !== undefined) n.name = values.name;
+          if (values.height !== undefined) n.height = values.height;
+          if (values.antenna !== undefined) n.antenna = values.antenna === "omni" ? undefined : values.antenna;
+          if (values.aim !== undefined) n.aim = values.aim;
+          if (values.location !== undefined) {
+            const p = parseCoordinates(values.location);
+            if (p) {
+              n.lat = p.lat;
+              n.lon = p.lon;
+            } else setStatus("That location wasn't understood. Use decimal degrees like 35.22710, -80.84310, or MGRS.", true);
+          }
+          nodesChanged(false);
+          view3d?.refresh();
         },
       }));
       map.on("click", (e: L.LeafletMouseEvent) => addNode({ lat: e.latlng.lat, lon: e.latlng.lng }));

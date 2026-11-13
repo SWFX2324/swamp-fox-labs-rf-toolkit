@@ -486,12 +486,17 @@ export function open3DView(first: Scene3D): View3D {
       label.textContent = f.label;
       const wrap = document.createElement("span");
       wrap.className = "input-unit";
-      const input = document.createElement("input");
-      input.type = f.type;
-      if (f.type === "number") {
-        input.step = "any";
-        input.inputMode = "decimal";
-      } else input.autocomplete = "off";
+      let input: HTMLInputElement | HTMLSelectElement;
+      if (f.type === "select") {
+        input = document.createElement("select");
+        for (const o of f.options ?? []) input.append(new Option(o.label, o.value));
+      } else {
+        input = document.createElement("input");
+        input.type = f.type;
+        if (f.type === "number") input.step = "any";
+        else input.autocomplete = "off";
+        if (f.placeholder) input.placeholder = f.placeholder;
+      }
       input.value = f.value;
       input.dataset.key = f.key;
       wrap.append(input);
@@ -520,8 +525,9 @@ export function open3DView(first: Scene3D): View3D {
     // Keys typed here are for the form, not the map's keyboard controls.
     form.addEventListener("keydown", (e) => e.stopPropagation());
     // On a phone a pop-up beside the label runs off the screen, so the editor
-    // docks to the bottom of the map as a full-width panel instead.
-    if (window.matchMedia("(max-width: 600px)").matches) {
+    // docks to the map as a panel instead: along the bottom when upright, down
+    // the right side when the phone is on its side.
+    if (window.matchMedia("(max-width: 600px), (max-height: 500px)").matches) {
       const sheet = document.createElement("div");
       sheet.className = "view3d-sheet";
       const shut = document.createElement("button");

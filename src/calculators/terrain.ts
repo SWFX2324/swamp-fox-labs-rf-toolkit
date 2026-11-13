@@ -18,7 +18,7 @@ import { fetchPathElevations } from "./tileElevation";
 import { createPathStore } from "../lib/pathStore";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type LatLon, bearingDeg, distanceBetweenM, formatLatLon, parseLatLon, samplePath } from "../lib/geo";
-import { FRESNEL_CLEAR_RATIO, type ProfileResult, type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
+import { FRESNEL_CLEAR_RATIO, type ProfilePoint, type ProfileResult, type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
 import { type DistanceUnit, fromMetres } from "../lib/units";
 import { STANDARD_K, kFactors } from "../lib/horizon";
 
@@ -136,6 +136,13 @@ const template = `
     <span class="relay-legend-note">Where a relay would close both hops</span>
   </div>
   <p class="note" data-t="status"></p>
+  <div class="dir-switch profile-view" data-t="viewWrap" hidden>
+    <span class="note">Profile</span>
+    <div class="seg" role="group" aria-label="Profile shown">
+      <button type="button" data-view="relay">Via relay</button>
+      <button type="button" data-view="direct">Direct</button>
+    </div>
+  </div>
   <div class="profile-chart" data-t="chart" hidden></div>
   <p class="note" data-t="losNote" hidden></p>
   <table class="ledger geometry" data-t="facts" hidden><tbody></tbody></table>
@@ -653,20 +660,27 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
   listSaved();
 
   // Tap or drag on the chart to read any point along the path.
-  let lastResult: ProfileResult | undefined;
+  // The points drawn (distances from Site A), and which of them are antennas.
+  let lastPoints: ProfilePoint[] | undefined;
+  let lastAntennas = new Set<number>();
   let lastParams: TerrainParams | undefined;
   const readPoint = (e: PointerEvent) => {
     const svg = el("chart").querySelector("svg");
-    if (!svg || !lastResult || !lastParams) return;
+    if (!svg || !lastPoints || !lastParams) return;
     const box = svg.getBoundingClientRect();
     const width = svg.viewBox.baseVal.width;
     const left = Number(svg.dataset.left);
     const right = Number(svg.dataset.right);
     const x = ((e.clientX - box.left) / box.width) * width;
-    const pts = lastResult.points;
-    const i = Math.round((Math.max(0, Math.min(1, (x - left) / (width - left - right)))) * (pts.length - 1));
+    const pts = lastPoints;
+    const total = pts[pts.length - 1].distanceM;
+    const want = Math.max(0, Math.min(1, (x - left) / (width - left - right))) * total;
+    let i = 0;
+    pts.forEach((p, k) => {
+      if (Math.abs(p.distanceM - want) < Math.abs(pts[i].distanceM - want)) i = k;
+    });
     const q = pts[i];
-    const at = left + (i / (pts.length - 1)) * (width - left - right);
+    const at = left + (q.distanceM / total) * (width - left - right);
     const cross = svg.querySelector<SVGLineElement>(".crosshair")!;
     cross.setAttribute("x1", String(at));
     cross.setAttribute("x2", String(at));
@@ -674,7 +688,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     const { distUnit, heightUnit } = lastParams;
     const h = (m: number) => `${fmt(fromMetres(Math.abs(m), heightUnit), 0)} ${heightUnit}`;
     const status =
-      i === 0 || i === pts.length - 1
+      lastAntennas.has(i)
         ? "at the antenna"
         : q.clearanceM < 0
           ? `terrain is ${h(q.clearanceM)} above the line of sight`
@@ -682,6 +696,14 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     el("chart").querySelector(".chart-readout")!.textContent =
       `${fmt(fromMetres(q.distanceM, distUnit), 2)} ${distUnit} from ${nameOf("tx")}: terrain ${h(q.terrainM)}, ${status}`;
   };
+  // With a relay, the profile shows the path through it unless Direct is picked.
+  let profileView: "relay" | "direct" = "relay";
+  el("viewWrap").addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-view]");
+    if (!b || !lastParams) return;
+    profileView = b.dataset.view as "relay" | "direct";
+    refresh(lastParams);
+  });
   el("chart").addEventListener("pointerdown", readPoint);
   el("chart").addEventListener("pointermove", (e) => {
     if (e.pointerType === "mouse" || e.buttons) readPoint(e);
@@ -720,7 +742,8 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     const facts = el("facts");
     lineOfSight = undefined;
     if (!tx || !rx || !elevations || !params.applies || !(params.freqHz > 0)) {
-      pill.hidden = chart.hidden = facts.hidden = el("losNote").hidden = true;
+      pill.hidden = chart.hidden = facts.hidden = el("losNote").hidden = el("viewWrap").hidden = true;
+      lastPoints = undefined;
       if (!params.applies && tx && rx) setStatus(hfNote);
       else if (el("status").textContent === hfNote) setStatus("");
       return undefined;
@@ -736,37 +759,90 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     };
     const result = analyzeProfile({ ...path, k: params.k });
     const loss = terrainLoss(path, params.model);
-    const [text, cls] = statusText[result.status];
-    pill.hidden = false;
-    pill.className = `pill ${cls}`;
-    pill.textContent = params.k === STANDARD_K ? text : `${text} at k = ${kLabel(params.k)}`;
-    pill.title = losNote;
-    el("losNote").textContent = losNote;
-    el("losNote").hidden = result.status === "clear";
+    // The map line follows the direct path's line of sight, whichever profile is shown.
     lineOfSight = result.status;
 
-    chart.hidden = false;
-    // Draw at the real width so the axis text stays its CSS size on phones.
-    chart.innerHTML = drawProfile(result, params, chart.clientWidth || 640, [nameOf("tx"), nameOf("rx")]);
-    lastResult = result;
-    lastParams = params;
+    // With a relay whose hops have loaded, the profile can show A → relay → B.
+    const relayH = params.relayHeightM ?? params.rxHeightM;
+    const hopSegments =
+      relay && relayElevations[0] && relayElevations[1]
+        ? ([
+            [tx, relay, relayElevations[0], params.txHeightM, relayH],
+            [relay, rx, relayElevations[1], relayH, params.rxHeightM],
+          ] as const).map(([a, b, e, aH, bH]) => {
+            const hop = { freqHz: params.freqHz, distanceM: distanceBetweenM(a, b), elevationsM: e, txHeightM: aH, rxHeightM: bH };
+            return { result: analyzeProfile({ ...hop, k: params.k }), loss: terrainLoss(hop, params.model), from: a, to: b };
+          })
+        : undefined;
+    el("viewWrap").hidden = !hopSegments;
+    const viaRelay = !!hopSegments && profileView === "relay";
+    el("viewWrap").querySelectorAll<HTMLButtonElement>("button[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === (viaRelay ? "relay" : "direct"))));
 
     const h = (m: number) => `${fmt(fromMetres(m, params.heightUnit), 0)} ${params.heightUnit}`;
     const d = (m: number) => `${fmt(fromMetres(m, params.distUnit), 2)} ${params.distUnit}`;
-    const w = result.worst;
-    const tightest =
+    const tightest = (w: ProfilePoint) =>
       w.clearanceM < 0
         ? `${h(-w.clearanceM)} above the line of sight`
         : `${h(w.clearanceM)} clear, ${fmt(Math.max(0, w.clearanceRatio) * 100, 0)}% of the Fresnel zone`;
+    const lossLabel = (l: TerrainLoss, prefix = "") => `${prefix}Terrain loss (${l.model === "itm" ? "Longley-Rice" : "Bullington"})`;
+    const kNote = (t: string) => (params.k === STANDARD_K ? t : `${t} at k = ${kLabel(params.k)}`);
+    const [A, B, R] = [escapeXml(nameOf("tx")), escapeXml(nameOf("rx")), escapeXml(nameOf("relay"))];
+
+    let shownStatus: ProfileStatus;
+    let rows: string[][];
+    let totalRows: number[];
+    if (viaRelay && hopSegments) {
+      const [s1, s2] = hopSegments;
+      const rank: Record<ProfileStatus, number> = { clear: 0, fresnel: 1, blocked: 2 };
+      shownStatus = rank[s1.result.status] >= rank[s2.result.status] ? s1.result.status : s2.result.status;
+      const which = s1.result.status === s2.result.status ? "both hops" : s1.result.status === shownStatus ? "hop 1" : "hop 2";
+      pill.textContent = kNote(shownStatus === "clear" ? "Clear line of sight on both hops" : `${statusText[shownStatus][0]} on ${which}`);
+      const hopRows = (s: (typeof hopSegments)[number], n: number, fromName: string) => [
+        [lossLabel(s.loss, `Hop ${n} `), `${fmt(s.loss.lossDb, 1)} dB beyond free space`],
+        [`Hop ${n} tightest point`, `${d(s.result.worst.distanceM)} from ${fromName}: ${tightest(s.result.worst)}`],
+        [`Hop ${n} length, bearing`, `${d(distanceBetweenM(s.from, s.to))}, ${fmt(bearingDeg(s.from, s.to), 1)}° (back ${fmt(bearingDeg(s.to, s.from), 1)}°)`],
+      ];
+      rows = [
+        ...hopRows(s1, 1, A),
+        ...hopRows(s2, 2, R),
+        [`Ground at ${A} / ${R} / ${B}`, `${h(s1.result.txGroundM)} / ${h(s1.result.rxGroundM)} / ${h(s2.result.rxGroundM)}`],
+      ];
+      totalRows = [0, 3];
+      // One chart: hop 2's points carry on from where hop 1 ends.
+      const offset = s1.result.points[s1.result.points.length - 1].distanceM;
+      lastPoints = [...s1.result.points, ...s2.result.points.map((q) => ({ ...q, distanceM: q.distanceM + offset }))];
+      lastAntennas = new Set([0, s1.result.points.length - 1, s1.result.points.length, lastPoints.length - 1]);
+    } else {
+      shownStatus = result.status;
+      pill.textContent = kNote(statusText[result.status][0]);
+      const w = result.worst;
+      rows = [
+        [lossLabel(loss), `${fmt(loss.lossDb, 1)} dB beyond free space`],
+        ["Tightest point", `${d(w.distanceM)} from ${A}`],
+        [w.clearanceM < 0 ? "Terrain there is" : "Clearance there", tightest(w)],
+        [`Ground at ${A} / ${B}`, `${h(result.txGroundM)} / ${h(result.rxGroundM)}`],
+        [`Bearing ${A} → ${B}`, `${fmt(bearingDeg(tx, rx), 1)}° (back ${fmt(bearingDeg(rx, tx), 1)}°)`],
+      ];
+      totalRows = [0];
+      lastPoints = result.points;
+      lastAntennas = new Set([0, result.points.length - 1]);
+    }
+    pill.hidden = false;
+    pill.className = `pill ${statusText[shownStatus][1]}`;
+    pill.title = losNote;
+    el("losNote").textContent = losNote;
+    el("losNote").hidden = shownStatus === "clear";
+
+    chart.hidden = false;
+    // Draw at the real width so the axis text stays its CSS size on phones.
+    const segments = viaRelay && hopSegments ? hopSegments.map((s) => s.result) : [result];
+    const names = viaRelay ? [nameOf("tx"), nameOf("relay"), nameOf("rx")] : [nameOf("tx"), nameOf("rx")];
+    chart.innerHTML = drawProfile(segments, params, chart.clientWidth || 640, names);
+    lastParams = params;
+
     facts.hidden = false;
-    facts.querySelector("tbody")!.innerHTML = [
-      [loss.model === "itm" ? "Terrain loss (Longley-Rice)" : "Terrain loss (Bullington)", `${fmt(loss.lossDb, 1)} dB beyond free space`],
-      ["Tightest point", `${d(w.distanceM)} from ${escapeXml(nameOf("tx"))}`],
-      [w.clearanceM < 0 ? "Terrain there is" : "Clearance there", tightest],
-      [`Ground at ${escapeXml(nameOf("tx"))} / ${escapeXml(nameOf("rx"))}`, `${h(result.txGroundM)} / ${h(result.rxGroundM)}`],
-      [`Bearing ${escapeXml(nameOf("tx"))} → ${escapeXml(nameOf("rx"))}`, `${fmt(bearingDeg(tx, rx), 1)}° (back ${fmt(bearingDeg(rx, tx), 1)}°)`],
-    ]
-      .map(([k, v], idx) => `<tr${idx === 0 ? ' class="total"' : ""}><td>${k}</td><td class="num mono">${v}</td></tr>`)
+    facts.querySelector("tbody")!.innerHTML = rows
+      .map(([k, v], idx) => `<tr${totalRows.includes(idx) ? ' class="total"' : ""}><td>${k}</td><td class="num mono">${v}</td></tr>`)
       .join("");
     return { ...result, loss };
   };
@@ -816,7 +892,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     },
     namesChanged() {
       syncPins();
-      if (lastResult && lastParams) el("chart").querySelectorAll(".end-label").forEach((t, i) => (t.textContent = nameOf(i === 0 ? "tx" : "rx")));
+      if (lastParams) refresh(lastParams);
       view3d?.refresh();
     },
     refresh,
@@ -828,13 +904,24 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
   };
 }
 
-/** SVG elevation profile: terrain, line of sight and the first Fresnel zone. */
-function drawProfile(r: ProfileResult, p: TerrainParams, width: number, names: [string, string] = ["Site A", "Site B"]): string {
+/**
+ * SVG elevation profile: terrain, line of sight and the first Fresnel zone.
+ * Several segments (the hops through a relay) are drawn end to end, each with
+ * its own line of sight; names label every antenna, in order.
+ */
+function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number, names: string[]): string {
   const W = Math.max(300, Math.round(width));
   const H = W < 500 ? 200 : 220;
   const pad = { l: 58, r: 12, t: 14, b: 26 };
-  const pts = r.points;
-  const total = pts[pts.length - 1].distanceM;
+  // Each segment's points, moved along by the length of those before it.
+  let run = 0;
+  const segs = segments.map((r) => {
+    const start = run;
+    run += r.points[r.points.length - 1].distanceM;
+    return r.points.map((q) => ({ ...q, distanceM: q.distanceM + start }));
+  });
+  const pts = segs.flat();
+  const total = run;
   const lows = pts.map((q) => Math.min(q.terrainM, q.losM - q.fresnelM));
   const highs = pts.map((q) => Math.max(q.terrainM, q.losM + q.fresnelM));
   let min = Math.min(...lows);
@@ -848,14 +935,19 @@ function drawProfile(r: ProfileResult, p: TerrainParams, width: number, names: [
   const path = (coords: [number, number][]) => coords.map(([a, b], i) => `${i ? "L" : "M"}${a.toFixed(1)},${b.toFixed(1)}`).join("");
 
   const terrain = path([[x(0), y(min)], ...pts.map((q): [number, number] => [x(q.distanceM), y(q.terrainM)]), [x(total), y(min)]]) + "Z";
-  const upper = pts.map((q): [number, number] => [x(q.distanceM), y(q.losM + q.fresnelM)]);
-  const lower = pts.map((q): [number, number] => [x(q.distanceM), y(q.losM - q.fresnelM)]).reverse();
-  const zone = path([...upper, ...lower]) + "Z";
-  const zone60 = path(pts.map((q): [number, number] => [x(q.distanceM), y(q.losM - FRESNEL_CLEAR_RATIO * q.fresnelM)]));
-  const los = path([[x(0), y(pts[0].losM)], [x(total), y(pts[pts.length - 1].losM)]]);
+  // Fresnel zone, 60% line and line of sight: one of each per segment.
+  const zone = segs
+    .map((sp) => {
+      const upper = sp.map((q): [number, number] => [x(q.distanceM), y(q.losM + q.fresnelM)]);
+      const lower = sp.map((q): [number, number] => [x(q.distanceM), y(q.losM - q.fresnelM)]).reverse();
+      return path([...upper, ...lower]) + "Z";
+    })
+    .join("");
+  const zone60 = segs.map((sp) => path(sp.map((q): [number, number] => [x(q.distanceM), y(q.losM - FRESNEL_CLEAR_RATIO * q.fresnelM)]))).join("");
+  const los = segs.map((sp) => path([[x(sp[0].distanceM), y(sp[0].losM)], [x(sp[sp.length - 1].distanceM), y(sp[sp.length - 1].losM)]])).join("");
 
-  const hits = pts
-    .slice(1, -1)
+  const hits = segs
+    .flatMap((sp) => sp.slice(1, -1))
     .filter((q) => q.clearanceRatio < FRESNEL_CLEAR_RATIO)
     .map((q) => `<circle class="${q.clearanceM < 0 ? "hit-block" : "hit-fresnel"}" cx="${x(q.distanceM).toFixed(1)}" cy="${y(q.terrainM).toFixed(1)}" r="2.6"/>`)
     .join("");
@@ -863,6 +955,17 @@ function drawProfile(r: ProfileResult, p: TerrainParams, width: number, names: [
   const first = pts[0];
   const last = pts[pts.length - 1];
   const mast = (q: typeof first) => `<line class="mast" x1="${x(q.distanceM)}" x2="${x(q.distanceM)}" y1="${y(q.terrainM)}" y2="${y(q.losM)}"/>`;
+  // Each antenna: the path's two ends, and each relay between segments (the
+  // higher of the two hops' antenna tops, which are the same mast).
+  const antennas = [first, ...segs.slice(0, -1).map((sp, i) => {
+    const end = sp[sp.length - 1];
+    const next = segs[i + 1][0];
+    return next.losM > end.losM ? next : end;
+  }), last];
+  const relayLabels = antennas
+    .slice(1, -1)
+    .map((q, i) => `<text class="end-label relay-label" x="${x(q.distanceM)}" y="${Math.max(pad.t + 10, y(q.losM) - 8)}" text-anchor="middle">${escapeXml(names[i + 1] ?? "Relay")}</text>`)
+    .join("");
 
   const hLabel = (m: number) => `${fmt(fromMetres(m, p.heightUnit), 0)} ${p.heightUnit}`;
   const dLabel = (m: number) => `${fmt(fromMetres(m, p.distUnit), fromMetres(total, p.distUnit) < 10 ? 1 : 0)}`;
@@ -870,17 +973,18 @@ function drawProfile(r: ProfileResult, p: TerrainParams, width: number, names: [
   const xTicks = [0, total / 2, total];
 
   return `
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Terrain profile between the two sites" data-left="${pad.l}" data-right="${pad.r}">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${segs.length > 1 ? "Terrain profile through the relay" : "Terrain profile between the two sites"}" data-left="${pad.l}" data-right="${pad.r}">
       ${yTicks.map((m) => `<line class="gridline" x1="${pad.l}" x2="${W - pad.r}" y1="${y(m)}" y2="${y(m)}"/><text class="axis" x="${pad.l - 6}" y="${y(m) + 4}" text-anchor="end">${hLabel(m)}</text>`).join("")}
       <path class="zone" d="${zone}"/>
       <path class="zone60" d="${zone60}"/>
       <path class="terrain-fill" d="${terrain}"/>
       <path class="los" d="${los}"/>
-      ${mast(first)}${mast(last)}
+      ${antennas.map(mast).join("")}
       ${hits}
       ${xTicks.map((d, i) => `<text class="axis" x="${x(d)}" y="${H - 8}" text-anchor="${["start", "middle", "end"][i]}">${dLabel(d)}${i === 2 ? ` ${p.distUnit}` : ""}</text>`).join("")}
       <text class="end-label" x="${x(0) + 4}" y="${y(first.losM) - 6}">${escapeXml(names[0])}</text>
-      <text class="end-label" x="${x(total) - 4}" y="${y(last.losM) - 6}" text-anchor="end">${escapeXml(names[1])}</text>
+      <text class="end-label" x="${x(total) - 4}" y="${y(last.losM) - 6}" text-anchor="end">${escapeXml(names[names.length - 1])}</text>
+      ${relayLabels}
       <line class="crosshair" x1="0" x2="0" y1="${pad.t}" y2="${H - pad.b}" style="display:none"/>
     </svg>
     <p class="note chart-readout">Tap the chart to read any point.</p>

@@ -117,6 +117,7 @@ export const meshGuide: FieldGuide = {
 
 export const coverageGuide: FieldGuide = {
   help: {
+    siteName: "What to call the site on the map, in the 3D view and in the KMZ export.",
     site: shared.location,
     radius: "How far out from the site to map. Larger areas take a little longer and use coarser terrain.",
     detail:

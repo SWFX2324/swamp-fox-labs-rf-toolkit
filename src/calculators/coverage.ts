@@ -25,6 +25,7 @@ import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } fr
 import { tabStateToSave, tabValues } from "../lib/appSettings";
 import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { loadTiles } from "./tileElevation";
+import type { EditField } from "../lib/scene3d";
 import {
   type DistanceUnit,
   frequencyUnits,
@@ -43,6 +44,7 @@ const STORAGE_KEY = "rf-toolkit:coverage";
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
 const legacyDefaults: Record<string, string> = {
+  siteName: "",
   site: "",
   freq: "915",
   freqUnit: "MHz",
@@ -130,6 +132,9 @@ const template = `
     <section class="card">
       <div class="card-head"><h2>Site</h2><span class="meta">Transmitter or repeater</span></div>
       <div class="fields">
+        <label>Name
+          <input name="siteName" type="text" autocomplete="off" maxlength="40" placeholder="Site" />
+        </label>
         <label>Location
           <span class="input-unit">
             <input name="site" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
@@ -293,6 +298,12 @@ export const coverageCalculator: Calculator = {
     const heightUnit = () => asDistanceUnit(field("heightUnit").value);
     const radiusM = () => toMetres(num("radius"), asDistanceUnit(field("radiusUnit").value));
     const site = () => parseCoordinates(field("site").value);
+    const siteName = () => field("siteName").value.trim() || "Site";
+    const nameTag = () => {
+      const tag = document.createElement("span");
+      tag.textContent = siteName(); // user text
+      return tag;
+    };
 
     let map: L.Map | undefined;
     let clearControl: ClearControl | undefined;
@@ -337,8 +348,10 @@ export const coverageCalculator: Calculator = {
           field("site").value = formatCoordinates({ lat: q.lat, lon: q.lng });
           inputsChanged();
         });
+        marker.bindTooltip(nameTag(), { permanent: true, direction: "right", offset: [8, -16], className: "pin-name" });
       } else {
         marker.setLatLng([p.lat, p.lon]);
+        marker.setTooltipContent(nameTag());
       }
       const r = radiusM();
       aimLine?.remove();
@@ -629,12 +642,33 @@ export const coverageCalculator: Calculator = {
         else showDefaultView(m);
       });
       clearControl = addClearControl(map, "the site and coverage", clearCoverage);
+      // What the 3D view's editor shows for the site, by field name.
+      const siteFields = (p: LatLon): EditField[] => {
+        const f = (key: string, label: string, unit?: string, type: EditField["type"] = "number"): EditField => ({ key, label, value: field(key).value, unit, type });
+        const fields = [
+          f("siteName", "Name", undefined, "text"),
+          f("power", "TX power", field("powerUnit").value),
+          f("txGain", "Antenna gain", "dBi"),
+          { ...f("txPattern", "Antenna pattern", undefined, "select"), options: patterns.map((q) => ({ value: q.id, label: q.name })) },
+          ...(field("txPattern").value === "omni" ? [] : [f("txAzimuth", "Points", "° true")]),
+          f("txHeight", "Antenna height", field("heightUnit").value),
+          f("sens", "RX sensitivity", "dBm"),
+          f("radius", "Radius", field("radiusUnit").value),
+        ];
+        return [...fields, { key: "location", label: "Location", value: formatCoordinates(p), type: "text" }];
+      };
+      // Mapping again after a 3D change, so the shading there matches it.
+      const remap = () => {
+        setStatus("");
+        inputsChanged();
+        if (site()) void run();
+      };
       view3d = add3DControl(map, () => {
         const p = site();
         const r = radiusM();
         return {
           title: "Coverage Analysis",
-          points: p ? [{ ...p, label: "Site", heightM: toMetres(num("txHeight") || 0, heightUnit()) }] : [],
+          points: p ? [{ ...p, label: siteName(), heightM: toMetres(num("txHeight") || 0, heightUnit()), fields: siteFields(p) }] : [],
           links: [],
           // Only shading that matches the current settings, as on this map.
           overlay: overlay && lastOverlay ? lastOverlay : undefined,
@@ -644,9 +678,24 @@ export const coverageCalculator: Calculator = {
           // there is something to see there.
           onMove: (_i, q) => {
             field("site").value = formatCoordinates(q);
-            setStatus("");
-            inputsChanged();
-            void run();
+            remap();
+          },
+          // The pop-up editor: changes land in the fields as if typed there.
+          onEdit: (_i, values) => {
+            const { location, ...rest } = values;
+            for (const [key, value] of Object.entries(rest)) field(key).value = value;
+            if (location !== undefined) {
+              const q = parseCoordinates(location);
+              if (q) field("site").value = formatCoordinates(q);
+              else setStatus("That location wasn't understood. Use decimal degrees like 35.22710, -80.84310, or MGRS.", true);
+            }
+            syncPattern();
+            placeSite(location !== undefined);
+            // Only the name changed: nothing to map again.
+            if (Object.keys(values).every((k) => k === "siteName")) {
+              inputsChanged();
+              view3d?.refresh();
+            } else remap();
           },
         };
       });
@@ -718,6 +767,12 @@ export const coverageCalculator: Calculator = {
       // Typing a location or radius waits for "change"; radios recompute live.
       const name = (e.target as HTMLElement).getAttribute("name");
       if (name === "site") return;
+      if (name === "siteName") {
+        marker?.setTooltipContent(nameTag());
+        save();
+        view3d?.refresh();
+        return;
+      }
       clearTimeout(pending);
       pending = setTimeout(inputsChanged, 200);
     });
@@ -763,7 +818,7 @@ export const coverageCalculator: Calculator = {
         onExport: (name) => {
           const p = site();
           if (!p || !samples || sampledFor !== sampleKey() || !lastOverlay) return "Press Map coverage first.";
-          const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, [{ name: "TX site", lat: p.lat, lon: p.lon }], RADIO_FILE);
+          const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, [{ name: siteName(), lat: p.lat, lon: p.lon }], RADIO_FILE);
           const encoder = new TextEncoder();
           const kmz = buildZip([
             { name: "doc.kml", data: encoder.encode(kml) },

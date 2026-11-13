@@ -11,7 +11,11 @@ export interface EditField {
   label: string;
   value: string;
   unit?: string;
-  type: "text" | "number";
+  type: "text" | "number" | "select";
+  /** Shown in an empty field, e.g. the default it falls back to. */
+  placeholder?: string;
+  /** The choices for a select. */
+  options?: { value: string; label: string }[];
 }
 
 /** An antenna: where it stands, what to call it, and how high it is off the ground. */
