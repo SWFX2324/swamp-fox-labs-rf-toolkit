@@ -22,7 +22,7 @@ export interface AppSettings {
   /** Earth curvature choice id, as in horizon.ts kFactors. */
   kFactor: string;
   antennaGainDbi: number;
-  /** Flat cable loss per end, dB (the Link Budget keeps its cable calculator). */
+  /** Flat cable loss per end, dB (the Link Analysis keeps its cable calculator). */
   cableLossDb: number;
   /** Loss per connector or coupler, dB. */
   connectorLossDb: number;

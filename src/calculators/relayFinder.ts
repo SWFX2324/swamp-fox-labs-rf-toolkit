@@ -9,7 +9,7 @@ import { type RelaySurface, radiusToCover, relaySearchBox, relaySurface } from "
 import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
 import { loadTiles } from "./tileElevation";
 
-/** One hop's radio, as the Coverage Map uses it: EIRP, receive gains and losses, derated sensitivity and clutter. */
+/** One hop's radio, as the Coverage Analysis uses it: EIRP, receive gains and losses, derated sensitivity and clutter. */
 export type HopRadio = Omit<CoverageRadio, "freqHz">;
 
 export interface RelayFinderInputs {
@@ -67,7 +67,7 @@ function cssColor(name: string): [number, number, number] {
 }
 
 /**
- * The surface as a transparent PNG data URL in the Coverage Map's colours:
+ * The surface as a transparent PNG data URL in the Coverage Analysis's colours:
  * strong (fade margin + 10 dB), solid (fade margin), marginal (above 0 dB).
  * Spots where a relay wouldn't close both hops stay clear.
  */

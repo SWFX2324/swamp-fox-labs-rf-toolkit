@@ -24,8 +24,8 @@ export interface Calculator {
 
 export const calculators: Calculator[] = [
   linkBudgetCalculator,
-  meshCalculator,
   coverageCalculator,
+  meshCalculator,
   antennaLengthCalculator,
   coaxLossCalculator,
   satPointingCalculator,

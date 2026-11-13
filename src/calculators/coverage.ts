@@ -1,4 +1,4 @@
-// Coverage Map: shade the area one site can reach, over terrain, on the map.
+// Coverage Analysis: shade the area one site can reach, over terrain, on the map.
 
 import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
@@ -254,7 +254,7 @@ function landCoverSummary(lc: { site: LandCoverPoint; points: LandCoverPoint[][]
 
 export const coverageCalculator: Calculator = {
   id: "coverage",
-  title: "Coverage Map",
+  title: "Coverage Analysis",
   shortTitle: "Coverage",
   render() {
     const form = document.createElement("form");
@@ -633,7 +633,7 @@ export const coverageCalculator: Calculator = {
         const p = site();
         const r = radiusM();
         return {
-          title: "Coverage Map",
+          title: "Coverage Analysis",
           points: p ? [{ ...p, label: "Site", heightM: toMetres(num("txHeight") || 0, heightUnit()) }] : [],
           links: [],
           // Only shading that matches the current settings, as on this map.

@@ -1,5 +1,5 @@
 // Field readings: signal strengths measured on the ground, kept next to what
-// the Coverage Map predicted at the same spot. The gap between them (measured
+// the Coverage Analysis predicted at the same spot. The gap between them (measured
 // minus predicted) shows how far the model is off on your terrain, and its
 // average can correct the map.
 

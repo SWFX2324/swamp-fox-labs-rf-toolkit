@@ -264,7 +264,7 @@ const overlayCorners = (b: NonNullable<Scene3D["overlay"]>["bounds"]): Corners =
   [b.west, b.south],
 ];
 
-// Matches the key under the 2D Coverage Map.
+// Matches the key under the 2D Coverage Analysis.
 const COVERAGE_LEGEND = `<div class="legend coverage-legend"><span class="key"><span class="sw cov-strong"></span>Strong</span><span class="key"><span class="sw cov-solid"></span>Solid</span><span class="key"><span class="sw cov-marginal"></span>Marginal</span></div>`;
 
 const template = (title: string) => `

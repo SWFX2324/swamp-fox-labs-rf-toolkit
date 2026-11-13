@@ -709,3 +709,9 @@ main .leaflet-container { background: var(--card-2); }
   max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .leaflet-tooltip.pin-name::before { display: none; }
+/* Map buttons and credits in the 3D view sit in from the edges, clear of the frame. */
+.view3d-map .maplibregl-ctrl-top-right .maplibregl-ctrl { margin: 16px 16px 0 0; }
+.view3d-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl { margin: 0 16px 16px 0; }
+.view3d-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl { margin: 0 0 16px 16px; }
+/* The page behind the full-screen 3D view shouldn't scroll or show its scrollbar. */
+body:has(dialog.view3d[open]) { overflow: hidden; }

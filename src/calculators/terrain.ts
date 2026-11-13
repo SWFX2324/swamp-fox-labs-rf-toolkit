@@ -52,7 +52,7 @@ export interface HopAnalysis {
   status: ProfileStatus;
 }
 
-/** What the card needs from the Link Budget about each site. */
+/** What the card needs from the Link Analysis about each site. */
 export interface SiteHooks {
   /** Display names; blank means the default ("TX", "RX", "Relay"). */
   names(): Record<SiteId, string>;
@@ -503,14 +503,14 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
         pinsChanged();
       };
       return {
-        title: "Link Budget",
+        title: "Link Analysis",
         points,
         links,
         k: lastParams?.k ?? STANDARD_K,
         overlay: surface?.image,
         // A pin dragged in 3D moves just as if it were dragged on this map.
         onMove: (i: number, p: LatLon) => moveSite(ids[i], p),
-        // The pop-up editor: location here, everything else on the Link Budget.
+        // The pop-up editor: location here, everything else on the Link Analysis.
         onEdit: (i: number, values: Record<string, string>) => {
           const { location, ...rest } = values;
           if (Object.keys(rest).length) hooks.edit(ids[i], rest);

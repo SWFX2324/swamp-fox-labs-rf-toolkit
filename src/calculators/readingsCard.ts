@@ -1,4 +1,4 @@
-// Field readings card for the Coverage Map: log the signal your radio actually
+// Field readings card for the Coverage Analysis: log the signal your radio actually
 // got at a spot, see it next to the map's prediction there, and optionally
 // correct the map by the average error.
 

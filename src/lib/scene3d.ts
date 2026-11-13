@@ -30,7 +30,7 @@ export interface Link3D {
 }
 
 export interface Scene3D {
-  /** Shown in the view's title, e.g. "Link Budget". */
+  /** Shown in the view's title, e.g. "Link Analysis". */
   title: string;
   points: Point3D[];
   links: Link3D[];
