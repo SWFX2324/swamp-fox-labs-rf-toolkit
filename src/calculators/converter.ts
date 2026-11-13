@@ -133,6 +133,10 @@ function saveState(state: Record<string, number>): void {
   }
 }
 
+// Fields that can be negative. iPhones' decimal keypad has no minus key, so
+// these use the regular keyboard (minus is on its 123 key).
+const SIGNED = new Set(["dbm", "dbw", "dbi", "dbd", "db"]);
+
 export const converterCalculator: Calculator = {
   id: "convert",
   title: "RF Converter",
@@ -155,7 +159,7 @@ export const converterCalculator: Calculator = {
               (f) => `
             <label>${f.label}
               <span class="input-unit">
-                <input name="${card.id}-${f.name}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" />
+                <input name="${card.id}-${f.name}" type="text" ${SIGNED.has(f.name) ? "" : 'inputmode="decimal" '}autocomplete="off" spellcheck="false" />
                 ${f.unit ? `<span class="unit">${f.unit}</span>` : ""}
               </span>
             </label>`,

@@ -87,5 +87,20 @@ themeToggle.addEventListener("click", () => {
 deviceTheme.addEventListener("change", markTheme);
 markTheme();
 
+// iPhones show a decimal keypad with no minus key for inputmode="decimal", so a
+// number box that can take a negative (antenna gain, sensitivity, dBm) drops it
+// and gets the number-and-symbol keyboard instead. Boxes that can't go below
+// zero keep the plain keypad. Watching the page covers boxes added later (node
+// rows, the 3D site editor).
+const allowNegatives = (root: ParentNode) => {
+  for (const input of root.querySelectorAll<HTMLInputElement>('input[type="number"][inputmode]')) {
+    const min = input.getAttribute("min");
+    if (min === null || Number(min) < 0) input.removeAttribute("inputmode");
+  }
+};
+new MutationObserver((records) => {
+  for (const r of records) for (const n of r.addedNodes) if (n instanceof HTMLElement) allowNegatives(n);
+}).observe(document.body, { childList: true, subtree: true });
+
 window.addEventListener("hashchange", show);
 show();
