@@ -5,7 +5,7 @@
 
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
+import { OVERLAY_MAX_ZOOM, OVERLAY_URL, SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL, tileInUsgsArea } from "../lib/offlineArea";
 import { addOfflineControl } from "./offlineControl";
 import { THEME_EVENT, isDarkTheme } from "./theme";
 import type { Scene3D } from "../lib/scene3d";
@@ -15,6 +15,8 @@ const LAYER_KEY = "rf-toolkit:map-layer";
 export const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 export const SENTINEL_ATTRIBUTION = `<a href="https://cloudless.eox.at">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${SENTINEL_YEAR})`;
+export const OVERLAY_ATTRIBUTION =
+  'Labels: data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, rendering &copy; <a href="https://maps.eox.at">EOX::Maps</a> and <a href="https://github.com/mapserver/basemaps">MapServer</a>';
 export const USGS_ATTRIBUTION = '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map">USGS The National Map</a>';
 
 type LayerName = "Streets" | "Dark" | "Satellite";
@@ -78,6 +80,15 @@ export function addClearControl(map: L.Map, what: string, onClear: () => void): 
   };
 }
 
+const BLANK_TILE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+/** EOX's labels, left blank over the US, where the USGS hybrid already prints names. */
+const LabelsOutsideUs = L.TileLayer.extend({
+  getTileUrl(this: L.TileLayer, coords: L.Coords) {
+    return tileInUsgsArea(coords) ? BLANK_TILE : L.TileLayer.prototype.getTileUrl.call(this, coords);
+  },
+}) as unknown as new (url: string, options?: L.TileLayerOptions) => L.TileLayer;
+
 /** Default view when a page has nothing to show yet: the contiguous US. */
 export function showDefaultView(map: L.Map): void {
   map.setView([37.5, -96], 4);
@@ -96,8 +107,8 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     // CORS here too, because browsers count a cached no-CORS tile as several MB.
     Streets: L.tileLayer(osm, { maxZoom: 19, crossOrigin: true, attribution: OSM_ATTRIBUTION }),
     Dark: L.tileLayer(osm, { maxZoom: 19, crossOrigin: true, attribution: OSM_ATTRIBUTION, className: "map-dark" }),
-    // Sentinel-2 covers the world at about 10 m. USGS aerial imagery sits on top
-    // at about 1 m but only covers the US; elsewhere its tiles 404 and Sentinel
+    // Sentinel-2 covers the world at about 10 m. USGS aerial imagery, with roads
+    // and names (a hybrid), sits on top at about 1 m but only covers the US; elsewhere its tiles 404 and Sentinel
     // shows through. Both are keyless, and CORS keeps those 404s out of the cache.
     Satellite: L.layerGroup([
       L.tileLayer(SENTINEL_URL, {
@@ -111,6 +122,13 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
         maxNativeZoom: USGS_MAX_ZOOM,
         crossOrigin: true,
         attribution: USGS_ATTRIBUTION,
+      }),
+      // Place and road names on top elsewhere, so it reads as a hybrid map.
+      new LabelsOutsideUs(OVERLAY_URL, {
+        maxZoom: 19,
+        maxNativeZoom: OVERLAY_MAX_ZOOM,
+        crossOrigin: true,
+        attribution: OVERLAY_ATTRIBUTION,
       }),
     ]),
   };

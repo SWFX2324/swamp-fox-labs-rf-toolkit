@@ -495,7 +495,8 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     return { ...result, loss };
   };
 
-  // Closed until wanted, so it doesn't push the results down; open if pins exist.
+  // Open on desktop, where there's room beside the results. On a phone it stays
+  // closed until wanted, so it doesn't push the results down, unless pins exist.
   const setOpen = (open: boolean) => {
     el("body").hidden = !open;
     el("toggle").textContent = open ? "Hide" : "Show";
@@ -503,7 +504,7 @@ export function createTerrainCard(onPathChange: () => void): TerrainCard {
     if (open) initMap();
   };
   el("toggle").addEventListener("click", () => setOpen(el("body").hidden !== false));
-  if (tx || rx) el("body").hidden = false;
+  if (tx || rx || window.matchMedia("(min-width: 601px)").matches) el("body").hidden = false;
   el("toggle").textContent = el("body").hidden ? "Show" : "Hide";
   el("toggle").setAttribute("aria-expanded", String(!el("body").hidden));
 

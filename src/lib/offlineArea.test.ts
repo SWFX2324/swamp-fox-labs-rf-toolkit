@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGERY_CACHE, MAX_IMAGERY_TILES, SENTINEL_MAX_ZOOM, TERRAIN_CACHE, USGS_MAX_ZOOM, planOfflineArea, tilesInBox } from "./offlineArea";
+import { IMAGERY_CACHE, MAX_IMAGERY_TILES, SENTINEL_MAX_ZOOM, TERRAIN_CACHE, USGS_MAX_ZOOM, planOfflineArea, tileBox, tileInUsgsArea, tilesInBox } from "./offlineArea";
 import { chooseZoom, tilesCovering, tileUrl } from "./terrainTiles";
 
 // About 30 km across, at Camp Lejeune and in Germany.
@@ -48,7 +48,10 @@ describe("planOfflineArea", () => {
     expect(plan.usgs).toBe(true);
     expect(plan.imageryMaxZoom).toBe(USGS_MAX_ZOOM);
     expect(imagery(plan).some((t) => t.url.includes("nationalmap") && t.url.includes(`/tile/${USGS_MAX_ZOOM}/`))).toBe(true);
-    expect(imagery(plan).some((t) => t.url.includes("eox.at") && t.url.includes(`/g/${USGS_MAX_ZOOM}/`))).toBe(false);
+    expect(imagery(plan).some((t) => t.url.includes("s2cloudless") && t.url.includes(`/g/${USGS_MAX_ZOOM}/`))).toBe(false);
+    // In the US the USGS hybrid has the labels, so the EOX overlay stays out.
+    expect(imagery(plan).some((t) => t.url.includes("USGSImageryTopo"))).toBe(true);
+    expect(imagery(plan).some((t) => t.url.includes("overlay_bright"))).toBe(false);
   });
 
   it("uses Sentinel alone outside the US", () => {
@@ -82,5 +85,31 @@ describe("planOfflineArea", () => {
     const { estimatedBytes } = planOfflineArea(lejeune);
     expect(estimatedBytes).toBeGreaterThan(1e6);
     expect(estimatedBytes).toBeLessThan(200e6);
+  });
+});
+
+describe("tileInUsgsArea", () => {
+  const tileAt = (lat: number, lon: number, z: number) => {
+    const n = 2 ** z;
+    const r = (lat * Math.PI) / 180;
+    return { z, x: Math.floor(((lon + 180) / 360) * n), y: Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n) };
+  };
+
+  it("finds tiles inside the USGS hybrid's areas, so EOX labels skip them", () => {
+    expect(tileInUsgsArea(tileAt(34.75, -77.43, 12))).toBe(true); // coastal North Carolina
+    expect(tileInUsgsArea(tileAt(48.86, 2.35, 12))).toBe(false); // Paris
+  });
+
+  it("keeps labels on tiles that only partly overlap the US", () => {
+    // A zoom-3 tile spans far beyond the lower 48.
+    expect(tileInUsgsArea(tileAt(40, -100, 3))).toBe(false);
+  });
+
+  it("gives a tile's corners in degrees", () => {
+    const b = tileBox({ z: 1, x: 1, y: 0 });
+    expect(b.west).toBe(0);
+    expect(b.east).toBe(180);
+    expect(b.north).toBeCloseTo(85.0511, 3);
+    expect(b.south).toBeCloseTo(0, 9);
   });
 });

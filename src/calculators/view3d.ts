@@ -12,11 +12,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { distanceBetweenM } from "../lib/geo";
 import { linkLineOrder, type LinkLineStyle } from "../lib/linkLines";
-import { SENTINEL_MAX_ZOOM, SENTINEL_URL, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
+import { OVERLAY_MAX_ZOOM, OVERLAY_URL, SENTINEL_MAX_ZOOM, SENTINEL_URL, USGS_MAX_ZOOM, USGS_URL, tileInUsgsArea } from "../lib/offlineArea";
 import { LINK_SAMPLES, type Scene3D, lineOfSightHeights, linkSamples, ringCoordinates, viewBearing } from "../lib/scene3d";
 import { TILE_URL } from "../lib/terrainTiles";
 import { linkLegend } from "./linkLine";
-import { OSM_ATTRIBUTION, SENTINEL_ATTRIBUTION, USGS_ATTRIBUTION } from "./mapKit";
+import { OSM_ATTRIBUTION, OVERLAY_ATTRIBUTION, SENTINEL_ATTRIBUTION, USGS_ATTRIBUTION } from "./mapKit";
 import { isDarkTheme } from "./theme";
 
 // The bundler moves the worker, so tell MapLibre where it ended up.
@@ -357,6 +357,9 @@ export function open3DView(first: Scene3D): View3D {
 
   const handle: View3D = { update: () => {}, isOpen: () => open };
   const dark = isDarkTheme();
+  // In the US the USGS hybrid already prints names; EOX's labels are for elsewhere.
+  const at = first.points[0] ?? first.ring?.center ?? first.center;
+  const labelsWanted = !tileInUsgsArea({ z: 10, x: Math.floor(((at.lon + 180) / 360) * 1024), y: Math.floor(((1 - Math.log(Math.tan((at.lat * Math.PI) / 180) + 1 / Math.cos((at.lat * Math.PI) / 180)) / Math.PI) / 2) * 1024) });
   const visible = (on: boolean) => (on ? "visible" : "none") as "visible" | "none";
   // Dash lengths are in line widths, echoing the 2D standard.
   const dashFor = (s: LinkLineStyle) => (s === "good-clear" ? undefined : s === "good-obstructed" ? [3, 2] : s === "marginal" ? [0.6, 1.4] : [0.1, 1.4]);
@@ -405,6 +408,7 @@ export function open3DView(first: Scene3D): View3D {
           osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, maxzoom: 19, attribution: OSM_ATTRIBUTION },
           sentinel: { type: "raster", tiles: [SENTINEL_URL], tileSize: 256, maxzoom: SENTINEL_MAX_ZOOM, attribution: SENTINEL_ATTRIBUTION },
           usgs: { type: "raster", tiles: [USGS_URL], tileSize: 256, maxzoom: USGS_MAX_ZOOM, bounds: USGS_BOUNDS, attribution: USGS_ATTRIBUTION },
+          labels: { type: "raster", tiles: [OVERLAY_URL], tileSize: 256, maxzoom: OVERLAY_MAX_ZOOM, attribution: OVERLAY_ATTRIBUTION },
           tracks: { type: "geojson", data: groundTracks(scene) },
           ring: { type: "geojson", data: ringData(scene) },
         },
@@ -419,6 +423,8 @@ export function open3DView(first: Scene3D): View3D {
           },
           { id: "sentinel", type: "raster", source: "sentinel", layout: { visibility: visible(base === "satellite") } },
           { id: "usgs", type: "raster", source: "usgs", layout: { visibility: visible(base === "satellite") } },
+          // Roads and place names over the imagery: a hybrid map, as in 2D.
+          { id: "labels", type: "raster", source: "labels", layout: { visibility: visible(base === "satellite" && labelsWanted) } },
           {
             id: "shade",
             type: "hillshade",
@@ -538,6 +544,7 @@ export function open3DView(first: Scene3D): View3D {
     map.setLayoutProperty("shade", "visibility", visible(next === "map"));
     map.setLayoutProperty("sentinel", "visibility", visible(next === "satellite"));
     map.setLayoutProperty("usgs", "visibility", visible(next === "satellite"));
+    map.setLayoutProperty("labels", "visibility", visible(next === "satellite" && labelsWanted));
   };
   for (const b of dialog.querySelectorAll<HTMLButtonElement>("[data-base]")) b.addEventListener("click", () => setBase(b.dataset.base as Base));
   setBase(base);

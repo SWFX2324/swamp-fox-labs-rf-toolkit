@@ -8,8 +8,16 @@ import { landCoverUrl } from "./landCover";
 export const SENTINEL_YEAR = 2024;
 export const SENTINEL_URL = `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-${SENTINEL_YEAR}_3857/default/g/{z}/{y}/{x}.jpg`;
 export const SENTINEL_MAX_ZOOM = 14;
-export const USGS_URL = "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}";
+// USGS imagery with US Topo roads, route shields and names on it: a hybrid
+// map, public domain, for the US.
+export const USGS_URL = "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}";
 export const USGS_MAX_ZOOM = 16;
+// Place and road names over the Sentinel imagery outside the US (EOX's bright
+// overlay, from OpenStreetMap data; labels only, no road lines). Skipped over
+// the US, where the USGS hybrid already has them. Not an OpenStreetMap tile
+// server, so it may be saved for offline use.
+export const OVERLAY_URL = "https://tiles.maps.eox.at/wmts/1.0.0/overlay_bright_3857/default/g/{z}/{y}/{x}.png";
+export const OVERLAY_MAX_ZOOM = 18;
 
 /** Service worker caches, so saved tiles are found the same way as viewed ones. */
 export const TERRAIN_CACHE = "elevation-tiles";
@@ -27,6 +35,7 @@ const TERRAIN_TILE_BYTES = 110_000;
 const LAND_COVER_TILE_BYTES = 6_000;
 const SENTINEL_TILE_BYTES = 13_000;
 const USGS_TILE_BYTES = 26_000;
+const OVERLAY_TILE_BYTES = 6_000;
 
 // Rough outlines of USGS imagery: the lower 48, Alaska, Hawaii and Puerto Rico.
 // Its tiles 404 elsewhere, so this avoids asking for them.
@@ -36,6 +45,19 @@ const USGS_AREAS: Box[] = [
   { north: 22.5, south: 18.5, west: -161, east: -154 },
   { north: 18.7, south: 17.5, west: -68, east: -64 },
 ];
+
+/** A web-map tile's corners in degrees. */
+export function tileBox({ z, x, y }: TileId): Box {
+  const n = 2 ** z;
+  const lat = (row: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * row) / n))) * 180) / Math.PI;
+  return { north: lat(y), south: lat(y + 1), west: (x / n) * 360 - 180, east: ((x + 1) / n) * 360 - 180 };
+}
+
+/** True when a tile lies wholly inside the areas the USGS hybrid covers. */
+export function tileInUsgsArea(t: TileId): boolean {
+  const b = tileBox(t);
+  return USGS_AREAS.some((a) => b.north <= a.north && b.south >= a.south && b.west >= a.west && b.east <= a.east);
+}
 
 export interface Box {
   north: number;
@@ -111,7 +133,8 @@ export function planOfflineArea(box: Box): OfflinePlan {
   let imageryCount = 0;
   let imageryMaxZoom = IMAGERY_MIN_ZOOM - 1;
   for (let z = IMAGERY_MIN_ZOOM; z <= top; z++) {
-    const count = tileCount(box, z) * ((z <= SENTINEL_MAX_ZOOM ? 1 : 0) + (usgs ? 1 : 0));
+    const count = tileCount(box, z) * ((z <= SENTINEL_MAX_ZOOM ? 1 : 0) + (usgs ? 1 : 0) + (z <= OVERLAY_MAX_ZOOM ? 1 : 0));
+    // (The label count is a ceiling: tiles inside the US skip it.)
     if (imageryCount + count > MAX_IMAGERY_TILES) break;
     imageryCount += count;
     imageryMaxZoom = z;
@@ -135,6 +158,10 @@ export function planOfflineArea(box: Box): OfflinePlan {
       if (usgs) {
         tiles.push({ url: imageryUrl(USGS_URL, t), cache: IMAGERY_CACHE });
         estimatedBytes += USGS_TILE_BYTES;
+      }
+      if (z <= OVERLAY_MAX_ZOOM && !tileInUsgsArea(t)) {
+        tiles.push({ url: imageryUrl(OVERLAY_URL, t), cache: IMAGERY_CACHE });
+        estimatedBytes += OVERLAY_TILE_BYTES;
       }
     }
   }
