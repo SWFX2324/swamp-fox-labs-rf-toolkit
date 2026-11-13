@@ -107,19 +107,10 @@ main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
   .link-budget, .two-col { grid-template-columns: minmax(0, 1fr); }
   .results { position: static; }
 }
-/* Large desktop screens only (phones, tablets and laptops keep the layout above).
-   The page widens, inputs flow into two columns beside the results, and maps grow
-   with the window (map heights are at the end of this file, after the base sizes). */
-@media (min-width: 1500px) {
-  main { max-width: min(92vw, 1680px); }
-}
-@media (min-width: 2200px) {
-  main { max-width: min(94vw, 3600px); }
-  .link-budget, .two-col { grid-template-columns: minmax(0, 3fr) minmax(420px, 1fr); }
-  .inputs { grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); align-items: start; }
-  /* The map gets the wider column; the Link Budget terrain profile takes a full row. */
-  .inputs:has(.mesh-map, .coverage-map) { grid-template-columns: minmax(520px, 1fr) minmax(0, 2fr); }
-  .inputs > .terrain { grid-column: 1 / -1; }
+/* Large desktop screens only (phones, tablets and laptops keep the layout above):
+   a little more width, and taller maps (their heights are at the end of this file). */
+@media (min-width: 1600px) {
+  main { max-width: 1440px; }
 }
 .card {
   background: var(--card);
@@ -625,10 +616,7 @@ main .leaflet-container { background: var(--card-2); }
 }
 .chart-readout { color: var(--text); font-variant-numeric: tabular-nums; }
 
-/* Large desktop screens: maps grow with the window. Here so they win over the base heights. */
-@media (min-width: 1500px) {
-  .mesh-map, .coverage-map, .terrain .map { height: clamp(420px, calc(100vh - 380px), 760px); }
-}
-@media (min-width: 2200px) {
-  .mesh-map, .coverage-map, .terrain .map { height: clamp(420px, calc(100vh - 320px), 1000px); }
+/* Large desktop screens: maps a little taller. Here so they win over the base heights. */
+@media (min-width: 1600px) and (min-height: 900px) {
+  .mesh-map, .coverage-map, .terrain .map { height: 520px; }
 }
