@@ -130,7 +130,7 @@ const template = `
         </label>
         <div class="radio-summary" data-out="radioSummary" hidden>
           <span data-out="radioSummaryText"></span>
-          <button type="button" class="secondary" data-action="override">Override</button>
+          <button type="button" class="secondary" data-action="editPreset">Edit preset</button>
         </div>
         <p class="note wide" data-out="presetNote" hidden></p>
         <label>Frequency
@@ -632,7 +632,7 @@ export const meshCalculator: Calculator = {
             : undefined,
           [nodeRadios[a], nodeRadios[b]],
         );
-        return { a, b, link, distanceM: distanceBetweenM(nodes[a], nodes[b]), terrainState: elev === undefined ? "pending" : elev === "error" ? "error" : "ok" };
+        return { a, b, link, distanceM: distanceBetweenM(nodes[a], nodes[b]), terrainState: distanceBetweenM(nodes[a], nodes[b]) < 50 ? "short" : elev === undefined ? "pending" : elev === "error" ? "error" : "ok" };
       });
 
       lastLinks = results;
@@ -734,6 +734,7 @@ export const meshCalculator: Calculator = {
           const [text, cls] = statusText[r.link.status];
           const terrainCell =
             r.terrainState === "ok" ? `${fmt(r.link.terrainLossDb)} dB`
+            : r.terrainState === "short" ? "Too close to matter"
             : r.terrainState === "pending" ? "waiting"
             : "free space";
           return `<tr>
@@ -955,21 +956,17 @@ export const meshCalculator: Calculator = {
       recompute();
     });
 
-    // The preset note, and the sensitivity field only when there's no ladder.
-    // With a preset, its radio numbers fold into one line; Override opens them.
-    let overriding = false;
+    // With a preset, what it sets shows as one line, changed only by editing
+    // the preset; anything it leaves blank stays as a field here.
     const syncPresetUi = () => {
       const p = activePreset();
       const rungs = ladder(p);
-      const folded = !!p && !overriding;
-      for (const key of ["power", "gain", "cable"]) field(key).closest("label")!.hidden = folded;
-      field("sens").closest("label")!.hidden = rungs.length > 0 || folded;
+      for (const key of ["power", "gain", "cable"] as const) field(key).closest("label")!.hidden = !!p?.[key];
+      field("sens").closest("label")!.hidden = rungs.length > 0;
       out("radioSummary").hidden = !p;
       if (p) {
-        const edited = (["power", "powerUnit", "gain", "cable"] as const).some((k) => p[k] && p[k] !== field(k).value);
-        const sensWords = rungs.length ? `${rungs.length} rate${rungs.length === 1 ? "" : "s"}` : `${field("sens").value} dBm sensitivity`;
-        out("radioSummaryText").textContent = `From the preset: ${[radioWords(field("power").value, field("powerUnit").value, field("gain").value, field("cable").value), sensWords].filter(Boolean).join(", ")}${edited ? " (changed here)" : ""}.`;
-        form.querySelector('[data-action="override"]')!.textContent = overriding ? "Fold up" : "Override";
+        const words = [radioWords(p.power, p.powerUnit, p.gain, p.cable), rungs.length ? `${rungs.length} rate${rungs.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ");
+        out("radioSummaryText").textContent = words ? `${p.name}: ${words}.` : `${p.name} sets no radio numbers; enter them below.`;
       }
       const note = out("presetNote");
       const bits: string[] = [];
@@ -987,9 +984,8 @@ export const meshCalculator: Calculator = {
       note.textContent = bits.join(" ");
       note.hidden = bits.length === 0;
     };
-    // Picking a preset fills in the radio fields it has; they stay editable.
+    // The preset's numbers go into the fields it covers, so the math uses them.
     const applyPreset = (p: RadioPreset | undefined) => {
-      overriding = false;
       if (p) {
         for (const key of ["freq", "freqUnit", "power", "powerUnit", "gain", "cable"] as const) {
           const v = p[key];
@@ -1000,21 +996,15 @@ export const meshCalculator: Calculator = {
       renderNodes();
     };
     field("preset").addEventListener("change", () => applyPreset(activePreset()));
-    form.querySelector('[data-action="override"]')!.addEventListener("click", () => {
-      overriding = !overriding;
-      syncPresetUi();
-    });
-    // Edits in the open fields show in the summary line.
-    form.addEventListener("input", () => syncPresetUi());
-    form.querySelector('[data-action="presets"]')!.addEventListener("click", () =>
-      openPresetManager((id) => {
-        fillPresetOptions();
-        field("preset").value = id;
-        applyPreset(activePreset());
-        save();
-        recompute();
-      }),
-    );
+    const pickSaved = (id: string) => {
+      fillPresetOptions();
+      field("preset").value = id;
+      applyPreset(activePreset());
+      save();
+      recompute();
+    };
+    form.querySelector('[data-action="presets"]')!.addEventListener("click", () => openPresetManager(pickSaved));
+    form.querySelector('[data-action="editPreset"]')!.addEventListener("click", () => openPresetManager(pickSaved, field("preset").value));
     // Presets changed (here or in another tab): refresh the list and anything that used one.
     const onPresets = () => {
       if (!form.isConnected) {
@@ -1022,12 +1012,17 @@ export const meshCalculator: Calculator = {
         return;
       }
       fillPresetOptions();
-      syncPresetUi();
-      renderNodes();
+      // An edited preset brings its new numbers with it.
+      applyPreset(activePreset());
+      save();
       recompute();
     };
     window.addEventListener(PRESETS_EVENT, onPresets);
-    syncPresetUi();
+    // A saved preset's numbers win over what's in the fields, in case it changed since.
+    if (activePreset()) {
+      applyPreset(activePreset());
+      save();
+    } else syncPresetUi();
 
     renderNodes();
     recompute();

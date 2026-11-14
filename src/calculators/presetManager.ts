@@ -97,8 +97,11 @@ const template = `
   </form>
 `;
 
-/** Open the preset dialog. onPicked gets the id of a preset just saved, to select it. */
-export function openPresetManager(onPicked?: (id: string) => void): void {
+/**
+ * Open the preset dialog. onPicked gets the id of a preset just saved, to
+ * select it; editId opens straight into that preset's editor.
+ */
+export function openPresetManager(onPicked?: (id: string) => void, editId?: string): void {
   const dialog = document.createElement("dialog");
   dialog.className = "preset-dialog";
   dialog.setAttribute("aria-label", "Radio presets");
@@ -251,4 +254,6 @@ export function openPresetManager(onPicked?: (id: string) => void): void {
   });
 
   renderList();
+  const start = editId ? loadPresets().find((p) => p.id === editId) : undefined;
+  if (start) showEditor(start);
 }
