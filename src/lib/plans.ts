@@ -4,11 +4,14 @@
 // settings as short strings, and finite coordinates.
 
 import type { StorageLike } from "./pathStore";
+import { type RadioPreset, cleanPreset } from "./radioPresets";
 
 export interface Plan {
   settings: Record<string, string>;
   /** Mesh nodes, when the plan has any. */
   nodes?: PlanNode[];
+  /** The radio preset the plan uses, so it works on a device that doesn't have it. */
+  preset?: RadioPreset;
 }
 
 export interface PlanNode {
@@ -55,8 +58,10 @@ export function decodePlan(encoded: string, settingNames: string[]): Plan | unde
 
 export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
-  const { settings, nodes } = raw as { settings?: unknown; nodes?: unknown };
+  const { settings, nodes, preset } = raw as { settings?: unknown; nodes?: unknown; preset?: unknown };
   const clean: Plan = { settings: {} };
+  const p = cleanPreset(preset);
+  if (p) clean.preset = p;
   if (typeof settings === "object" && settings !== null) {
     for (const name of settingNames) {
       const value = (settings as Record<string, unknown>)[name];

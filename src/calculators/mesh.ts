@@ -27,6 +27,8 @@ import { type EndRadio, type MeshLink, type MeshLinkStatus, connectedGroups, hop
 import { createPathStore, pathKey } from "../lib/pathStore";
 import { sampleCount } from "../lib/profile";
 import type { EditField } from "../lib/scene3d";
+import { type RadioPreset, type Route, bestRoutes, formatRate, hopLimit, ladder, rateAt } from "../lib/radioPresets";
+import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager } from "./presetManager";
 import { kFactors, parseKFactor } from "../lib/horizon";
 import {
   type DistanceUnit,
@@ -73,6 +75,7 @@ const RADIO_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden=
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
 const legacySettingDefaults: Record<string, string> = {
+  preset: "",
   freq: "915",
   freqUnit: "MHz",
   power: "1",
@@ -111,6 +114,13 @@ const template = `
     <section class="card">
       <div class="card-head"><h2>Radios</h2><span class="meta">Every node, unless it has its own</span></div>
       <div class="fields">
+        <label class="wide">Radio preset
+          <span class="input-unit">
+            <select name="preset"></select>
+            <button type="button" class="secondary unit-btn" data-action="presets">Presets</button>
+          </span>
+        </label>
+        <p class="note wide" data-out="presetNote" hidden></p>
         <label>Frequency
           <span class="input-unit">
             <input name="freq" type="number" inputmode="decimal" step="any" min="0" />
@@ -179,11 +189,13 @@ const template = `
       <p class="note" data-out="empty">Add at least two nodes to see the links between them.</p>
       <div data-out="results" hidden>
         <p class="callout" data-out="split" hidden></p>
+        <p class="callout" data-out="hopNote" hidden></p>
         <p class="note" data-out="envNote" hidden></p>
         <p class="note" data-out="derateNote" hidden></p>
         <div class="tiles">
           <div class="tile"><span class="label">Links up</span><span class="value" data-out="up"></span><span class="sub" data-out="upSub"></span></div>
           <div class="tile"><span class="label">Most hops</span><span class="value" data-out="hops"></span><span class="sub" data-out="hopsSub"></span></div>
+          <div class="tile" data-out="thruTile" hidden><span class="label">Slowest pair, end to end</span><span class="value" data-out="thru"></span><span class="sub" data-out="thruSub"></span></div>
         </div>
         <div class="table-wrap">
           <table class="ledger links">
@@ -191,6 +203,16 @@ const template = `
             <tbody data-out="links"></tbody>
           </table>
         </div>
+        <details class="routes" data-out="routesWrap" hidden>
+          <summary>End-to-end throughput for every pair</summary>
+          <div class="table-wrap">
+            <table class="ledger">
+              <thead><tr><th>Between</th><th class="num">Hops</th><th class="num">Throughput</th></tr></thead>
+              <tbody data-out="routes"></tbody>
+            </table>
+          </div>
+          <p class="note" data-out="routesNote"></p>
+        </details>
         <details class="about"><summary>About this calculation</summary><p>Solid links keep your fade margin; marginal ones connect with less. Terrain loss uses the Irregular Terrain Model (Longley-Rice) on bare-earth elevation (Terrain Tiles, USGS in the US), at the reliability and confidence you set, so trees and buildings aren't counted unless you pick an Environment.</p></details>
       </div>
     </section>
@@ -258,6 +280,18 @@ export const meshCalculator: Calculator = {
       },
       setItem: (k, v) => localStorage.setItem(k, v),
     });
+
+    // Radio presets: the user's own, from this device.
+    const fillPresetOptions = () => {
+      const select = field("preset") as HTMLSelectElement;
+      const keep = select.value;
+      const none = new Option("None: enter the radio below", "");
+      select.replaceChildren(none, ...loadPresets().map((p) => new Option(p.name, p.id)));
+      select.value = [...select.options].some((o) => o.value === keep) ? keep : "";
+    };
+    fillPresetOptions();
+    const activePreset = (): RadioPreset | undefined => loadPresets().find((p) => p.id === field("preset").value);
+    const ladderActive = () => ladder(activePreset()).length > 0;
 
     const state = loadState(settingDefaults);
     let nodes = state.nodes;
@@ -413,6 +447,8 @@ export const meshCalculator: Calculator = {
               recompute();
             });
           }
+          // With a rate ladder, sensitivity comes from the ladder for every node.
+          cell.querySelector('input[data-k="sens"]')!.closest("label")!.hidden = ladderActive();
           const unit = cell.querySelector<HTMLSelectElement>('select[data-k="powerUnit"]')!;
           unit.value = n.powerUnit ?? sharedUnit;
           for (const type of ["input", "change"]) unit.addEventListener(type, (e) => e.stopPropagation());
@@ -508,6 +544,10 @@ export const meshCalculator: Calculator = {
         model: readModel(form),
         k: parseKFactor(field("kFactor").value),
       };
+      // A rate ladder: links are checked against its most sensitive (slowest) rate.
+      const preset = activePreset();
+      const rungs = ladder(preset, deratedSensitivity);
+      if (rungs.length) radio.sensitivityDbm = Math.min(...rungs.map((r) => r.sensDbm));
       if (!(radio.freqHz > 0) || !Number.isFinite(radio.txPowerDbm) || !Number.isFinite(radio.sensitivityDbm)) {
         out("pill").hidden = true;
         out("links").replaceChildren();
@@ -526,7 +566,7 @@ export const meshCalculator: Calculator = {
           txPowerDbm: power === undefined ? radio.txPowerDbm : toDbm(power, asPowerUnit(n.powerUnit ?? field("powerUnit").value)),
           gainDbi: own(n.gain) ?? radio.gainDbi,
           cableLossDb: own(n.cable) ?? radio.cableLossDb,
-          sensitivityDbm: sens === undefined ? radio.sensitivityDbm : deratedSensitivity(sens),
+          sensitivityDbm: sens === undefined || rungs.length ? radio.sensitivityDbm : deratedSensitivity(sens),
         };
       });
 
@@ -558,9 +598,24 @@ export const meshCalculator: Calculator = {
       const solidGroups = connectedGroups(nodes.length, solid.map((r) => [r.a, r.b]));
       const hops = hopCounts(nodes.length, up.map((r) => [r.a, r.b]));
       const maxHops = Math.max(0, ...hops.flat().filter(Number.isFinite));
+      const limit = hopLimit(preset);
+      // Pairs that can reach each other, but only in more hops than the radios allow.
+      const tooFar = limit ? pairs(nodes.length).filter(([a, b]) => Number.isFinite(hops[a][b]) && hops[a][b] > limit) : [];
+      // The rate each link holds, and the best route between every pair over links that keep the fade margin.
+      const rates = results.map((r) => rateAt(r.link.rslDbm, rungs, radio.fadeMarginDb));
+      const rateOf = new Map(results.map((r, i) => [r, rates[i]]));
+      const routes = rungs.length
+        ? bestRoutes(
+            nodes.length,
+            results.flatMap((r, i) => (rates[i].solid ? [{ a: r.a, b: r.b, kbps: rates[i].solid!.kbps }] : [])),
+            limit ?? nodes.length - 1,
+            preset?.sharedChannel ?? true,
+          )
+        : undefined;
 
       const pill = out("pill");
       const split = out("split");
+      const label = (i: number) => `${i + 1}${nodes[i].name ? ` ${nodes[i].name}` : ""}`;
       if (solidGroups.length === 1) {
         pill.className = "pill s-good";
         pill.textContent = "Solid mesh";
@@ -592,10 +647,41 @@ export const meshCalculator: Calculator = {
       out("up").textContent = `${up.length} of ${results.length}`;
       out("upSub").textContent = `${solid.length} solid, ${up.length - solid.length} marginal`;
       out("hops").textContent = groups.length === 1 ? String(maxHops) : "—";
-      out("hopsSub").textContent = groups.length === 1 ? "Between the farthest two nodes" : "The mesh is split";
+      out("hopsSub").textContent = (groups.length === 1 ? "Between the farthest two nodes" : "The mesh is split") + (limit ? `; the limit is ${limit}` : "");
+
+      const hopNote = out("hopNote");
+      hopNote.hidden = tooFar.length === 0;
+      if (tooFar.length) {
+        if (groups.length === 1) {
+          pill.className = "pill s-fail";
+          pill.textContent = "Past the hop limit";
+        }
+        const shown = tooFar.slice(0, 3).map(([a, b]) => `${a + 1} and ${b + 1} (${hops[a][b]} hops)`);
+        hopNote.textContent = `Past the preset's hop limit of ${limit}: ${shown.join(", ")}${tooFar.length > 3 ? `, and ${tooFar.length - 3} more pairs` : ""}. Messages between them run out of hops before they arrive. A relay node that shortens the route, or taller antennas for longer hops, would bring them in.`;
+      }
+
+      // End-to-end throughput, when the preset has a rate ladder.
+      out("thruTile").hidden = out("routesWrap").hidden = !routes;
+      if (routes) {
+        const all = pairs(nodes.length).map(([a, b]) => ({ a, b, route: routes[a][b] as Route | undefined }));
+        const missing = all.filter((p) => !p.route);
+        const slowest = all.filter((p) => p.route).sort((x, y) => x.route!.kbps - y.route!.kbps)[0];
+        out("thru").textContent = missing.length ? "—" : formatRate(slowest.route!.kbps);
+        out("thruSub").textContent = missing.length
+          ? `${missing.length} pair${missing.length === 1 ? " has" : "s have"} no route that keeps the fade margin${limit ? " within the hop limit" : ""}`
+          : `Nodes ${slowest.a + 1} and ${slowest.b + 1}, ${slowest.route!.hops} hop${slowest.route!.hops === 1 ? "" : "s"}`;
+        const rows = [...all].sort((x, y) => (x.route?.kbps ?? -1) - (y.route?.kbps ?? -1));
+        const body = out("routes") as HTMLTableSectionElement;
+        body.innerHTML = rows
+          .map((p) => `<tr><td></td><td class="num mono">${p.route ? p.route.hops : "—"}</td><td class="num mono">${p.route ? formatRate(p.route.kbps) : "No solid route"}</td></tr>`)
+          .join("");
+        rows.forEach((p, i) => (body.rows[i].cells[0].textContent = `${label(p.a)} ↔ ${label(p.b)}`));
+        out("routesNote").textContent = `Every hop keeps your fade margin at the rate used. ${
+          preset?.sharedChannel ?? true ? "Relays share one channel, so each hop's time on the air adds up." : "Relays forward at once, so the slowest hop sets the pace."
+        } Protocol overhead and other traffic aren't counted, so expect less in practice.`;
+      }
 
       const distUnit: DistanceUnit = asDistanceUnit(field("distUnit").value, "mi");
-      const label = (i: number) => `${i + 1}${nodes[i].name ? ` ${nodes[i].name}` : ""}`;
       out("links").innerHTML = [...results]
         .sort((x, y) => y.link.marginDb - x.link.marginDb)
         .map((r) => {
@@ -612,7 +698,13 @@ export const meshCalculator: Calculator = {
               Math.abs(r.link.marginAbDb - r.link.marginBaDb) >= 0.5
                 ? `<span class="weaker">${r.link.marginBaDb < r.link.marginAbDb ? `${r.b + 1} → ${r.a + 1}` : `${r.a + 1} → ${r.b + 1}`} is the weaker way; the other is ${fmt(Math.max(r.link.marginAbDb, r.link.marginBaDb))} dB</span>`
                 : ""
-            }</td>
+            }${(() => {
+              const rate = rateOf.get(r);
+              if (!rungs.length || !rate?.any) return "";
+              return rate.solid
+                ? `<span class="rate">Holds ${formatRate(rate.solid.kbps)}${rate.any.kbps > rate.solid.kbps ? `; ${formatRate(rate.any.kbps)} under the fade margin` : ""}</span>`
+                : `<span class="rate">${formatRate(rate.any.kbps)}, under the fade margin</span>`;
+            })()}</td>
           </tr>`;
         })
         .join("");
@@ -713,7 +805,7 @@ export const meshCalculator: Calculator = {
         },
         ...(n.antenna && n.antenna !== "omni" ? [{ key: "aim", label: "Points", value: n.aim ?? "", unit: "° true", type: "number" as const, placeholder: "0" }] : []),
         // Its own radio; blank shows the shared value and keeps using it.
-        ...NODE_RADIO_FIELDS.map((f): EditField => {
+        ...NODE_RADIO_FIELDS.filter((f) => f.key !== "sens" || !ladderActive()).map((f): EditField => {
           const unit = f.key === "power" ? (n.powerUnit ?? field("powerUnit").value) : f.unit;
           const sameUnit = f.key !== "power" || unit === field("powerUnit").value;
           return { key: f.key, label: f.label, value: n[f.key] ?? "", unit, type: "number", placeholder: sameUnit ? field(f.shared).value : "" };
@@ -809,6 +901,62 @@ export const meshCalculator: Calculator = {
       recompute();
     });
 
+    // The preset note, and the sensitivity field only when there's no ladder.
+    const syncPresetUi = () => {
+      const p = activePreset();
+      const rungs = ladder(p);
+      field("sens").closest("label")!.hidden = rungs.length > 0;
+      const note = out("presetNote");
+      const bits: string[] = [];
+      if (rungs.length) {
+        const fastest = rungs[0];
+        const slowest = rungs[rungs.length - 1];
+        bits.push(
+          rungs.length === 1
+            ? `Sensitivity comes from the preset: ${formatRate(fastest.kbps)} at ${fmt(fastest.sensDbm, 0)} dBm.`
+            : `Sensitivity comes from the preset's rate ladder: ${rungs.length} rates, ${formatRate(fastest.kbps)} at ${fmt(fastest.sensDbm, 0)} dBm down to ${formatRate(slowest.kbps)} at ${fmt(slowest.sensDbm, 0)} dBm.`,
+        );
+      }
+      const lim = hopLimit(p);
+      if (lim) bits.push(`Hop limit ${lim}.`);
+      note.textContent = bits.join(" ");
+      note.hidden = bits.length === 0;
+    };
+    // Picking a preset fills in the radio fields it has; they stay editable.
+    const applyPreset = (p: RadioPreset | undefined) => {
+      if (p) {
+        for (const key of ["freq", "freqUnit", "power", "powerUnit", "gain", "cable"] as const) {
+          const v = p[key];
+          if (v) field(key).value = v;
+        }
+      }
+      syncPresetUi();
+      renderNodes();
+    };
+    field("preset").addEventListener("change", () => applyPreset(activePreset()));
+    form.querySelector('[data-action="presets"]')!.addEventListener("click", () =>
+      openPresetManager((id) => {
+        fillPresetOptions();
+        field("preset").value = id;
+        applyPreset(activePreset());
+        save();
+        recompute();
+      }),
+    );
+    // Presets changed (here or in another tab): refresh the list and anything that used one.
+    const onPresets = () => {
+      if (!form.isConnected) {
+        window.removeEventListener(PRESETS_EVENT, onPresets);
+        return;
+      }
+      fillPresetOptions();
+      syncPresetUi();
+      renderNodes();
+      recompute();
+    };
+    window.addEventListener(PRESETS_EVENT, onPresets);
+    syncPresetUi();
+
     renderNodes();
     recompute();
     if (nodes.length >= 2) void loadTerrain();
@@ -820,10 +968,15 @@ export const meshCalculator: Calculator = {
         getPlan: () => {
           const settings: Record<string, string> = {};
           for (const name of Object.keys(settingDefaults)) settings[name] = field(name).value;
-          return { settings, nodes: nodes.map((n) => ({ ...n })) };
+          const preset = activePreset();
+          return { settings, nodes: nodes.map((n) => ({ ...n })), ...(preset ? { preset } : {}) };
         },
         applyPlan: (plan) => {
-          applySettings(form, plan.settings);
+          // A plan's preset joins this device's presets (once), so its ladder and hop limit apply here too.
+          const settingsHere = { ...plan.settings, preset: plan.preset ? adoptPreset(plan.preset) : "" };
+          fillPresetOptions();
+          applySettings(form, settingsHere);
+          syncPresetUi();
           nodes = (plan.nodes ?? []).map((n) => ({ ...n }));
           nodesChanged();
         },
