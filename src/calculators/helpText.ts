@@ -100,7 +100,6 @@ export const linkBudgetGuide: FieldGuide = {
 
 export const meshGuide: FieldGuide = {
   help: {
-    preset: "One of your own saved radios. Picking it fills in its power, gain, cable loss and frequency, and brings its rate ladder and hop limit. Make and manage them under Presets; they stay on this device.",
     freq: shared.freq,
     power: shared.power,
     gain: shared.gain,

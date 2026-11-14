@@ -12,7 +12,7 @@ export interface Plan {
   nodes?: PlanNode[];
   /** The radio preset the plan uses, so it works on a device that doesn't have it. */
   preset?: RadioPreset;
-  /** Presets individual nodes use, for the same reason. */
+  /** Other presets the plan uses (a mesh node's, a coverage receiver's), for the same reason. */
   nodePresets?: RadioPreset[];
 }
 

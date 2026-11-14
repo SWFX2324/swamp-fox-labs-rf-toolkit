@@ -125,10 +125,9 @@ const template = `
         <label class="wide">Radio preset
           <span class="preset-pick">
             <select name="preset"></select>
-            <button type="button" class="secondary" data-action="presets">Presets</button>
+            <button type="button" class="secondary" data-action="presets">Manage presets</button>
           </span>
         </label>
-        <p class="note wide" data-out="presetNote" hidden></p>
         <label>Frequency
           <span class="input-unit">
             <input name="freq" type="number" inputmode="decimal" step="any" min="0" />
@@ -952,28 +951,13 @@ export const meshCalculator: Calculator = {
       recompute();
     });
 
-    // With a preset, the fields it sets are hidden (edit them under Presets);
+    // With a preset, the fields it sets are hidden (edit them under Manage presets);
     // anything it leaves blank stays as a field. With none, every field shows.
     const syncPresetUi = () => {
       const p = activePreset();
       const rungs = ladder(p);
       for (const key of ["power", "gain", "cable"] as const) field(key).closest("label")!.hidden = !!p?.[key];
       field("sens").closest("label")!.hidden = rungs.length > 0;
-      const note = out("presetNote");
-      const bits: string[] = [];
-      if (rungs.length) {
-        const fastest = rungs[0];
-        const slowest = rungs[rungs.length - 1];
-        bits.push(
-          rungs.length === 1
-            ? `Sensitivity comes from the preset: ${formatRate(fastest.kbps)} at ${fmt(fastest.sensDbm, 0)} dBm.`
-            : `Sensitivity comes from the preset's rate ladder: ${rungs.length} rates, ${formatRate(fastest.kbps)} at ${fmt(fastest.sensDbm, 0)} dBm down to ${formatRate(slowest.kbps)} at ${fmt(slowest.sensDbm, 0)} dBm.`,
-        );
-      }
-      const lim = hopLimit(p);
-      if (lim) bits.push(`Hop limit ${lim}.`);
-      note.textContent = bits.join(" ");
-      note.hidden = bits.length === 0;
     };
     // The preset's numbers go into the fields it covers, so the math uses them.
     const applyPreset = (p: RadioPreset | undefined) => {

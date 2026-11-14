@@ -26,6 +26,8 @@ import { tabStateToSave, tabValues } from "../lib/appSettings";
 import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { loadTiles } from "./tileElevation";
 import type { EditField } from "../lib/scene3d";
+import { type RadioPreset, formatRate, ladder, rateAt } from "../lib/radioPresets";
+import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager } from "./presetManager";
 import {
   type DistanceUnit,
   frequencyUnits,
@@ -44,6 +46,8 @@ const STORAGE_KEY = "rf-toolkit:coverage";
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
 const legacyDefaults: Record<string, string> = {
+  sitePreset: "",
+  rxPreset: "",
   siteName: "",
   site: "",
   freq: "915",
@@ -91,6 +95,15 @@ const template = `
     <section class="card">
       <div class="card-head"><h2>Radios</h2><span class="meta">Changes recalculate instantly</span></div>
       <div class="fields">
+        <label class="wide">Site radio
+          <span class="preset-pick">
+            <select name="sitePreset"></select>
+            <button type="button" class="secondary" data-action="presets">Manage presets</button>
+          </span>
+        </label>
+        <label class="wide">Receiver radio
+          <select name="rxPreset"></select>
+        </label>
         <label>Frequency
           <span class="input-unit">
             <input name="freq" type="number" inputmode="decimal" step="any" min="0" />
@@ -277,6 +290,34 @@ export const coverageCalculator: Calculator = {
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
     const num = (name: string) => Number.parseFloat(field(name).value);
 
+    // Radio presets: the user's own, from this device. The receivers use the
+    // site's radio unless another is picked, or custom numbers.
+    const fillPresetOptions = () => {
+      const presets = loadPresets();
+      const fill = (name: string, first: HTMLOptionElement[], last: HTMLOptionElement[] = []) => {
+        const select = field(name) as HTMLSelectElement;
+        const keep = select.value;
+        select.replaceChildren(...first, ...presets.map((p) => new Option(p.name, p.id)), ...last);
+        select.value = [...select.options].some((o) => o.value === keep) ? keep : "";
+      };
+      fill("sitePreset", [new Option("None: enter the radio below", "")]);
+      fill("rxPreset", [new Option("Same as the site", "")], [new Option("Custom: enter below", "custom")]);
+    };
+    fillPresetOptions();
+    const sitePreset = (): RadioPreset | undefined => loadPresets().find((p) => p.id === field("sitePreset").value);
+    const rxPreset = (): RadioPreset | undefined => {
+      const v = field("rxPreset").value;
+      if (v === "custom") return undefined;
+      return v ? loadPresets().find((p) => p.id === v) : sitePreset();
+    };
+    /** The receiver's rate ladder, derated, fastest first; empty without one. */
+    const rungs = () => ladder(rxPreset(), deratedSensitivity);
+    /** The sensitivity the map is drawn against: the ladder's slowest rate, or the field. */
+    const sensitivity = () => {
+      const r = rungs();
+      return r.length ? Math.min(...r.map((x) => x.sensDbm)) : deratedSensitivity(num("sens"));
+    };
+
     for (const [name, value] of Object.entries(loadState(defaults))) {
       const el = form.elements.namedItem(name);
       if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
@@ -391,7 +432,7 @@ export const coverageCalculator: Calculator = {
         if (!mapped()) return undefined;
         const v = marginAt(samples!, margins!, bearingDeg(samples!.site, p), distanceBetweenM(samples!.site, p));
         // Margins include any correction; predictions are compared without it.
-        return Number.isFinite(v) ? v - readingsCard.correctionDb() + deratedSensitivity(num("sens")) : undefined;
+        return Number.isFinite(v) ? v - readingsCard.correctionDb() + sensitivity() : undefined;
       },
       coverAt: (p) => {
         const at = cover && cover.samples === samples && mapped() ? nearestPoint(p) : undefined;
@@ -408,7 +449,7 @@ export const coverageCalculator: Calculator = {
       eirpDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)) - (num("txCable") || 0) + (num("txGain") || 0),
       rxGainDbi: num("rxGain") || 0,
       rxCableLossDb: num("rxCable") || 0,
-      sensitivityDbm: deratedSensitivity(num("sens")),
+      sensitivityDbm: sensitivity(),
     });
 
     const drawOverlay = () => {
@@ -650,12 +691,12 @@ export const coverageCalculator: Calculator = {
         const f = (key: string, label: string, unit?: string, type: EditField["type"] = "number"): EditField => ({ key, label, value: field(key).value, unit, type });
         const fields = [
           f("siteName", "Name", undefined, "text"),
-          f("power", "TX power", field("powerUnit").value),
-          f("txGain", "Antenna gain", "dBi"),
+          ...(sitePreset()?.power ? [] : [f("power", "TX power", field("powerUnit").value)]),
+          ...(sitePreset()?.gain ? [] : [f("txGain", "Antenna gain", "dBi")]),
           { ...f("txPattern", "Antenna pattern", undefined, "select"), options: patterns.map((q) => ({ value: q.id, label: q.name })) },
           ...(field("txPattern").value === "omni" ? [] : [f("txAzimuth", "Points", "° true")]),
           f("txHeight", "Antenna height", field("heightUnit").value),
-          f("sens", "RX sensitivity", "dBm"),
+          ...(rungs().length ? [] : [f("sens", "RX sensitivity", "dBm")]),
           f("radius", "Radius", field("radiusUnit").value),
         ];
         return [...fields, { key: "location", label: "Location", value: formatCoordinates(p), type: "text" }];
@@ -710,8 +751,12 @@ export const coverageCalculator: Calculator = {
           const b = bearingDeg(samples.site, q);
           const v = marginAt(samples, margins, b, d);
           const unit: DistanceUnit = field("radiusUnit").value === "mi" ? "mi" : "km";
+          // With a rate ladder, the fastest rate that keeps the fade margin there.
+          const ladderHere = rungs();
+          const held = Number.isFinite(v) && ladderHere.length ? rateAt(v + sensitivity() - readingsCard.correctionDb(), ladderHere, num("fade") || 0) : undefined;
+          const rateText = held?.solid ? `, holds ${formatRate(held.solid.kbps)}${held.any && held.any.kbps > held.solid.kbps ? ` (${formatRate(held.any.kbps)} under the fade margin)` : ""}` : held?.any ? `, ${formatRate(held.any.kbps)} under the fade margin` : "";
           const text = Number.isFinite(v)
-            ? `${fmt(v)} dB margin`
+            ? `${fmt(v)} dB margin${rateText}`
             : "Outside the mapped circle";
           L.popup({ className: "coverage-popup" })
             .setLatLng(e.latlng)
@@ -747,6 +792,55 @@ export const coverageCalculator: Calculator = {
     window.addEventListener("rf-toolkit:theme", onTheme);
     const waitForPage = () => (form.isConnected ? initMap() : setTimeout(waitForPage, 50));
     setTimeout(waitForPage, 0);
+
+    // Presets fill the fields they cover, and those fields are hidden: edit
+    // the preset under Manage presets. Fields a preset leaves blank stay.
+    const applyPresets = () => {
+      const s = sitePreset();
+      const r = rxPreset();
+      const set = (name: string, v?: string) => {
+        if (v) field(name).value = v;
+      };
+      if (s) {
+        set("freq", s.freq);
+        set("freqUnit", s.freqUnit);
+        set("power", s.power);
+        set("powerUnit", s.powerUnit);
+        set("txGain", s.gain);
+        set("txCable", s.cable);
+      }
+      if (r) {
+        set("rxGain", r.gain);
+        set("rxCable", r.cable);
+      }
+      const hide = (name: string, hidden: boolean) => (field(name).closest("label")!.hidden = hidden);
+      hide("power", !!s?.power);
+      hide("txGain", !!s?.gain);
+      hide("txCable", !!s?.cable);
+      hide("rxGain", !!r?.gain);
+      hide("rxCable", !!r?.cable);
+      hide("sens", rungs().length > 0);
+    };
+    for (const name of ["sitePreset", "rxPreset"]) field(name).addEventListener("change", applyPresets);
+    const pickSaved = (id: string) => {
+      fillPresetOptions();
+      field("sitePreset").value = id;
+      applyPresets();
+      inputsChanged();
+    };
+    form.querySelector('[data-action="presets"]')!.addEventListener("click", () => openPresetManager(pickSaved));
+    // Presets changed (here or in another tab): refresh the lists and the numbers.
+    const onPresets = () => {
+      if (!form.isConnected) {
+        window.removeEventListener(PRESETS_EVENT, onPresets);
+        return;
+      }
+      fillPresetOptions();
+      applyPresets();
+      inputsChanged();
+    };
+    window.addEventListener(PRESETS_EVENT, onPresets);
+    applyPresets();
 
     form.querySelector('[data-action="run"]')!.addEventListener("click", () => void run());
     form.querySelector('[data-action="locate"]')!.addEventListener("click", () => {
@@ -801,10 +895,24 @@ export const coverageCalculator: Calculator = {
         getPlan: () => {
           const settings: Record<string, string> = {};
           for (const name of Object.keys(defaults)) settings[name] = field(name).value;
-          return { settings };
+          const site = sitePreset();
+          const rxId = field("rxPreset").value;
+          const rx = rxId && rxId !== "custom" ? loadPresets().find((p) => p.id === rxId) : undefined;
+          return { settings, ...(site ? { preset: site } : {}), ...(rx ? { nodePresets: [rx] } : {}) };
         },
         applyPlan: (plan) => {
-          applySettings(form, plan.settings);
+          // The plan's presets join this device's (once), pointed at their ids here.
+          const ids = new Map<string, string>();
+          if (plan.preset) ids.set(plan.preset.id, adoptPreset(plan.preset));
+          for (const p of plan.nodePresets ?? []) ids.set(p.id, adoptPreset(p));
+          const rxWas = plan.settings.rxPreset ?? "";
+          fillPresetOptions();
+          applySettings(form, {
+            ...plan.settings,
+            sitePreset: plan.preset ? ids.get(plan.preset.id)! : "",
+            rxPreset: rxWas === "custom" || rxWas === "" ? rxWas : (ids.get(rxWas) ?? ""),
+          });
+          applyPresets();
           // Show the location in this reader's coordinate format.
           const planned = site();
           if (planned) field("site").value = formatCoordinates(planned);

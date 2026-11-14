@@ -829,9 +829,13 @@ details.routes .note { margin-top: 6px; }
 .node-radio-pick select { flex: 1; min-width: 0; max-width: 320px; }
 .node-radio-summary { margin: 0 0 6px; }
 .node-radio-summary[hidden], .node-radio[hidden] { display: none; }
+/* Phones: one compact row per preset; order buttons left, Edit/Copy stacked right. */
 @media (max-width: 600px) {
-  .preset-list li { flex-wrap: wrap; }
-  .preset-list li > .preset-info { flex-basis: calc(100% - 60px); }
-  .preset-order .icon-btn { min-height: 30px; padding: 0 10px; font-size: 11px; }
-  .preset-row-actions { margin-left: 52px; }
+  .preset-dialog { padding: 14px 14px; }
+  .preset-dialog .note.top { font-size: 13px; }
+  .preset-list li { gap: 10px; padding: 8px 10px; }
+  .preset-list li b { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+  .preset-order .icon-btn { min-height: 34px; width: 36px; padding: 0; font-size: 11px; }
+  .preset-row-actions { flex-direction: column; gap: 4px; }
+  .preset-row-actions button { min-height: 34px; padding: 0 14px; font-size: 14px; }
 }
