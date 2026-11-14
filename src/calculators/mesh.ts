@@ -730,7 +730,7 @@ export const meshCalculator: Calculator = {
           const [text, cls] = statusText[r.link.status];
           const terrainCell =
             r.terrainState === "ok" ? `${fmt(r.link.terrainLossDb)} dB`
-            : r.terrainState === "short" ? "Too close to matter"
+            : r.terrainState === "short" ? "Negligible"
             : r.terrainState === "pending" ? "waiting"
             : "free space";
           return `<tr>

@@ -124,11 +124,31 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
     el("empty").hidden = list.length > 0;
     el("export").toggleAttribute("disabled", list.length === 0);
     el("list").innerHTML = list
-      .map((p) => {
+      .map((p, i) => {
         const bits = [p.rates.length ? `${p.rates.length} rate${p.rates.length === 1 ? "" : "s"}` : "single sensitivity", p.hopLimit ? `${p.hopLimit} hops max` : ""].filter(Boolean);
-        return `<li><span><b>${escapeHtml(p.name)}</b><span class="note">${bits.join(" · ")}</span></span><span class="preset-row-actions"><button type="button" class="secondary" data-edit="${p.id}">Edit</button><button type="button" class="secondary" data-copy="${p.id}">Copy</button></span></li>`;
+        const name = escapeHtml(p.name);
+        return `<li>
+          <span class="preset-order">
+            <button type="button" class="secondary icon-btn" data-up="${p.id}" aria-label="Move ${name} up"${i === 0 ? " disabled" : ""}>▲</button>
+            <button type="button" class="secondary icon-btn" data-down="${p.id}" aria-label="Move ${name} down"${i === list.length - 1 ? " disabled" : ""}>▼</button>
+          </span>
+          <span class="preset-info"><b>${name}</b><span class="note">${bits.join(" · ")}</span></span>
+          <span class="preset-row-actions"><button type="button" class="secondary" data-edit="${p.id}">Edit</button><button type="button" class="secondary" data-copy="${p.id}">Copy</button></span>
+        </li>`;
       })
       .join("");
+  };
+  // Swap a preset with its neighbour; the pickers everywhere follow this order.
+  const move = (id: string, step: -1 | 1) => {
+    const list = loadPresets();
+    const i = list.findIndex((p) => p.id === id);
+    const j = i + step;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    savePresets(list);
+    renderList();
+    // Keep the focus on the button that moved, so pressing it again keeps going.
+    el("list").querySelector<HTMLButtonElement>(`[data-${step < 0 ? "up" : "down"}="${id}"]:not([disabled])`)?.focus();
   };
 
   const rateRow = (rate = "", sens = "") => {
@@ -173,7 +193,10 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
   el("cancel").addEventListener("click", showList);
   el("new").addEventListener("click", () => showEditor(undefined));
   el("list").addEventListener("click", (e) => {
-    const t = e.target as HTMLElement;
+    const t = (e.target as HTMLElement).closest<HTMLElement>("button");
+    if (!t) return;
+    if (t.dataset.up) return move(t.dataset.up, -1);
+    if (t.dataset.down) return move(t.dataset.down, 1);
     const list = loadPresets();
     const edit = list.find((p) => p.id === t.dataset.edit);
     if (edit) showEditor(edit);

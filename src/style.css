@@ -804,7 +804,9 @@ details.routes .note { margin-top: 6px; }
 .preset-head h2 { margin: 0 auto 0 0; font-size: 18px; }
 .preset-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
 .preset-list li { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-2); }
-.preset-list li > span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.preset-list li > .preset-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.preset-order { display: flex; flex-direction: column; gap: 2px; flex: none; }
+.preset-order .icon-btn { padding: 1px 7px; font-size: 10px; line-height: 1.4; min-height: 0; }
 .preset-list li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preset-list .note { margin: 0; font-size: 12px; }
 .preset-row-actions { display: flex; gap: 6px; flex: none; }
@@ -827,3 +829,9 @@ details.routes .note { margin-top: 6px; }
 .node-radio-pick select { flex: 1; min-width: 0; max-width: 320px; }
 .node-radio-summary { margin: 0 0 6px; }
 .node-radio-summary[hidden], .node-radio[hidden] { display: none; }
+@media (max-width: 600px) {
+  .preset-list li { flex-wrap: wrap; }
+  .preset-list li > .preset-info { flex-basis: calc(100% - 60px); }
+  .preset-order .icon-btn { min-height: 30px; padding: 0 10px; font-size: 11px; }
+  .preset-row-actions { margin-left: 52px; }
+}
