@@ -1,6 +1,6 @@
 // Browser side of Terrain Tiles: download, decode with a canvas and cache
 // tiles, then sample heights along a path. Shared by the terrain profile,
-// Mesh Planner and Coverage Analysis. The service worker also keeps the PNGs, so
+// Mesh Analysis and Coverage Analysis. The service worker also keeps the PNGs, so
 // areas seen before work offline.
 
 import type { LatLon } from "../lib/geo";

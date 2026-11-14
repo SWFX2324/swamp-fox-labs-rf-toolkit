@@ -1,4 +1,4 @@
-// Save, reopen, share and export a tool's plan. Shared by the Mesh Planner and
+// Save, reopen, share and export a tool's plan. Shared by the Mesh Analysis and
 // Coverage Analysis. Share links carry the plan in the URL fragment, which stays in
 // the browser, and are validated when opened (see lib/plans.ts).
 

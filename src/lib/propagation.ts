@@ -1,4 +1,4 @@
-// Terrain loss for a profiled path, shared by the Link Analysis, Mesh Planner
+// Terrain loss for a profiled path, shared by the Link Analysis, Mesh Analysis
 // and Coverage Analysis: the Irregular Terrain Model (Longley-Rice, see itm.ts)
 // where it applies, and Bullington diffraction (ITU-R P.526) where it
 // doesn't (above 20 GHz, or antennas outside ITM's height range).

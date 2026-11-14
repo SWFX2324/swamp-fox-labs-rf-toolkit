@@ -116,3 +116,32 @@ describe("hopCounts", () => {
     expect(h[0][3]).toBe(Number.POSITIVE_INFINITY);
   });
 });
+
+describe("meshLink with each node's own radio", () => {
+  it("matches the shared radio when both ends use it", () => {
+    const shared = meshLink(radio, 20_000, 10, 10);
+    const own = meshLink(radio, 20_000, 10, 10, undefined, 0, undefined, [radio, radio]);
+    expect(own.marginDb).toBeCloseTo(shared.marginDb, 9);
+    expect(own.marginAbDb).toBeCloseTo(own.marginBaDb, 9);
+  });
+
+  it("rates the link by its weaker direction", () => {
+    // A 50 W base (47 dBm) and a 5 W manpack (37 dBm): talk-back is 10 dB weaker.
+    const base = { ...radio, txPowerDbm: 47 };
+    const manpack = { ...radio, txPowerDbm: 37 };
+    const l = meshLink(radio, 20_000, 10, 10, undefined, 0, undefined, [base, manpack]);
+    expect(l.marginAbDb - l.marginBaDb).toBeCloseTo(10, 9);
+    expect(l.marginDb).toBeCloseTo(l.marginBaDb, 9);
+  });
+
+  it("counts gain and cable at the end where they are, both ways", () => {
+    // More gain at one end helps both directions equally; worse sensitivity only hurts receiving there.
+    const a = { ...radio, gainDbi: 9 };
+    const b = { ...radio, sensitivityDbm: -90 };
+    const l = meshLink(radio, 20_000, 10, 10, undefined, 0, undefined, [a, b]);
+    const shared = meshLink(radio, 20_000, 10, 10);
+    expect(l.marginAbDb).toBeCloseTo(shared.marginDb + 6 - 10, 9);
+    expect(l.marginBaDb).toBeCloseTo(shared.marginDb + 6, 9);
+    expect(l.marginDb).toBeCloseTo(l.marginAbDb, 9);
+  });
+});

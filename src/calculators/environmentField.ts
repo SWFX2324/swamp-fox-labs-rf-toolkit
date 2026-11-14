@@ -1,5 +1,5 @@
 // The Environment dropdown, its tree height field and its one-line
-// explanation, shared by the Link Analysis, Mesh Planner and Coverage Analysis.
+// explanation, shared by the Link Analysis, Mesh Analysis and Coverage Analysis.
 
 import { DEFAULT_TREE_HEIGHT_M, type Environment, aboveModelRange, belowModelRange, clutterLossDb, environments, withTreeHeight } from "../lib/environment";
 import { AUTO_ENVIRONMENT, type LandCoverPoint, describePoint } from "../lib/landCover";

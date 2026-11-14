@@ -238,7 +238,7 @@ export const settingsGuide: FieldGuide = {
       "What every antenna starts at on the planning tabs, in dBi. −3 dBi is a fair, slightly cautious figure for whips on portable and vehicle radios at VHF and UHF, which rarely reach their advertised gain without a good ground plane. Change it on a tab for a known antenna, such as a Yagi.",
     defaultHeight: "The height antennas start at on the planning tabs: new links, mesh nodes and coverage sites. About 6 ft suits a radio carried or set on a vehicle.",
     cableLossDb:
-      "Flat cable loss at each end, for the Mesh Planner and Coverage Analysis. The Link Analysis works its cable loss from the cable type and length instead.",
+      "Flat cable loss at each end, for the Mesh Analysis and Coverage Analysis. The Link Analysis works its cable loss from the cable type and length instead.",
     connectorLossDb: "Loss per connector, adapter or coupler. 0.25 dB is a fair figure for each good, clean connection.",
     connectorsPerEnd: "How many connections sit between each radio and its antenna. Two is typical: radio to jumper, jumper to antenna.",
     sensitivityDerateDb:

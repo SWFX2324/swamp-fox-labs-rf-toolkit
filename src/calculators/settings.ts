@@ -1,4 +1,4 @@
-// The Settings tab: the defaults the Link Analysis, Mesh Planner and Coverage
+// The Settings tab: the defaults the Link Analysis, Mesh Analysis and Coverage
 // Map start from. Changing a field on a tab still overrides it there.
 
 import type { Calculator } from ".";
@@ -104,7 +104,7 @@ const template = `
         <h2>Settings</h2>
         <button type="button" class="secondary" data-action="reset">Restore defaults</button>
       </div>
-      <p class="note top">These are the starting values for the Link Analysis, Mesh Planner and Coverage Analysis. A field you change on one of those tabs keeps your value there until you press its Reset; the rest follow what's set here. Saved plans and shared links keep the values they were saved with, so they read the same on any device.</p>
+      <p class="note top">These are the starting values for the Link Analysis, Mesh Analysis and Coverage Analysis. A field you change on one of those tabs keeps your value there until you press its Reset; the rest follow what's set here. Saved plans and shared links keep the values they were saved with, so they read the same on any device.</p>
       <ul class="settings-summary" data-out="summary"></ul>
     </section>
   </aside>
@@ -142,7 +142,7 @@ export const settingsCalculator: Calculator = {
       const items = [
         `Plans for ${fieldNumber(s.reliability)}% of the time at ${fieldNumber(s.confidence)}% confidence, keeping ${fieldNumber(s.fadeMarginDb)} dB in reserve.`,
         `Each end starts at ${fieldNumber(s.antennaGainDbi)} dBi, ${inUnit(s.defaultHeightM, s.heightUnit)} ${s.heightUnit} up.`,
-        `Mesh Planner and Coverage Analysis take ${fieldNumber(s.cableLossDb + connectorsDb(s))} dB per end (${fieldNumber(s.cableLossDb)} dB cable plus ${s.connectorsPerEnd} × ${fieldNumber(s.connectorLossDb)} dB connectors). The Link Analysis works cable loss from its cable type and length, and starts its other losses at ${fieldNumber(connectorsDb(s))} dB for the connectors.`,
+        `Mesh Analysis and Coverage Analysis take ${fieldNumber(s.cableLossDb + connectorsDb(s))} dB per end (${fieldNumber(s.cableLossDb)} dB cable plus ${s.connectorsPerEnd} × ${fieldNumber(s.connectorLossDb)} dB connectors). The Link Analysis works cable loss from its cable type and length, and starts its other losses at ${fieldNumber(connectorsDb(s))} dB for the connectors.`,
         `Receivers are taken as ${fieldNumber(s.sensitivityDerateDb)} dB less sensitive than the number typed.`,
         `Clutter comes from ${env}${s.environment === "auto" ? `; where it has no data, ${fallback} is used instead` : ""}. Trees are ${inUnit(s.treeHeightM, s.heightUnit)} ${s.heightUnit} tall.`,
       ];

@@ -20,7 +20,15 @@ export interface PlanNode {
   antenna?: string;
   /** Degrees true the antenna points, as typed. */
   aim?: string;
+  /** The node's own radio, as typed; blank or missing uses the shared one. */
+  power?: string;
+  powerUnit?: string;
+  gain?: string;
+  cable?: string;
+  sens?: string;
 }
+
+const NODE_RADIO_KEYS = ["power", "gain", "cable", "sens"] as const;
 
 const MAX_ENCODED = 8000;
 const MAX_VALUE = 80;
@@ -57,7 +65,8 @@ export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undef
   }
   if (Array.isArray(nodes)) {
     clean.nodes = nodes.slice(0, MAX_NODES).flatMap((n): PlanNode[] => {
-      const { name, lat, lon, height, antenna, aim } = (n ?? {}) as Record<string, unknown>;
+      const raw = (n ?? {}) as Record<string, unknown>;
+      const { name, lat, lon, height, antenna, aim, powerUnit } = raw;
       if (typeof lat !== "number" || typeof lon !== "number" || !Number.isFinite(lat) || !Number.isFinite(lon)) return [];
       if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return [];
       return [{
@@ -67,6 +76,8 @@ export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undef
         height: typeof height === "string" ? height.slice(0, 12) : "",
         ...(typeof antenna === "string" && /^[a-z0-9]{1,16}$/.test(antenna) ? { antenna } : {}),
         ...(typeof aim === "string" && aim.length <= 12 ? { aim } : {}),
+        ...Object.fromEntries(NODE_RADIO_KEYS.flatMap((k) => (typeof raw[k] === "string" && (raw[k] as string).length <= 12 && raw[k] !== "" ? [[k, raw[k]]] : []))),
+        ...(typeof powerUnit === "string" && /^[a-zA-Z]{1,4}$/.test(powerUnit) ? { powerUnit } : {}),
       }];
     });
   }

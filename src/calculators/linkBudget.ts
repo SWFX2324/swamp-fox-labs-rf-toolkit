@@ -697,7 +697,7 @@ export const linkBudgetCalculator: Calculator = {
       const shown = dir === "ab" ? inputs : reverse;
       const [fromName, toName] = dir === "ab" ? [siteName("tx"), siteName("rx")] : [siteName("rx"), siteName("tx")];
       const rating = rateMargin(weakest);
-      // The map line follows the same rule as the Mesh Planner: good once the fade margin is covered.
+      // The map line follows the same rule as the Mesh Analysis: good once the fade margin is covered.
       terrain.showLink(hf ? undefined : linkQuality(weakest, inputs.fadeMarginDb));
 
       out("eirp").innerHTML = dbm(forward.eirpDbm);

@@ -629,7 +629,7 @@ main .leaflet-container { background: var(--card-2); }
   .power-item [data-f="total"] { grid-area: 3 / 5 / 4 / 7; align-self: center; }
   .power-plan[data-mode="simple"] .power-item [data-f="total"] { grid-area: 3 / 3 / 4 / 7; }
 }
-/* Sat Pointing's map matches the Mesh Planner's on desktop; phones keep 300px. */
+/* Sat Pointing's map matches the Mesh Analysis's on desktop; phones keep 300px. */
 @media (min-width: 601px) { .sat-map { height: 380px; } }
 .chart-readout { color: var(--text); font-variant-numeric: tabular-nums; }
 
@@ -765,3 +765,23 @@ body:has(dialog.view3d[open]) { overflow: hidden; }
 }
 .view3d-editor select { width: 100%; }
 .view3d-sheet select { font-size: 16px; }
+
+/* Mesh: a node's own radio, in a row under the node. */
+.node-list .node-actions { white-space: nowrap; }
+.node-list .node-actions .icon-btn + .icon-btn { margin-left: 4px; }
+.node-list .node-radio-btn svg { display: block; }
+.node-list .node-radio-btn.on { color: var(--accent); border-color: var(--accent); }
+.node-list .node-radio-row[hidden] { display: none; }
+.node-list .node-radio-row td { padding-top: 0; border-top: 0; }
+.node-radio { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 12px; }
+.node-radio label { margin: 0; min-width: 0; }
+.node-radio .input-unit { min-width: 0; }
+.node-radio .input-unit input { width: 0; flex: 1; min-width: 0; }
+.node-radio .input-unit select { flex: none; width: auto; }
+.node-radio + .note { margin: 6px 0 4px; }
+.ledger.links .weaker { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+@media (max-width: 600px) {
+  .node-list .node-actions .icon-btn { display: block; }
+  .node-list .node-actions .icon-btn + .icon-btn { margin: 4px 0 0; }
+  .node-radio { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}

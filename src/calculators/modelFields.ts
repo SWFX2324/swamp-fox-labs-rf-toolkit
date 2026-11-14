@@ -1,5 +1,5 @@
 // The propagation model settings (Longley-Rice / ITM), shared by the Link
-// Budget, Mesh Planner and Coverage Analysis. Each page adds modelDefaults to its
+// Budget, Mesh Analysis and Coverage Analysis. Each page adds modelDefaults to its
 // own defaults, so the settings save, reset and travel in plans like any
 // other field.
 

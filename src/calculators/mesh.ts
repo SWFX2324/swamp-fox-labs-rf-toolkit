@@ -1,4 +1,4 @@
-// Mesh Planner: drop nodes on a map and see every node-to-node link over
+// Mesh Analysis: drop nodes on a map and see every node-to-node link over
 // real terrain with identical radios, plus whether the mesh holds together.
 
 import { enhanceFields } from "./fieldHelp";
@@ -23,7 +23,7 @@ import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings,
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM, samplePath } from "../lib/geo";
 import { beam, elevationAngleDeg, patternLossDb, patterns } from "../lib/pattern";
-import { type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
+import { type EndRadio, type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
 import { createPathStore, pathKey } from "../lib/pathStore";
 import { sampleCount } from "../lib/profile";
 import type { EditField } from "../lib/scene3d";
@@ -52,7 +52,23 @@ interface MeshNode extends LatLon {
   antenna?: string;
   /** Degrees true the antenna points, as typed. */
   aim?: string;
+  /** The node's own radio, as typed; blank uses the Radios card. */
+  power?: string;
+  powerUnit?: string;
+  gain?: string;
+  cable?: string;
+  sens?: string;
 }
+
+/** A node's own radio fields, and the Radios card field each stands in for. */
+const NODE_RADIO_FIELDS = [
+  { key: "power", label: "TX power", shared: "power", unit: "" },
+  { key: "gain", label: "Antenna gain", shared: "gain", unit: "dBi" },
+  { key: "cable", label: "Cable loss", shared: "cable", unit: "dB" },
+  { key: "sens", label: "RX sensitivity", shared: "sens", unit: "dBm" },
+] as const;
+const hasOwnRadio = (n: MeshNode) => NODE_RADIO_FIELDS.some((f) => (n[f.key] ?? "").trim() !== "");
+const RADIO_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M5 2l3 4M6 6h7a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="10" r="1.6" fill="currentColor"/></svg>';
 
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
@@ -93,7 +109,7 @@ function numberField(label: string, name: string, unit: string, attrs = ""): str
 const template = `
   <div class="inputs">
     <section class="card">
-      <div class="card-head"><h2>Radios</h2><span class="meta">The same at every node</span></div>
+      <div class="card-head"><h2>Radios</h2><span class="meta">Every node, unless it has its own</span></div>
       <div class="fields">
         <label>Frequency
           <span class="input-unit">
@@ -129,7 +145,7 @@ const template = `
 
     <section class="card">
       <div class="card-head"><h2>Nodes</h2><span class="meta" data-out="nodeCount"></span></div>
-      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it. For a sector or directional antenna, pick it under Antenna and enter the way it points.</p>
+      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it. For a sector or directional antenna, pick it under Antenna and enter the way it points. A node with a different radio (a base or vehicle set among manpacks, say) gets its own under the radio button in its row.</p>
       <div class="fields">
         <label>Environment
           <select name="environment">${environmentOptions()}</select>
@@ -216,7 +232,7 @@ const fmt = (v: number, digits = 1) =>
 
 export const meshCalculator: Calculator = {
   id: "mesh",
-  title: "Mesh Planner",
+  title: "Mesh Analysis",
   shortTitle: "Mesh",
   render() {
     const form = document.createElement("form");
@@ -275,6 +291,8 @@ export const meshCalculator: Calculator = {
     let aimLines: L.Polyline[] = [];
     let lastLinks: { a: number; b: number; link: MeshLink; distanceM: number }[] = [];
     let view3d: Control3D | undefined;
+    // Nodes whose own-radio row is open, so it stays open when the list redraws.
+    const openRadios = new WeakSet<MeshNode>();
 
     const heightM = (n: MeshNode) =>
       toMetres(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, asDistanceUnit(field("heightUnit").value));
@@ -293,7 +311,7 @@ export const meshCalculator: Calculator = {
       out("nodeCount").textContent = `${nodes.length} of ${MAX_NODES}`;
       const body = out("nodes");
       body.replaceChildren(
-        ...nodes.map((n, idx) => {
+        ...nodes.flatMap((n, idx) => {
           const tr = document.createElement("tr");
           tr.innerHTML = `
             <td><span class="node-badge">${idx + 1}</span></td>
@@ -304,7 +322,10 @@ export const meshCalculator: Calculator = {
               <select aria-label="Node ${idx + 1} antenna pattern">${patterns.map((p) => `<option value="${p.id}">${p.id === "directional" ? "Directional" : p.name.replace(", ", " ")}</option>`).join("")}</select>
               <span class="input-unit node-aim"><input type="number" inputmode="decimal" step="any" min="0" max="360" placeholder="0" title="Degrees from true north" aria-label="Node ${idx + 1} antenna points, degrees true" /><span class="unit">°</span></span>
             </td>
-            <td><button type="button" class="secondary icon-btn" title="Remove node" aria-label="Remove node ${idx + 1}">✕</button></td>`;
+            <td class="node-actions">
+              <button type="button" class="secondary icon-btn node-radio-btn" aria-expanded="false" title="This node's radio" aria-label="Node ${idx + 1} radio">${RADIO_ICON}</button>
+              <button type="button" class="secondary icon-btn" data-remove title="Remove node" aria-label="Remove node ${idx + 1}">✕</button>
+            </td>`;
           const name = tr.querySelector<HTMLInputElement>(".node-name")!;
           name.value = n.name;
           name.addEventListener("input", (e) => {
@@ -345,11 +366,63 @@ export const meshCalculator: Calculator = {
             save();
             recompute();
           });
-          tr.querySelector("button[title]")!.addEventListener("click", () => {
+          tr.querySelector("button[data-remove]")!.addEventListener("click", () => {
             nodes.splice(idx, 1);
             nodesChanged();
           });
-          return tr;
+
+          // The node's own radio, in a row of its own under the node.
+          const sub = document.createElement("tr");
+          sub.className = "node-radio-row";
+          const cell = document.createElement("td");
+          cell.colSpan = 6;
+          const unitOptions = powerUnits.map((u) => `<option>${u}</option>`).join("");
+          cell.innerHTML = `
+            <div class="node-radio">
+              ${NODE_RADIO_FIELDS.map((f) =>
+                f.key === "power"
+                  ? `<label>TX power<span class="input-unit"><input data-k="power" type="number" inputmode="decimal" step="any" min="0" /><select data-k="powerUnit">${unitOptions}</select></span></label>`
+                  : `<label>${f.label}<span class="input-unit"><input data-k="${f.key}" type="number" step="any"${f.key === "cable" ? ' min="0" inputmode="decimal"' : ""} /><span class="unit">${f.unit}</span></span></label>`,
+              ).join("")}
+            </div>
+            <p class="note">Blank uses the Radios card. Sensitivity is derated as set in Settings.</p>`;
+          sub.append(cell);
+          const radioBtn = tr.querySelector<HTMLButtonElement>(".node-radio-btn")!;
+          const showRadio = (open: boolean) => {
+            sub.hidden = !open;
+            radioBtn.setAttribute("aria-expanded", String(open));
+            if (open) openRadios.add(n);
+            else openRadios.delete(n);
+          };
+          const markOwn = () => radioBtn.classList.toggle("on", hasOwnRadio(n));
+          showRadio(openRadios.has(n));
+          markOwn();
+          radioBtn.addEventListener("click", () => showRadio(sub.hidden !== false));
+          const sharedUnit = field("powerUnit").value;
+          for (const f of NODE_RADIO_FIELDS) {
+            const input = cell.querySelector<HTMLInputElement>(`input[data-k="${f.key}"]`)!;
+            input.value = n[f.key] ?? "";
+            // The shared value shows through when blank, if it's in the same unit.
+            input.placeholder = f.key !== "power" || (n.powerUnit ?? sharedUnit) === sharedUnit ? field(f.shared).value : "";
+            for (const type of ["input", "change"]) input.addEventListener(type, (e) => e.stopPropagation());
+            input.addEventListener("input", () => {
+              n[f.key] = input.value;
+              if (f.key === "power" && !n.powerUnit) n.powerUnit = sharedUnit;
+              markOwn();
+              save();
+              recompute();
+            });
+          }
+          const unit = cell.querySelector<HTMLSelectElement>('select[data-k="powerUnit"]')!;
+          unit.value = n.powerUnit ?? sharedUnit;
+          for (const type of ["input", "change"]) unit.addEventListener(type, (e) => e.stopPropagation());
+          unit.addEventListener("change", () => {
+            n.powerUnit = unit.value;
+            save();
+            renderNodes();
+            recompute();
+          });
+          return [tr, sub];
         }),
       );
     };
@@ -441,6 +514,22 @@ export const meshCalculator: Calculator = {
         return;
       }
 
+      // Each node's radio: its own values where it has them, the shared ones elsewhere.
+      const own = (v: string | undefined) => {
+        const x = Number.parseFloat(v ?? "");
+        return Number.isFinite(x) ? x : undefined;
+      };
+      const nodeRadios: EndRadio[] = nodes.map((n) => {
+        const power = own(n.power);
+        const sens = own(n.sens);
+        return {
+          txPowerDbm: power === undefined ? radio.txPowerDbm : toDbm(power, asPowerUnit(n.powerUnit ?? field("powerUnit").value)),
+          gainDbi: own(n.gain) ?? radio.gainDbi,
+          cableLossDb: own(n.cable) ?? radio.cableLossDb,
+          sensitivityDbm: sens === undefined ? radio.sensitivityDbm : deratedSensitivity(sens),
+        };
+      });
+
       const auto = field("environment").value === AUTO_ENVIRONMENT;
       const landCover = auto ? nodeCover() : undefined;
       const results = pairs(nodes.length).map(([a, b]) => {
@@ -452,11 +541,12 @@ export const meshCalculator: Calculator = {
           heightM(nodes[a]),
           heightM(nodes[b]),
           Array.isArray(elev) ? elev : undefined,
-          antennaLoss(nodes[a], nodes[b], distanceM, Array.isArray(elev) ? elev : undefined, radio.gainDbi, radio.k) +
-            antennaLoss(nodes[b], nodes[a], distanceM, Array.isArray(elev) ? [...elev].reverse() : undefined, radio.gainDbi, radio.k),
+          antennaLoss(nodes[a], nodes[b], distanceM, Array.isArray(elev) ? elev : undefined, nodeRadios[a].gainDbi, radio.k) +
+            antennaLoss(nodes[b], nodes[a], distanceM, Array.isArray(elev) ? [...elev].reverse() : undefined, nodeRadios[b].gainDbi, radio.k),
           landCover?.points
             ? [withFormTrees(form, "heightUnit", landCover.points[a].environment), withFormTrees(form, "heightUnit", landCover.points[b].environment)]
             : undefined,
+          [nodeRadios[a], nodeRadios[b]],
         );
         return { a, b, link, distanceM: distanceBetweenM(nodes[a], nodes[b]), terrainState: elev === undefined ? "pending" : elev === "error" ? "error" : "ok" };
       });
@@ -518,7 +608,11 @@ export const meshCalculator: Calculator = {
             <td class="link-name"></td>
             <td class="num mono">${fmt(fromMetres(r.distanceM, distUnit), 2)} ${distUnit}</td>
             <td class="num mono">${terrainCell}</td>
-            <td class="num"><span class="mono">${fmt(r.link.marginDb)} dB</span> <span class="pill ${cls}">${text}</span></td>
+            <td class="num"><span class="mono">${fmt(r.link.marginDb)} dB</span> <span class="pill ${cls}">${text}</span>${
+              Math.abs(r.link.marginAbDb - r.link.marginBaDb) >= 0.5
+                ? `<span class="weaker">${r.link.marginBaDb < r.link.marginAbDb ? `${r.b + 1} → ${r.a + 1}` : `${r.a + 1} → ${r.b + 1}`} is the weaker way; the other is ${fmt(Math.max(r.link.marginAbDb, r.link.marginBaDb))} dB</span>`
+                : ""
+            }</td>
           </tr>`;
         })
         .join("");
@@ -618,10 +712,16 @@ export const meshCalculator: Calculator = {
           options: patterns.map((p) => ({ value: p.id, label: p.id === "directional" ? "Directional" : p.name.replace(", ", " ") })),
         },
         ...(n.antenna && n.antenna !== "omni" ? [{ key: "aim", label: "Points", value: n.aim ?? "", unit: "° true", type: "number" as const, placeholder: "0" }] : []),
+        // Its own radio; blank shows the shared value and keeps using it.
+        ...NODE_RADIO_FIELDS.map((f): EditField => {
+          const unit = f.key === "power" ? (n.powerUnit ?? field("powerUnit").value) : f.unit;
+          const sameUnit = f.key !== "power" || unit === field("powerUnit").value;
+          return { key: f.key, label: f.label, value: n[f.key] ?? "", unit, type: "number", placeholder: sameUnit ? field(f.shared).value : "" };
+        }),
         { key: "location", label: "Location", value: formatCoordinates(n), type: "text" },
       ];
       view3d = add3DControl(map, () => ({
-        title: "Mesh Planner",
+        title: "Mesh Analysis",
         points: nodes.map((n, i) => ({ lat: n.lat, lon: n.lon, label: nodeLabel(i), heightM: heightM(n), fields: nodeFields(n) })),
         links: lastLinks
           .filter((r) => r.a < nodes.length && r.b < nodes.length)
@@ -642,6 +742,12 @@ export const meshCalculator: Calculator = {
           if (values.height !== undefined) n.height = values.height;
           if (values.antenna !== undefined) n.antenna = values.antenna === "omni" ? undefined : values.antenna;
           if (values.aim !== undefined) n.aim = values.aim;
+          for (const f of NODE_RADIO_FIELDS) {
+            const v = values[f.key];
+            if (v === undefined) continue;
+            n[f.key] = v;
+            if (f.key === "power" && v && !n.powerUnit) n.powerUnit = field("powerUnit").value;
+          }
           if (values.location !== undefined) {
             const p = parseCoordinates(values.location);
             if (p) {
@@ -698,7 +804,8 @@ export const meshCalculator: Calculator = {
     });
     form.addEventListener("change", (e) => {
       save();
-      if ((e.target as HTMLElement).getAttribute("name")?.startsWith("height")) renderNodes();
+      const changed = (e.target as HTMLElement).getAttribute("name") ?? "";
+      if (changed.startsWith("height") || ["power", "powerUnit", "gain", "cable", "sens"].includes(changed)) renderNodes();
       recompute();
     });
 
