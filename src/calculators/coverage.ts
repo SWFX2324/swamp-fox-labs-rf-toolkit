@@ -201,6 +201,9 @@ function currentDefaults(): Record<string, string> {
   return {
     ...legacyDefaults,
     ...modelFromSettings(),
+    // 50 MHz (low VHF) now; old saves left at the former 915 MHz follow it.
+    freq: "50",
+    freqUnit: "MHz",
     fade: s.fade,
     txGain: s.gain,
     rxGain: s.gain,
