@@ -113,7 +113,7 @@ export const meshGuide: FieldGuide = {
     ...modelHelp,
     kFactor: `${kFactorHelp} Here it decides whether a good link is drawn as clear line of sight (solid) or obstructed (long dashes).`,
   },
-  advanced: ["cable", "fade", "distUnit", "kFactor", ...modelAdvanced],
+  advanced: ["fade", "distUnit", "kFactor", ...modelAdvanced],
 };
 
 export const coverageGuide: FieldGuide = {

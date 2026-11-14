@@ -128,10 +128,6 @@ const template = `
             <button type="button" class="secondary" data-action="presets">Presets</button>
           </span>
         </label>
-        <div class="radio-summary" data-out="radioSummary" hidden>
-          <span data-out="radioSummaryText"></span>
-          <button type="button" class="secondary" data-action="editPreset">Edit preset</button>
-        </div>
         <p class="note wide" data-out="presetNote" hidden></p>
         <label>Frequency
           <span class="input-unit">
@@ -956,18 +952,13 @@ export const meshCalculator: Calculator = {
       recompute();
     });
 
-    // With a preset, what it sets shows as one line, changed only by editing
-    // the preset; anything it leaves blank stays as a field here.
+    // With a preset, the fields it sets are hidden (edit them under Presets);
+    // anything it leaves blank stays as a field. With none, every field shows.
     const syncPresetUi = () => {
       const p = activePreset();
       const rungs = ladder(p);
       for (const key of ["power", "gain", "cable"] as const) field(key).closest("label")!.hidden = !!p?.[key];
       field("sens").closest("label")!.hidden = rungs.length > 0;
-      out("radioSummary").hidden = !p;
-      if (p) {
-        const words = [radioWords(p.power, p.powerUnit, p.gain, p.cable), rungs.length ? `${rungs.length} rate${rungs.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ");
-        out("radioSummaryText").textContent = words ? `${p.name}: ${words}.` : `${p.name} sets no radio numbers; enter them below.`;
-      }
       const note = out("presetNote");
       const bits: string[] = [];
       if (rungs.length) {
@@ -1004,7 +995,6 @@ export const meshCalculator: Calculator = {
       recompute();
     };
     form.querySelector('[data-action="presets"]')!.addEventListener("click", () => openPresetManager(pickSaved));
-    form.querySelector('[data-action="editPreset"]')!.addEventListener("click", () => openPresetManager(pickSaved, field("preset").value));
     // Presets changed (here or in another tab): refresh the list and anything that used one.
     const onPresets = () => {
       if (!form.isConnected) {

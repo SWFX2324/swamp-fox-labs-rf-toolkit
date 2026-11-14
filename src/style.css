@@ -823,15 +823,6 @@ details.routes .note { margin-top: 6px; }
 .preset-pick { display: flex; gap: 10px; align-items: stretch; }
 .preset-pick select { flex: 1; min-width: 0; }
 .preset-pick button { flex: none; }
-/* Mesh: the net's preset folded into one line, with Override to open its fields. */
-.fields > .radio-summary {
-  grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-2);
-  font-size: 13px; color: var(--text-2);
-}
-.fields > .radio-summary[hidden] { display: none; }
-.radio-summary span { flex: 1; min-width: 12em; }
-.radio-summary button { flex: none; }
 .node-radio-pick { display: flex; flex-direction: row; align-items: center; gap: 10px; margin: 4px 0 6px; }
 .node-radio-pick select { flex: 1; min-width: 0; max-width: 320px; }
 .node-radio-summary { margin: 0 0 6px; }
