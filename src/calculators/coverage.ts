@@ -27,7 +27,7 @@ import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings,
 import { loadTiles } from "./tileElevation";
 import type { EditField } from "../lib/scene3d";
 import { type RadioPreset, formatRate, ladder, rateAt } from "../lib/radioPresets";
-import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager } from "./presetManager";
+import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager, presetsEventFor } from "./presetManager";
 import {
   type DistanceUnit,
   frequencyUnits,
@@ -293,7 +293,7 @@ export const coverageCalculator: Calculator = {
     // Radio presets: the user's own, from this device. The receivers use the
     // site's radio unless another is picked, or custom numbers.
     const fillPresetOptions = () => {
-      const presets = loadPresets();
+      const presets = loadPresets("coverage");
       const fill = (name: string, first: HTMLOptionElement[], last: HTMLOptionElement[] = []) => {
         const select = field(name) as HTMLSelectElement;
         const keep = select.value;
@@ -304,11 +304,11 @@ export const coverageCalculator: Calculator = {
       fill("rxPreset", [new Option("Same as the site", "")], [new Option("Custom: enter below", "custom")]);
     };
     fillPresetOptions();
-    const sitePreset = (): RadioPreset | undefined => loadPresets().find((p) => p.id === field("sitePreset").value);
+    const sitePreset = (): RadioPreset | undefined => loadPresets("coverage").find((p) => p.id === field("sitePreset").value);
     const rxPreset = (): RadioPreset | undefined => {
       const v = field("rxPreset").value;
       if (v === "custom") return undefined;
-      return v ? loadPresets().find((p) => p.id === v) : sitePreset();
+      return v ? loadPresets("coverage").find((p) => p.id === v) : sitePreset();
     };
     /** The receiver's rate ladder, derated, fastest first; empty without one. */
     const rungs = () => ladder(rxPreset(), deratedSensitivity);
@@ -828,9 +828,10 @@ export const coverageCalculator: Calculator = {
       applyPresets();
       inputsChanged();
     };
-    form.querySelector('[data-action="presets"]')!.addEventListener("click", () => openPresetManager(pickSaved));
+    form.querySelector('[data-action="presets"]')!.addEventListener("click", () => openPresetManager("coverage", pickSaved));
     // Presets changed (here or in another tab): refresh the lists and the numbers.
-    const onPresets = () => {
+    const onPresets = (e: Event) => {
+      if (!presetsEventFor(e, "coverage")) return;
       if (!form.isConnected) {
         window.removeEventListener(PRESETS_EVENT, onPresets);
         return;
@@ -897,14 +898,14 @@ export const coverageCalculator: Calculator = {
           for (const name of Object.keys(defaults)) settings[name] = field(name).value;
           const site = sitePreset();
           const rxId = field("rxPreset").value;
-          const rx = rxId && rxId !== "custom" ? loadPresets().find((p) => p.id === rxId) : undefined;
+          const rx = rxId && rxId !== "custom" ? loadPresets("coverage").find((p) => p.id === rxId) : undefined;
           return { settings, ...(site ? { preset: site } : {}), ...(rx ? { nodePresets: [rx] } : {}) };
         },
         applyPlan: (plan) => {
           // The plan's presets join this device's (once), pointed at their ids here.
           const ids = new Map<string, string>();
-          if (plan.preset) ids.set(plan.preset.id, adoptPreset(plan.preset));
-          for (const p of plan.nodePresets ?? []) ids.set(p.id, adoptPreset(p));
+          if (plan.preset) ids.set(plan.preset.id, adoptPreset(plan.preset, "coverage"));
+          for (const p of plan.nodePresets ?? []) ids.set(p.id, adoptPreset(p, "coverage"));
           const rxWas = plan.settings.rxPreset ?? "";
           fillPresetOptions();
           applySettings(form, {

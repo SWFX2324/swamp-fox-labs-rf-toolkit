@@ -1,55 +1,63 @@
 // Radio presets: stored on this device, and the dialog to make, edit, delete,
 // import and export them. The app ships no presets; each user enters the
-// numbers for the radios they know.
+// numbers for the radios they know. Each tab keeps its own list: a mesh radio
+// and a coverage site radio are different things to plan with.
 
 import { RATE_UNITS, type RadioPreset, cleanPreset, cleanPresets, newPresetId, samePreset } from "../lib/radioPresets";
 import { frequencyUnits, powerUnits } from "../lib/units";
 import { downloadFile } from "./planBar";
 
-const STORAGE_KEY = "rf-toolkit:radio-presets";
-/** Fired on window when presets change, so every open tab can refresh its list. */
+/** Which tab's presets: each has its own list. */
+export type PresetScope = "mesh" | "coverage";
+// The mesh list keeps the original key, so presets made before the split stay there.
+const STORAGE_KEYS: Record<PresetScope, string> = { mesh: "rf-toolkit:radio-presets", coverage: "rf-toolkit:coverage-presets" };
+const SCOPE_NAMES: Record<PresetScope, string> = { mesh: "Mesh Analysis", coverage: "Coverage Analysis" };
+/** Fired on window when presets change (detail: the scope), so an open tab can refresh its list. */
 export const PRESETS_EVENT = "rf-toolkit:presets";
 
-export function loadPresets(): RadioPreset[] {
+export function loadPresets(scope: PresetScope): RadioPreset[] {
   try {
-    return cleanPresets(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]"));
+    return cleanPresets(JSON.parse(localStorage.getItem(STORAGE_KEYS[scope]) ?? "[]"));
   } catch {
     return [];
   }
 }
 
-function savePresets(list: RadioPreset[]): void {
+function savePresets(list: RadioPreset[], scope: PresetScope): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    localStorage.setItem(STORAGE_KEYS[scope], JSON.stringify(list));
   } catch {
     // Storage blocked: presets last until the page closes.
   }
-  window.dispatchEvent(new Event(PRESETS_EVENT));
+  window.dispatchEvent(new CustomEvent(PRESETS_EVENT, { detail: scope }));
 }
+
+/** True when a presets-changed event is about this scope. */
+export const presetsEventFor = (e: Event, scope: PresetScope) => !(e instanceof CustomEvent) || e.detail === scope;
 
 /**
  * Keep a preset that arrived from elsewhere (a shared plan): the existing one
  * if this device already has the same, otherwise added. Returns its id here.
  */
-export function adoptPreset(p: RadioPreset): string {
-  const list = loadPresets();
+export function adoptPreset(p: RadioPreset, scope: PresetScope): string {
+  const list = loadPresets(scope);
   const same = list.find((q) => samePreset(q, p));
   if (same) return same.id;
   const added = { ...p, id: list.some((q) => q.id === p.id) ? newPresetId() : p.id };
-  savePresets([...list, added]);
+  savePresets([...list, added], scope);
   return added.id;
 }
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const options = (list: readonly string[]) => list.map((u) => `<option>${u}</option>`).join("");
 
-const template = `
+const template = (scope: PresetScope) => `
   <div class="preset-head">
-    <h2>Radio presets</h2>
+    <h2>Radio presets <span class="meta">${SCOPE_NAMES[scope]}</span></h2>
     <button type="button" class="secondary" data-p="close">Close</button>
   </div>
   <div data-p="listView">
-    <p class="note top">Your own radios, saved on this device only. Enter the numbers from the radio's datasheet for the waveform or mode you use; the app has no built-in radios.</p>
+    <p class="note top">Your own radios for ${SCOPE_NAMES[scope]}, saved on this device only. Enter the numbers from the radio's datasheet for the waveform or mode you use; the app has no built-in radios.</p>
     <ul class="preset-list" data-p="list"></ul>
     <p class="note" data-p="empty">No presets yet.</p>
     <div class="preset-actions">
@@ -77,10 +85,10 @@ const template = `
       <label>Cable loss
         <span class="input-unit"><input name="cable" type="number" inputmode="decimal" step="any" min="0" /><span class="unit">dB</span></span>
       </label>
-      <label>Hop limit
+      <label data-mesh-only>Hop limit
         <input name="hopLimit" type="number" inputmode="numeric" step="1" min="1" max="20" placeholder="None" />
       </label>
-      <label class="check wide"><input name="sharedChannel" type="checkbox" /> Relays share one channel (each hop takes its turn on the air)</label>
+      <label class="check wide" data-mesh-only><input name="sharedChannel" type="checkbox" /> Relays share one channel (each hop takes its turn on the air)</label>
     </div>
     <h3 class="preset-sub">Rate ladder</h3>
     <p class="note">Each data rate the radio uses and the weakest signal it decodes at. Leave it empty to use one sensitivity from the Radios card.</p>
@@ -101,11 +109,13 @@ const template = `
  * Open the preset dialog. onPicked gets the id of a preset just saved, to
  * select it; editId opens straight into that preset's editor.
  */
-export function openPresetManager(onPicked?: (id: string) => void, editId?: string): void {
+export function openPresetManager(scope: PresetScope, onPicked?: (id: string) => void, editId?: string): void {
   const dialog = document.createElement("dialog");
   dialog.className = "preset-dialog";
   dialog.setAttribute("aria-label", "Radio presets");
-  dialog.innerHTML = template;
+  dialog.innerHTML = template(scope);
+  // Hop limit and shared channel only mean something in a mesh.
+  if (scope !== "mesh") for (const el of dialog.querySelectorAll<HTMLElement>("[data-mesh-only]")) el.hidden = true;
   const el = <T extends HTMLElement = HTMLElement>(name: string) => dialog.querySelector<T>(`[data-p="${name}"]`)!;
   const form = el<HTMLFormElement>("editor");
   const input = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
@@ -120,7 +130,7 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
   let editing: RadioPreset | undefined;
 
   const renderList = () => {
-    const list = loadPresets();
+    const list = loadPresets(scope);
     el("empty").hidden = list.length > 0;
     el("export").toggleAttribute("disabled", list.length === 0);
     el("list").innerHTML = list
@@ -140,12 +150,12 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
   };
   // Swap a preset with its neighbour; the pickers everywhere follow this order.
   const move = (id: string, step: -1 | 1) => {
-    const list = loadPresets();
+    const list = loadPresets(scope);
     const i = list.findIndex((p) => p.id === id);
     const j = i + step;
     if (i < 0 || j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]];
-    savePresets(list);
+    savePresets(list, scope);
     renderList();
     // Keep the focus on the button that moved, so pressing it again keeps going.
     el("list").querySelector<HTMLButtonElement>(`[data-${step < 0 ? "up" : "down"}="${id}"]:not([disabled])`)?.focus();
@@ -180,7 +190,7 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
     input("rateUnit").value = p?.rateUnit ?? "kbps";
     for (const s of p?.rates ?? []) rateRow(s.rate, s.sens);
     if (!p?.rates.length) rateRow();
-    el("delete").hidden = !p || !loadPresets().some((q) => q.id === p.id);
+    el("delete").hidden = !p || !loadPresets(scope).some((q) => q.id === p.id);
     input("name").focus();
   };
   const showList = () => {
@@ -197,7 +207,7 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
     if (!t) return;
     if (t.dataset.up) return move(t.dataset.up, -1);
     if (t.dataset.down) return move(t.dataset.down, 1);
-    const list = loadPresets();
+    const list = loadPresets(scope);
     const edit = list.find((p) => p.id === t.dataset.edit);
     if (edit) showEditor(edit);
     const copy = list.find((p) => p.id === t.dataset.copy);
@@ -205,7 +215,7 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
   });
   el("delete").addEventListener("click", () => {
     if (!editing || !confirm(`Delete the preset "${editing.name}"?`)) return;
-    savePresets(loadPresets().filter((p) => p.id !== editing!.id));
+    savePresets(loadPresets(scope).filter((p) => p.id !== editing!.id), scope);
     setStatus(`Deleted "${editing.name}".`);
     showList();
   });
@@ -233,20 +243,20 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
       input("name").focus();
       return;
     }
-    const list = loadPresets();
+    const list = loadPresets(scope);
     const at = list.findIndex((p) => p.id === preset.id);
     if (at >= 0) list[at] = preset;
     else list.push(preset);
-    savePresets(list);
+    savePresets(list, scope);
     setStatus(`Saved "${preset.name}".`);
     showList();
     onPicked?.(preset.id);
   });
 
   el("export").addEventListener("click", () => {
-    const list = loadPresets();
+    const list = loadPresets(scope);
     if (!list.length) return;
-    downloadFile("radio-presets.json", JSON.stringify({ radioPresets: list }, null, 2), "application/json");
+    downloadFile(`${scope}-radio-presets.json`, JSON.stringify({ tool: scope, radioPresets: list }, null, 2), "application/json");
     setStatus(`Exported ${list.length} preset${list.length === 1 ? "" : "s"}. Import the file on another device to use them there.`);
   });
   el("import").addEventListener("click", () => el<HTMLInputElement>("file").click());
@@ -261,14 +271,14 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
         setStatus("No presets found in that file.");
         return;
       }
-      const list = loadPresets();
+      const list = loadPresets(scope);
       let added = 0;
       for (const p of incoming) {
         if (list.some((q) => samePreset(q, p))) continue;
         list.push({ ...p, id: list.some((q) => q.id === p.id) ? newPresetId() : p.id });
         added++;
       }
-      savePresets(list);
+      savePresets(list, scope);
       setStatus(added ? `Imported ${added} preset${added === 1 ? "" : "s"}.` : "Those presets are already here.");
       renderList();
     } catch {
@@ -277,6 +287,6 @@ export function openPresetManager(onPicked?: (id: string) => void, editId?: stri
   });
 
   renderList();
-  const start = editId ? loadPresets().find((p) => p.id === editId) : undefined;
+  const start = editId ? loadPresets(scope).find((p) => p.id === editId) : undefined;
   if (start) showEditor(start);
 }

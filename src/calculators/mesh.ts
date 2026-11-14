@@ -28,7 +28,7 @@ import { createPathStore, pathKey } from "../lib/pathStore";
 import { sampleCount } from "../lib/profile";
 import type { EditField } from "../lib/scene3d";
 import { type RadioPreset, type Route, bestRoutes, formatRate, hopLimit, ladder, rateAt } from "../lib/radioPresets";
-import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager } from "./presetManager";
+import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager, presetsEventFor } from "./presetManager";
 import { kFactors, parseKFactor } from "../lib/horizon";
 import {
   type DistanceUnit,
@@ -296,11 +296,11 @@ export const meshCalculator: Calculator = {
       const select = field("preset") as HTMLSelectElement;
       const keep = select.value;
       const none = new Option("None: enter the radio below", "");
-      select.replaceChildren(none, ...loadPresets().map((p) => new Option(p.name, p.id)));
+      select.replaceChildren(none, ...loadPresets("mesh").map((p) => new Option(p.name, p.id)));
       select.value = [...select.options].some((o) => o.value === keep) ? keep : "";
     };
     fillPresetOptions();
-    const activePreset = (): RadioPreset | undefined => loadPresets().find((p) => p.id === field("preset").value);
+    const activePreset = (): RadioPreset | undefined => loadPresets("mesh").find((p) => p.id === field("preset").value);
     const ladderActive = () => ladder(activePreset()).length > 0;
 
     const state = loadState(settingDefaults);
@@ -434,7 +434,7 @@ export const meshCalculator: Calculator = {
             <p class="note" data-k="customNote">Blank uses the Radios card. Sensitivity is derated as set in Settings.</p>`;
           sub.append(cell);
           // Which radio: the net's, one of the presets, or custom numbers.
-          const presets = loadPresets();
+          const presets = loadPresets("mesh");
           const pick = cell.querySelector<HTMLSelectElement>('select[data-k="preset"]')!;
           pick.replaceChildren(new Option("Same as the net", ""), ...presets.map((p) => new Option(p.name, p.id)), new Option("Custom", "custom"));
           const mode = nodeMode(n);
@@ -593,7 +593,7 @@ export const meshCalculator: Calculator = {
         const x = Number.parseFloat(v ?? "");
         return Number.isFinite(x) ? x : undefined;
       };
-      const presetsHere = loadPresets();
+      const presetsHere = loadPresets("mesh");
       const nodeRadios: EndRadio[] = nodes.map((n) => {
         const mode = nodeMode(n);
         const np = presetsHere.find((p) => p.id === mode);
@@ -849,9 +849,9 @@ export const meshCalculator: Calculator = {
         {
           key: "preset",
           label: "Radio",
-          value: [...loadPresets().map((p) => p.id), "custom"].includes(nodeMode(n)) ? nodeMode(n) : "",
+          value: [...loadPresets("mesh").map((p) => p.id), "custom"].includes(nodeMode(n)) ? nodeMode(n) : "",
           type: "select",
-          options: [{ value: "", label: "Same as the net" }, ...loadPresets().map((p) => ({ value: p.id, label: p.name })), { value: "custom", label: "Custom" }],
+          options: [{ value: "", label: "Same as the net" }, ...loadPresets("mesh").map((p) => ({ value: p.id, label: p.name })), { value: "custom", label: "Custom" }],
         },
         // Custom numbers; blank shows the shared value and keeps using it.
         ...NODE_RADIO_FIELDS.filter((f) => nodeMode(n) === "custom" && (f.key !== "sens" || !ladderActive())).map((f): EditField => {
@@ -978,9 +978,10 @@ export const meshCalculator: Calculator = {
       save();
       recompute();
     };
-    form.querySelector('[data-action="presets"]')!.addEventListener("click", () => openPresetManager(pickSaved));
+    form.querySelector('[data-action="presets"]')!.addEventListener("click", () => openPresetManager("mesh", pickSaved));
     // Presets changed (here or in another tab): refresh the list and anything that used one.
-    const onPresets = () => {
+    const onPresets = (e: Event) => {
+      if (!presetsEventFor(e, "mesh")) return;
       if (!form.isConnected) {
         window.removeEventListener(PRESETS_EVENT, onPresets);
         return;
@@ -1011,17 +1012,17 @@ export const meshCalculator: Calculator = {
           for (const name of Object.keys(settingDefaults)) settings[name] = field(name).value;
           const preset = activePreset();
           const used = new Set(nodes.map(nodeMode));
-          const nodePresets = loadPresets().filter((p) => used.has(p.id));
+          const nodePresets = loadPresets("mesh").filter((p) => used.has(p.id));
           return { settings, nodes: nodes.map((n) => ({ ...n })), ...(preset ? { preset } : {}), ...(nodePresets.length ? { nodePresets } : {}) };
         },
         applyPlan: (plan) => {
           // A plan's preset joins this device's presets (once), so its ladder and hop limit apply here too.
-          const settingsHere = { ...plan.settings, preset: plan.preset ? adoptPreset(plan.preset) : "" };
+          const settingsHere = { ...plan.settings, preset: plan.preset ? adoptPreset(plan.preset, "mesh") : "" };
           fillPresetOptions();
           applySettings(form, settingsHere);
           syncPresetUi();
           // Node presets join this device's too; nodes are pointed at their ids here.
-          const ids = new Map((plan.nodePresets ?? []).map((p) => [p.id, adoptPreset(p)]));
+          const ids = new Map((plan.nodePresets ?? []).map((p) => [p.id, adoptPreset(p, "mesh")]));
           nodes = (plan.nodes ?? []).map((n) => ({ ...n, ...(n.preset && n.preset !== "custom" ? { preset: ids.get(n.preset) ?? "" } : {}) }));
           nodesChanged();
         },
