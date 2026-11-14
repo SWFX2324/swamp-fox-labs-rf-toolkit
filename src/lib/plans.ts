@@ -4,7 +4,7 @@
 // settings as short strings, and finite coordinates.
 
 import type { StorageLike } from "./pathStore";
-import { type RadioPreset, cleanPreset } from "./radioPresets";
+import { type RadioPreset, cleanPreset, cleanPresets } from "./radioPresets";
 
 export interface Plan {
   settings: Record<string, string>;
@@ -12,6 +12,8 @@ export interface Plan {
   nodes?: PlanNode[];
   /** The radio preset the plan uses, so it works on a device that doesn't have it. */
   preset?: RadioPreset;
+  /** Presets individual nodes use, for the same reason. */
+  nodePresets?: RadioPreset[];
 }
 
 export interface PlanNode {
@@ -29,6 +31,8 @@ export interface PlanNode {
   gain?: string;
   cable?: string;
   sens?: string;
+  /** Which radio the node uses: blank for the net's, "custom", or a preset id. */
+  preset?: string;
 }
 
 const NODE_RADIO_KEYS = ["power", "gain", "cable", "sens"] as const;
@@ -58,10 +62,12 @@ export function decodePlan(encoded: string, settingNames: string[]): Plan | unde
 
 export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
-  const { settings, nodes, preset } = raw as { settings?: unknown; nodes?: unknown; preset?: unknown };
+  const { settings, nodes, preset, nodePresets } = raw as { settings?: unknown; nodes?: unknown; preset?: unknown; nodePresets?: unknown };
   const clean: Plan = { settings: {} };
   const p = cleanPreset(preset);
   if (p) clean.preset = p;
+  const np = cleanPresets(nodePresets).slice(0, 10);
+  if (np.length) clean.nodePresets = np;
   if (typeof settings === "object" && settings !== null) {
     for (const name of settingNames) {
       const value = (settings as Record<string, unknown>)[name];
@@ -71,7 +77,7 @@ export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undef
   if (Array.isArray(nodes)) {
     clean.nodes = nodes.slice(0, MAX_NODES).flatMap((n): PlanNode[] => {
       const raw = (n ?? {}) as Record<string, unknown>;
-      const { name, lat, lon, height, antenna, aim, powerUnit } = raw;
+      const { name, lat, lon, height, antenna, aim, powerUnit, preset: nodePreset } = raw;
       if (typeof lat !== "number" || typeof lon !== "number" || !Number.isFinite(lat) || !Number.isFinite(lon)) return [];
       if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return [];
       return [{
@@ -83,6 +89,7 @@ export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undef
         ...(typeof aim === "string" && aim.length <= 12 ? { aim } : {}),
         ...Object.fromEntries(NODE_RADIO_KEYS.flatMap((k) => (typeof raw[k] === "string" && (raw[k] as string).length <= 12 && raw[k] !== "" ? [[k, raw[k]]] : []))),
         ...(typeof powerUnit === "string" && /^[a-zA-Z]{1,4}$/.test(powerUnit) ? { powerUnit } : {}),
+        ...(typeof nodePreset === "string" && /^[a-z0-9-]{0,40}$/.test(nodePreset) ? { preset: nodePreset } : {}),
       }];
     });
   }

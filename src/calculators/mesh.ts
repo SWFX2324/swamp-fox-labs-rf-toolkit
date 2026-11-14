@@ -60,7 +60,15 @@ interface MeshNode extends LatLon {
   gain?: string;
   cable?: string;
   sens?: string;
+  /** Which radio: blank for the net's, "custom" for the fields above, or a preset id. */
+  preset?: string;
 }
+
+/** Which radio a node uses. Older saves without a choice count as custom if they have their own values. */
+const nodeMode = (n: MeshNode): string => n.preset ?? (hasOwnRadio(n) ? "custom" : "");
+/** A radio in a few words: power, gain and cable, where set. */
+const radioWords = (power?: string, powerUnit?: string, gain?: string, cable?: string) =>
+  [power ? `${power} ${powerUnit ?? ""}`.trim() : "", gain ? `${gain} dBi` : "", cable ? `${cable} dB cable` : ""].filter(Boolean).join(", ");
 
 /** A node's own radio fields, and the Radios card field each stands in for. */
 const NODE_RADIO_FIELDS = [
@@ -115,11 +123,15 @@ const template = `
       <div class="card-head"><h2>Radios</h2><span class="meta">Every node, unless it has its own</span></div>
       <div class="fields">
         <label class="wide">Radio preset
-          <span class="input-unit">
+          <span class="preset-pick">
             <select name="preset"></select>
-            <button type="button" class="secondary unit-btn" data-action="presets">Presets</button>
+            <button type="button" class="secondary" data-action="presets">Presets</button>
           </span>
         </label>
+        <div class="radio-summary" data-out="radioSummary" hidden>
+          <span data-out="radioSummaryText"></span>
+          <button type="button" class="secondary" data-action="override">Override</button>
+        </div>
         <p class="note wide" data-out="presetNote" hidden></p>
         <label>Frequency
           <span class="input-unit">
@@ -155,7 +167,7 @@ const template = `
 
     <section class="card">
       <div class="card-head"><h2>Nodes</h2><span class="meta" data-out="nodeCount"></span></div>
-      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it. For a sector or directional antenna, pick it under Antenna and enter the way it points. A node with a different radio (a base or vehicle set among manpacks, say) gets its own under the radio button in its row.</p>
+      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it. For a sector or directional antenna, pick it under Antenna and enter the way it points. A node with a different radio (a base or vehicle set among manpacks, say) picks its own preset, or custom numbers, under the radio button in its row.</p>
       <div class="fields">
         <label>Environment
           <select name="environment">${environmentOptions()}</select>
@@ -248,6 +260,9 @@ function loadState(settingDefaults: Record<string, string>): { settings: Record<
     return { settings: { ...settingDefaults }, nodes: [] };
   }
 }
+
+/** Node names are user text: safe inside markup. */
+const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 const fmt = (v: number, digits = 1) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
@@ -412,15 +427,39 @@ export const meshCalculator: Calculator = {
           cell.colSpan = 6;
           const unitOptions = powerUnits.map((u) => `<option>${u}</option>`).join("");
           cell.innerHTML = `
-            <div class="node-radio">
+            <label class="node-radio-pick">Radio <select data-k="preset" aria-label="Node ${idx + 1} radio"></select></label>
+            <p class="note node-radio-summary" data-k="summary"></p>
+            <div class="node-radio" data-k="custom">
               ${NODE_RADIO_FIELDS.map((f) =>
                 f.key === "power"
                   ? `<label>TX power<span class="input-unit"><input data-k="power" type="number" inputmode="decimal" step="any" min="0" /><select data-k="powerUnit">${unitOptions}</select></span></label>`
                   : `<label>${f.label}<span class="input-unit"><input data-k="${f.key}" type="number" step="any"${f.key === "cable" ? ' min="0" inputmode="decimal"' : ""} /><span class="unit">${f.unit}</span></span></label>`,
               ).join("")}
             </div>
-            <p class="note">Blank uses the Radios card. Sensitivity is derated as set in Settings.</p>`;
+            <p class="note" data-k="customNote">Blank uses the Radios card. Sensitivity is derated as set in Settings.</p>`;
           sub.append(cell);
+          // Which radio: the net's, one of the presets, or custom numbers.
+          const presets = loadPresets();
+          const pick = cell.querySelector<HTMLSelectElement>('select[data-k="preset"]')!;
+          pick.replaceChildren(new Option("Same as the net", ""), ...presets.map((p) => new Option(p.name, p.id)), new Option("Custom", "custom"));
+          const mode = nodeMode(n);
+          pick.value = [...pick.options].some((o) => o.value === mode) ? mode : "";
+          const chosen = presets.find((p) => p.id === pick.value);
+          const custom = pick.value === "custom";
+          cell.querySelector<HTMLElement>('[data-k="custom"]')!.hidden = !custom;
+          cell.querySelector<HTMLElement>('[data-k="customNote"]')!.hidden = !custom;
+          const summary = cell.querySelector<HTMLElement>('[data-k="summary"]')!;
+          summary.hidden = custom;
+          summary.textContent = chosen
+            ? `${radioWords(chosen.power, chosen.powerUnit, chosen.gain, chosen.cable) || "No power, gain or cable in this preset"}; anything it leaves out comes from the Radios card. Data rates and sensitivity come from the net's radio, since the whole mesh runs one waveform.`
+            : "Uses the radio on the Radios card.";
+          for (const type of ["input", "change"]) pick.addEventListener(type, (e) => e.stopPropagation());
+          pick.addEventListener("change", () => {
+            n.preset = pick.value;
+            save();
+            renderNodes();
+            recompute();
+          });
           const radioBtn = tr.querySelector<HTMLButtonElement>(".node-radio-btn")!;
           const showRadio = (open: boolean) => {
             sub.hidden = !open;
@@ -428,7 +467,7 @@ export const meshCalculator: Calculator = {
             if (open) openRadios.add(n);
             else openRadios.delete(n);
           };
-          const markOwn = () => radioBtn.classList.toggle("on", hasOwnRadio(n));
+          const markOwn = () => radioBtn.classList.toggle("on", nodeMode(n) !== "");
           showRadio(openRadios.has(n));
           markOwn();
           radioBtn.addEventListener("click", () => showRadio(sub.hidden !== false));
@@ -559,13 +598,18 @@ export const meshCalculator: Calculator = {
         const x = Number.parseFloat(v ?? "");
         return Number.isFinite(x) ? x : undefined;
       };
+      const presetsHere = loadPresets();
       const nodeRadios: EndRadio[] = nodes.map((n) => {
-        const power = own(n.power);
-        const sens = own(n.sens);
+        const mode = nodeMode(n);
+        const np = presetsHere.find((p) => p.id === mode);
+        // A node preset brings power, gain and cable; custom brings all four; otherwise the net's radio.
+        const src = np ? { power: np.power, powerUnit: np.powerUnit, gain: np.gain, cable: np.cable, sens: undefined } : mode === "custom" ? n : {};
+        const power = own(src.power);
+        const sens = own(src.sens);
         return {
-          txPowerDbm: power === undefined ? radio.txPowerDbm : toDbm(power, asPowerUnit(n.powerUnit ?? field("powerUnit").value)),
-          gainDbi: own(n.gain) ?? radio.gainDbi,
-          cableLossDb: own(n.cable) ?? radio.cableLossDb,
+          txPowerDbm: power === undefined ? radio.txPowerDbm : toDbm(power, asPowerUnit(src.powerUnit ?? field("powerUnit").value)),
+          gainDbi: own(src.gain) ?? radio.gainDbi,
+          cableLossDb: own(src.cable) ?? radio.cableLossDb,
           sensitivityDbm: sens === undefined || rungs.length ? radio.sensitivityDbm : deratedSensitivity(sens),
         };
       });
@@ -615,7 +659,9 @@ export const meshCalculator: Calculator = {
 
       const pill = out("pill");
       const split = out("split");
-      const label = (i: number) => `${i + 1}${nodes[i].name ? ` ${nodes[i].name}` : ""}`;
+      // A named node goes by its name; an unnamed one by its number.
+      const label = (i: number) => nodes[i].name.trim() || String(i + 1);
+      const ref = (i: number) => nodes[i].name.trim() || `node ${i + 1}`;
       if (solidGroups.length === 1) {
         pill.className = "pill s-good";
         pill.textContent = "Solid mesh";
@@ -629,7 +675,7 @@ export const meshCalculator: Calculator = {
         pill.className = "pill s-fail";
         pill.textContent = `Split into ${groups.length} groups`;
         split.hidden = false;
-        const named = groups.map((g) => (g.length === 1 ? `node ${g[0] + 1} on its own` : `nodes ${g.map((i) => i + 1).join(", ")}`));
+        const named = groups.map((g) => (g.length === 1 ? `${ref(g[0])} on its own` : g.map(ref).join(", ")));
         split.textContent = `The mesh splits into ${groups.length} groups that can't reach each other: ${named.join("; ")}. A relay between groups, or taller antennas, would join them.`;
       }
       const envLoss = results.map((r) => r.link.clutterLossDb);
@@ -639,7 +685,7 @@ export const meshCalculator: Calculator = {
       out("envNote").hidden = !landCover && (env.id === "none" || !(envHigh > 0));
       if (landCover) {
         out("envNote").textContent = landCover.points
-          ? `From the land-cover map: ${landCover.points.map((p, i) => `node ${i + 1} is in ${describePoint(p)}`).join("; ")}. Clutter adds ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB per link, included in the margins below.`
+          ? `From the land-cover map: ${landCover.points.map((p, i) => `${ref(i)} is in ${describePoint(p)}`).join("; ")}. Clutter adds ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB per link, included in the margins below.`
           : landCover.note;
       } else out("envNote").textContent = `${env.name} adds about ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB to each link, included in the margins below. An estimate; ${env.model === "forest" ? "below the canopy the Terrain column is checked from each antenna's real height (ITU-R P.833 woodland)" : "the Terrain column is checked from the top of the clutter"}.`;
       out("derateNote").textContent = derateNote();
@@ -656,7 +702,7 @@ export const meshCalculator: Calculator = {
           pill.className = "pill s-fail";
           pill.textContent = "Past the hop limit";
         }
-        const shown = tooFar.slice(0, 3).map(([a, b]) => `${a + 1} and ${b + 1} (${hops[a][b]} hops)`);
+        const shown = tooFar.slice(0, 3).map(([a, b]) => `${label(a)} and ${label(b)} (${hops[a][b]} hops)`);
         hopNote.textContent = `Past the preset's hop limit of ${limit}: ${shown.join(", ")}${tooFar.length > 3 ? `, and ${tooFar.length - 3} more pairs` : ""}. Messages between them run out of hops before they arrive. A relay node that shortens the route, or taller antennas for longer hops, would bring them in.`;
       }
 
@@ -669,7 +715,7 @@ export const meshCalculator: Calculator = {
         out("thru").textContent = missing.length ? "—" : formatRate(slowest.route!.kbps);
         out("thruSub").textContent = missing.length
           ? `${missing.length} pair${missing.length === 1 ? " has" : "s have"} no route that keeps the fade margin${limit ? " within the hop limit" : ""}`
-          : `Nodes ${slowest.a + 1} and ${slowest.b + 1}, ${slowest.route!.hops} hop${slowest.route!.hops === 1 ? "" : "s"}`;
+          : `${label(slowest.a)} and ${label(slowest.b)}, ${slowest.route!.hops} hop${slowest.route!.hops === 1 ? "" : "s"}`;
         const rows = [...all].sort((x, y) => (x.route?.kbps ?? -1) - (y.route?.kbps ?? -1));
         const body = out("routes") as HTMLTableSectionElement;
         body.innerHTML = rows
@@ -696,7 +742,7 @@ export const meshCalculator: Calculator = {
             <td class="num mono">${terrainCell}</td>
             <td class="num"><span class="mono">${fmt(r.link.marginDb)} dB</span> <span class="pill ${cls}">${text}</span>${
               Math.abs(r.link.marginAbDb - r.link.marginBaDb) >= 0.5
-                ? `<span class="weaker">${r.link.marginBaDb < r.link.marginAbDb ? `${r.b + 1} → ${r.a + 1}` : `${r.a + 1} → ${r.b + 1}`} is the weaker way; the other is ${fmt(Math.max(r.link.marginAbDb, r.link.marginBaDb))} dB</span>`
+                ? `<span class="weaker">${escapeHtml(r.link.marginBaDb < r.link.marginAbDb ? `${label(r.b)} → ${label(r.a)}` : `${label(r.a)} → ${label(r.b)}`)} is the weaker way; the other is ${fmt(Math.max(r.link.marginAbDb, r.link.marginBaDb))} dB</span>`
                 : ""
             }${(() => {
               const rate = rateOf.get(r);
@@ -804,8 +850,15 @@ export const meshCalculator: Calculator = {
           options: patterns.map((p) => ({ value: p.id, label: p.id === "directional" ? "Directional" : p.name.replace(", ", " ") })),
         },
         ...(n.antenna && n.antenna !== "omni" ? [{ key: "aim", label: "Points", value: n.aim ?? "", unit: "° true", type: "number" as const, placeholder: "0" }] : []),
-        // Its own radio; blank shows the shared value and keeps using it.
-        ...NODE_RADIO_FIELDS.filter((f) => f.key !== "sens" || !ladderActive()).map((f): EditField => {
+        {
+          key: "preset",
+          label: "Radio",
+          value: [...loadPresets().map((p) => p.id), "custom"].includes(nodeMode(n)) ? nodeMode(n) : "",
+          type: "select",
+          options: [{ value: "", label: "Same as the net" }, ...loadPresets().map((p) => ({ value: p.id, label: p.name })), { value: "custom", label: "Custom" }],
+        },
+        // Custom numbers; blank shows the shared value and keeps using it.
+        ...NODE_RADIO_FIELDS.filter((f) => nodeMode(n) === "custom" && (f.key !== "sens" || !ladderActive())).map((f): EditField => {
           const unit = f.key === "power" ? (n.powerUnit ?? field("powerUnit").value) : f.unit;
           const sameUnit = f.key !== "power" || unit === field("powerUnit").value;
           return { key: f.key, label: f.label, value: n[f.key] ?? "", unit, type: "number", placeholder: sameUnit ? field(f.shared).value : "" };
@@ -834,6 +887,7 @@ export const meshCalculator: Calculator = {
           if (values.height !== undefined) n.height = values.height;
           if (values.antenna !== undefined) n.antenna = values.antenna === "omni" ? undefined : values.antenna;
           if (values.aim !== undefined) n.aim = values.aim;
+          if (values.preset !== undefined) n.preset = values.preset;
           for (const f of NODE_RADIO_FIELDS) {
             const v = values[f.key];
             if (v === undefined) continue;
@@ -902,10 +956,21 @@ export const meshCalculator: Calculator = {
     });
 
     // The preset note, and the sensitivity field only when there's no ladder.
+    // With a preset, its radio numbers fold into one line; Override opens them.
+    let overriding = false;
     const syncPresetUi = () => {
       const p = activePreset();
       const rungs = ladder(p);
-      field("sens").closest("label")!.hidden = rungs.length > 0;
+      const folded = !!p && !overriding;
+      for (const key of ["power", "gain", "cable"]) field(key).closest("label")!.hidden = folded;
+      field("sens").closest("label")!.hidden = rungs.length > 0 || folded;
+      out("radioSummary").hidden = !p;
+      if (p) {
+        const edited = (["power", "powerUnit", "gain", "cable"] as const).some((k) => p[k] && p[k] !== field(k).value);
+        const sensWords = rungs.length ? `${rungs.length} rate${rungs.length === 1 ? "" : "s"}` : `${field("sens").value} dBm sensitivity`;
+        out("radioSummaryText").textContent = `From the preset: ${[radioWords(field("power").value, field("powerUnit").value, field("gain").value, field("cable").value), sensWords].filter(Boolean).join(", ")}${edited ? " (changed here)" : ""}.`;
+        form.querySelector('[data-action="override"]')!.textContent = overriding ? "Fold up" : "Override";
+      }
       const note = out("presetNote");
       const bits: string[] = [];
       if (rungs.length) {
@@ -924,6 +989,7 @@ export const meshCalculator: Calculator = {
     };
     // Picking a preset fills in the radio fields it has; they stay editable.
     const applyPreset = (p: RadioPreset | undefined) => {
+      overriding = false;
       if (p) {
         for (const key of ["freq", "freqUnit", "power", "powerUnit", "gain", "cable"] as const) {
           const v = p[key];
@@ -934,6 +1000,12 @@ export const meshCalculator: Calculator = {
       renderNodes();
     };
     field("preset").addEventListener("change", () => applyPreset(activePreset()));
+    form.querySelector('[data-action="override"]')!.addEventListener("click", () => {
+      overriding = !overriding;
+      syncPresetUi();
+    });
+    // Edits in the open fields show in the summary line.
+    form.addEventListener("input", () => syncPresetUi());
     form.querySelector('[data-action="presets"]')!.addEventListener("click", () =>
       openPresetManager((id) => {
         fillPresetOptions();
@@ -960,7 +1032,7 @@ export const meshCalculator: Calculator = {
     renderNodes();
     recompute();
     if (nodes.length >= 2) void loadTerrain();
-    const nodeLabel = (i: number) => `${i + 1}${nodes[i].name ? ` ${nodes[i].name}` : ""}`;
+    const nodeLabel = (i: number) => nodes[i].name.trim() || String(i + 1);
     out("nodes").closest(".card")!.append(
       createPlanBar({
         toolId: "mesh",
@@ -969,7 +1041,9 @@ export const meshCalculator: Calculator = {
           const settings: Record<string, string> = {};
           for (const name of Object.keys(settingDefaults)) settings[name] = field(name).value;
           const preset = activePreset();
-          return { settings, nodes: nodes.map((n) => ({ ...n })), ...(preset ? { preset } : {}) };
+          const used = new Set(nodes.map(nodeMode));
+          const nodePresets = loadPresets().filter((p) => used.has(p.id));
+          return { settings, nodes: nodes.map((n) => ({ ...n })), ...(preset ? { preset } : {}), ...(nodePresets.length ? { nodePresets } : {}) };
         },
         applyPlan: (plan) => {
           // A plan's preset joins this device's presets (once), so its ladder and hop limit apply here too.
@@ -977,7 +1051,9 @@ export const meshCalculator: Calculator = {
           fillPresetOptions();
           applySettings(form, settingsHere);
           syncPresetUi();
-          nodes = (plan.nodes ?? []).map((n) => ({ ...n }));
+          // Node presets join this device's too; nodes are pointed at their ids here.
+          const ids = new Map((plan.nodePresets ?? []).map((p) => [p.id, adoptPreset(p)]));
+          nodes = (plan.nodes ?? []).map((n) => ({ ...n, ...(n.preset && n.preset !== "custom" ? { preset: ids.get(n.preset) ?? "" } : {}) }));
           nodesChanged();
         },
         exportLabel: "Export KMZ",
