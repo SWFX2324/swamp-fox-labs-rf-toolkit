@@ -65,7 +65,6 @@ const legacyDefaults: Record<string, string> = {
   rxGain: "2",
   rxCable: "0",
   sens: "-100",
-  direction: "both",
   siteSens: "-100",
   rxPower: "1",
   rxPowerUnit: "W",
@@ -107,13 +106,6 @@ const template = `
         </label>
         <label class="wide">Remote radio
           <select name="rxPreset"></select>
-        </label>
-        <label class="wide">Direction
-          <select name="direction">
-            <option value="both">Both ways: the site and remotes hear each other</option>
-            <option value="out">Site to remotes only</option>
-            <option value="in">Remotes to site only</option>
-          </select>
         </label>
         <label>Frequency
           <span class="input-unit">
@@ -319,7 +311,7 @@ export const coverageCalculator: Calculator = {
         select.replaceChildren(...first, ...presets.map((p) => new Option(p.name, p.id)), ...last);
         select.value = [...select.options].some((o) => o.value === keep) ? keep : "";
       };
-      fill("sitePreset", [new Option("None: enter the radio below", "")]);
+      fill("sitePreset", [new Option("User defined", "")]);
       fill("rxPreset", [new Option("Same as the site", "")], [new Option("Custom: enter below", "custom")]);
     };
     fillPresetOptions();
@@ -344,8 +336,6 @@ export const coverageCalculator: Calculator = {
       const r = siteRungs();
       return r.length ? slowest(r) : deratedSensitivity(num("siteSens"));
     };
-    type Direction = "both" | "out" | "in";
-    const direction = (): Direction => (["out", "in"].includes(field("direction").value) ? (field("direction").value as Direction) : "both");
     /**
      * How much stronger the remotes reach the site than the site reaches them,
      * dB. The path, antennas and cables are the same both ways, so only the
@@ -356,13 +346,8 @@ export const coverageCalculator: Calculator = {
       toDbm(num("power"), asPowerUnit(field("powerUnit").value)) +
       sensitivity() -
       siteSensitivity();
-    /** What the shading adds to the site-to-remotes margin, for the chosen direction. */
-    const shadeOffset = () => {
-      const dir = direction();
-      if (dir === "out") return 0;
-      const d = returnDelta();
-      return dir === "in" ? d : Math.min(0, d);
-    };
+    /** What the shading adds to the site-to-remotes margin: the map is for the weaker way. */
+    const shadeOffset = () => Math.min(0, returnDelta());
     // The offset the current margins were drawn with.
     let shownOffset = 0;
 
@@ -555,22 +540,13 @@ export const coverageCalculator: Calculator = {
     // Which way the shading is for, and how far apart the two ways are.
     const syncDirectionNote = () => {
       const d = returnDelta();
-      const dir = direction();
       const note = out("dirNote");
       const gap = Number.isFinite(d) ? Math.abs(d) : 0;
       let text = "";
-      if (dir === "both" && gap >= 0.1) {
+      if (gap >= 0.1) {
         text = d < 0
           ? `Shaded for the weaker way: the remotes reach the site ${fmt(gap)} dB less well than the site reaches them, from their transmit power and the site's sensitivity.`
           : `Shaded for the weaker way: the site reaches the remotes ${fmt(gap)} dB less well than they reach it, from its transmit power and the remotes' sensitivity.`;
-      } else if (dir === "out") {
-        text = d <= -0.1
-          ? `Shows where the remotes hear the site, not where they can answer: their talk-back is ${fmt(gap)} dB weaker, so some shaded areas can hear but not be heard. Pick Both ways to map that.`
-          : "Shows where the remotes hear the site.";
-      } else if (dir === "in") {
-        text = d >= 0.1
-          ? `Shows where the site hears the remotes, not where they hear it: the site's transmissions are ${fmt(gap)} dB weaker. Pick Both ways to map that.`
-          : "Shows where the site hears the remotes.";
       }
       note.textContent = text;
       note.hidden = !text;
@@ -843,11 +819,8 @@ export const coverageCalculator: Calculator = {
           const vIn = vOut + returnDelta();
           const outText = words(vOut, rungs());
           const inText = Number.isFinite(vIn) ? words(vIn, siteRungs()) : "";
-          const dir = direction();
           const text = !Number.isFinite(v)
             ? "Outside the mapped circle"
-            : dir === "out" ? outText
-            : dir === "in" ? inText
             : outText === inText ? `${outText} both ways`
             : `${words(Math.min(vOut, vIn), [])} the weaker way. Site to here: ${outText}. Here to site: ${inText}`;
           L.popup({ className: "coverage-popup" })
@@ -916,12 +889,10 @@ export const coverageCalculator: Calculator = {
       hide("rxGain", !!r?.gain);
       hide("rxCable", !!r?.cable);
       hide("sens", rungs().length > 0 || !!r?.sens);
-      // The return way's numbers only matter when it's mapped.
-      const outOnly = direction() === "out";
-      hide("siteSens", outOnly || siteRungs().length > 0 || !!s?.sens);
-      hide("rxPower", outOnly || !!r?.power);
+      hide("siteSens", siteRungs().length > 0 || !!s?.sens);
+      hide("rxPower", !!r?.power);
     };
-    for (const name of ["sitePreset", "rxPreset", "direction"]) field(name).addEventListener("change", applyPresets);
+    for (const name of ["sitePreset", "rxPreset"]) field(name).addEventListener("change", applyPresets);
     const pickSaved = (id: string) => {
       fillPresetOptions();
       field("sitePreset").value = id;

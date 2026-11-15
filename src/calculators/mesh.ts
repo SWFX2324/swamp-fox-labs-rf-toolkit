@@ -295,7 +295,7 @@ export const meshCalculator: Calculator = {
     const fillPresetOptions = () => {
       const select = field("preset") as HTMLSelectElement;
       const keep = select.value;
-      const none = new Option("None: enter the radio below", "");
+      const none = new Option("User defined", "");
       select.replaceChildren(none, ...loadPresets("mesh").map((p) => new Option(p.name, p.id)));
       select.value = [...select.options].some((o) => o.value === keep) ? keep : "";
     };

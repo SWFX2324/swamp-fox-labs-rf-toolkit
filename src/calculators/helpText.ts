@@ -130,14 +130,12 @@ export const coverageGuide: FieldGuide = {
     txPattern: patternHelp,
     txAzimuth: aimHelp,
     txTilt: tiltHelp,
-    direction:
-      "Both ways shades only where the site hears the remotes and they hear it back, using the weaker way at each point. The path is the same both ways, so only the transmit powers and receiver sensitivities differ: a 5 W handheld answering a 50 W site is 10 dB weaker. One way shows just that direction.",
     siteSens: `${shared.sensitivity} This is the site's receiver, for the remotes reaching it.`,
     rxHeight:
       "Antenna height of the remote stations you want to reach: about 5 ft for a handheld, 6–8 ft on a vehicle roof.",
     rxGain: shared.gain,
     rxCable: "Cable loss at the remote stations. Leave 0 for handhelds.",
-    rxPower: "Transmit power of the remote stations, for them reaching the site.",
+    rxPower: "Transmit power of the remote stations, for them reaching the site. The map shades only where both ways work: a 5 W handheld answering a 50 W site is 10 dB weaker.",
     sens: `${shared.sensitivity} This is the remote stations' receiver.`,
     fade: `${shared.fade} Areas that keep it show as solid.`,
     environment: shared.environment,
