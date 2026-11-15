@@ -446,7 +446,7 @@ export const meshCalculator: Calculator = {
           const summary = cell.querySelector<HTMLElement>('[data-k="summary"]')!;
           summary.hidden = custom;
           summary.textContent = chosen
-            ? `${radioWords(chosen.power, chosen.powerUnit, chosen.gain, chosen.cable) || "No power, gain or cable in this preset"}; anything it leaves out comes from the Radios card. Data rates and sensitivity come from the net's radio, since the whole mesh runs one waveform.`
+            ? `${radioWords(chosen.power, chosen.powerUnit, chosen.gain, chosen.cable) || "No power, gain or cable in this preset"}${chosen.sens && !ladderActive() ? `, ${chosen.sens.replace("-", "−")} dBm sensitivity` : ""}; anything it leaves out comes from the Radios card. Data rates come from the net's radio, since the whole mesh runs one waveform${chosen.sens && ladderActive() ? ", and so does sensitivity while it has a rate ladder" : ""}.`
             : "Uses the radio on the Radios card.";
           for (const type of ["input", "change"]) pick.addEventListener(type, (e) => e.stopPropagation());
           pick.addEventListener("change", () => {
@@ -597,8 +597,9 @@ export const meshCalculator: Calculator = {
       const nodeRadios: EndRadio[] = nodes.map((n) => {
         const mode = nodeMode(n);
         const np = presetsHere.find((p) => p.id === mode);
-        // A node preset brings power, gain and cable; custom brings all four; otherwise the net's radio.
-        const src = np ? { power: np.power, powerUnit: np.powerUnit, gain: np.gain, cable: np.cable, sens: undefined } : mode === "custom" ? n : {};
+        // A node preset or custom radio brings its own numbers; otherwise the net's radio.
+        // A net rate ladder sets every node's sensitivity, since the mesh runs one waveform.
+        const src = np ? { power: np.power, powerUnit: np.powerUnit, gain: np.gain, cable: np.cable, sens: np.sens } : mode === "custom" ? n : {};
         const power = own(src.power);
         const sens = own(src.sens);
         return {
@@ -957,12 +958,12 @@ export const meshCalculator: Calculator = {
       const p = activePreset();
       const rungs = ladder(p);
       for (const key of ["power", "gain", "cable"] as const) field(key).closest("label")!.hidden = !!p?.[key];
-      field("sens").closest("label")!.hidden = rungs.length > 0;
+      field("sens").closest("label")!.hidden = rungs.length > 0 || !!p?.sens;
     };
     // The preset's numbers go into the fields it covers, so the math uses them.
     const applyPreset = (p: RadioPreset | undefined) => {
       if (p) {
-        for (const key of ["freq", "freqUnit", "power", "powerUnit", "gain", "cable"] as const) {
+        for (const key of ["freq", "freqUnit", "power", "powerUnit", "gain", "cable", "sens"] as const) {
           const v = p[key];
           if (v) field(key).value = v;
         }

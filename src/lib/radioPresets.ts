@@ -27,6 +27,8 @@ export interface RadioPreset {
   powerUnit?: string;
   gain?: string;
   cable?: string;
+  /** The weakest usable signal, dBm, for a radio with no rate ladder. A ladder wins over it. */
+  sens?: string;
   rateUnit: RateUnit;
   rates: RateStep[];
   /** Most hops a message may take; blank for no limit. */
@@ -66,7 +68,7 @@ export function cleanPreset(raw: unknown): RadioPreset | undefined {
     rates,
     sharedChannel: r.sharedChannel !== false,
   };
-  for (const k of ["freq", "power", "gain", "cable", "hopLimit"] as const) {
+  for (const k of ["freq", "power", "gain", "cable", "sens", "hopLimit"] as const) {
     const v = numText(r[k]);
     if (v) out[k] = v;
   }

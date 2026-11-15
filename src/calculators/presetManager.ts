@@ -85,13 +85,16 @@ const template = (scope: PresetScope) => `
       <label>Cable loss
         <span class="input-unit"><input name="cable" type="number" inputmode="decimal" step="any" min="0" /><span class="unit">dB</span></span>
       </label>
+      <label>Sensitivity
+        <span class="input-unit"><input name="sens" type="number" step="any" /><span class="unit">dBm</span></span>
+      </label>
       <label data-mesh-only>Hop limit
         <input name="hopLimit" type="number" inputmode="numeric" step="1" min="1" max="20" placeholder="None" />
       </label>
       <label class="check wide" data-mesh-only><input name="sharedChannel" type="checkbox" /> Relays share one channel (each hop takes its turn on the air)</label>
     </div>
     <h3 class="preset-sub">Rate ladder</h3>
-    <p class="note">Each data rate the radio uses and the weakest signal it decodes at. Leave it empty to use one sensitivity from the Radios card.</p>
+    <p class="note">Each data rate the radio uses and the weakest signal it decodes at. With a ladder, it sets the sensitivity. Leave it empty to use the Sensitivity above, or the tab's own field if that's blank too.</p>
     <div class="preset-rates">
       <div class="preset-rate-head"><span>Rate <select name="rateUnit" aria-label="Rate unit">${options(RATE_UNITS)}</select></span><span>Sensitivity</span><span></span></div>
       <div data-p="rates"></div>
@@ -135,7 +138,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
     el("export").toggleAttribute("disabled", list.length === 0);
     el("list").innerHTML = list
       .map((p, i) => {
-        const bits = [p.rates.length ? `${p.rates.length} rate${p.rates.length === 1 ? "" : "s"}` : "single sensitivity", p.hopLimit ? `${p.hopLimit} hops max` : ""].filter(Boolean);
+        const bits = [p.rates.length ? `${p.rates.length} rate${p.rates.length === 1 ? "" : "s"}` : p.sens ? `${p.sens.replace("-", "−")} dBm` : "no sensitivity set", p.hopLimit ? `${p.hopLimit} hops max` : ""].filter(Boolean);
         const name = escapeHtml(p.name);
         return `<li>
           <span class="preset-order">
@@ -185,6 +188,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
     input("powerUnit").value = p?.powerUnit ?? "W";
     input("gain").value = p?.gain ?? "";
     input("cable").value = p?.cable ?? "";
+    input("sens").value = p?.sens ?? "";
     input("hopLimit").value = p?.hopLimit ?? "";
     (input("sharedChannel") as HTMLInputElement).checked = p?.sharedChannel ?? true;
     input("rateUnit").value = p?.rateUnit ?? "kbps";
@@ -234,6 +238,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
       powerUnit: input("powerUnit").value,
       gain: input("gain").value.trim(),
       cable: input("cable").value.trim(),
+      sens: input("sens").value.trim(),
       hopLimit: input("hopLimit").value.trim(),
       sharedChannel: (input("sharedChannel") as HTMLInputElement).checked,
       rateUnit: input("rateUnit").value,

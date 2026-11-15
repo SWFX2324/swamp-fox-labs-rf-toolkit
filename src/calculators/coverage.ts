@@ -26,7 +26,7 @@ import { tabStateToSave, tabValues } from "../lib/appSettings";
 import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { loadTiles } from "./tileElevation";
 import type { EditField } from "../lib/scene3d";
-import { type RadioPreset, formatRate, ladder, rateAt } from "../lib/radioPresets";
+import { type RadioPreset, type Rung, formatRate, ladder, rateAt } from "../lib/radioPresets";
 import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager, presetsEventFor } from "./presetManager";
 import {
   type DistanceUnit,
@@ -65,6 +65,10 @@ const legacyDefaults: Record<string, string> = {
   rxGain: "2",
   rxCable: "0",
   sens: "-100",
+  direction: "both",
+  siteSens: "-100",
+  rxPower: "1",
+  rxPowerUnit: "W",
   fade: "10",
   environment: "none",
   treeHeight: "",
@@ -101,8 +105,15 @@ const template = `
             <button type="button" class="secondary" data-action="presets">Manage presets</button>
           </span>
         </label>
-        <label class="wide">Receiver radio
+        <label class="wide">Remote radio
           <select name="rxPreset"></select>
+        </label>
+        <label class="wide">Direction
+          <select name="direction">
+            <option value="both">Both ways: the site and remotes hear each other</option>
+            <option value="out">Site to remotes only</option>
+            <option value="in">Remotes to site only</option>
+          </select>
         </label>
         <label>Frequency
           <span class="input-unit">
@@ -110,34 +121,41 @@ const template = `
             <select name="freqUnit">${Object.keys(frequencyUnits).map((u) => `<option>${u}</option>`).join("")}</select>
           </span>
         </label>
-        <label>TX power
+        <label>Site TX power
           <span class="input-unit">
             <input name="power" type="number" inputmode="decimal" step="any" />
             <select name="powerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
           </span>
         </label>
-        ${numberField("TX antenna gain", "txGain", "dBi")}
-        <label>TX antenna pattern
+        ${numberField("Site antenna gain", "txGain", "dBi")}
+        <label>Site antenna pattern
           <select name="txPattern">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select>
         </label>
-        <label data-show="txAim">TX antenna points
+        <label data-show="txAim">Site antenna points
           <span class="input-unit">
             <input name="txAzimuth" type="number" inputmode="decimal" step="any" min="0" max="360" />
             <span class="unit">° true</span>
           </span>
         </label>
-        ${numberField("TX downtilt", "txTilt", "°", 'min="-30" max="30"')}
-        ${numberField("TX cable loss", "txCable", "dB", 'min="0"')}
-        <label>TX antenna height
+        ${numberField("Site downtilt", "txTilt", "°", 'min="-30" max="30"')}
+        ${numberField("Site cable loss", "txCable", "dB", 'min="0"')}
+        <label>Site antenna height
           <span class="input-unit">
             <input name="txHeight" type="number" inputmode="decimal" step="any" min="0" />
             <select name="heightUnit"><option>ft</option><option>m</option></select>
           </span>
         </label>
-        ${numberField("RX antenna height", "rxHeight", "", 'min="0" title="About 5 ft for a handheld, 8 ft on a vehicle"')}
-        ${numberField("RX antenna gain", "rxGain", "dBi")}
-        ${numberField("RX cable loss", "rxCable", "dB", 'min="0"')}
-        ${numberField("RX sensitivity", "sens", "dBm")}
+        ${numberField("Site RX sensitivity", "siteSens", "dBm")}
+        ${numberField("Remote antenna height", "rxHeight", "", 'min="0" title="About 5 ft for a handheld, 8 ft on a vehicle"')}
+        ${numberField("Remote antenna gain", "rxGain", "dBi")}
+        ${numberField("Remote cable loss", "rxCable", "dB", 'min="0"')}
+        <label>Remote TX power
+          <span class="input-unit">
+            <input name="rxPower" type="number" inputmode="decimal" step="any" />
+            <select name="rxPowerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
+          </span>
+        </label>
+        ${numberField("Remote RX sensitivity", "sens", "dBm")}
         ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
       </div>
     </section>
@@ -198,6 +216,7 @@ const template = `
           <div class="tile"><span class="label">Marginal</span><span class="value" data-out="marginal"></span><span class="sub">Connects, under the fade margin</span></div>
           <div class="tile"><span class="label">Farthest solid point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
         </div>
+        <p class="note" data-out="dirNote" hidden></p>
         <p class="note" data-out="envNote" hidden></p>
         <p class="note" data-out="corrNote" hidden></p>
         <p class="note" data-out="derateNote" hidden></p>
@@ -290,7 +309,7 @@ export const coverageCalculator: Calculator = {
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
     const num = (name: string) => Number.parseFloat(field(name).value);
 
-    // Radio presets: the user's own, from this device. The receivers use the
+    // Radio presets: the user's own, from this device. The remotes use the
     // site's radio unless another is picked, or custom numbers.
     const fillPresetOptions = () => {
       const presets = loadPresets("coverage");
@@ -310,13 +329,42 @@ export const coverageCalculator: Calculator = {
       if (v === "custom") return undefined;
       return v ? loadPresets("coverage").find((p) => p.id === v) : sitePreset();
     };
-    /** The receiver's rate ladder, derated, fastest first; empty without one. */
+    /** The remotes' rate ladder, derated, fastest first; empty without one. */
     const rungs = () => ladder(rxPreset(), deratedSensitivity);
-    /** The sensitivity the map is drawn against: the ladder's slowest rate, or the field. */
+    /** The site's rate ladder, for the remotes reaching it. */
+    const siteRungs = () => ladder(sitePreset(), deratedSensitivity);
+    const slowest = (r: Rung[]) => Math.min(...r.map((x) => x.sensDbm));
+    /** The remotes' sensitivity: their ladder's slowest rate, or the field. */
     const sensitivity = () => {
       const r = rungs();
-      return r.length ? Math.min(...r.map((x) => x.sensDbm)) : deratedSensitivity(num("sens"));
+      return r.length ? slowest(r) : deratedSensitivity(num("sens"));
     };
+    /** The site's sensitivity, the same way. */
+    const siteSensitivity = () => {
+      const r = siteRungs();
+      return r.length ? slowest(r) : deratedSensitivity(num("siteSens"));
+    };
+    type Direction = "both" | "out" | "in";
+    const direction = (): Direction => (["out", "in"].includes(field("direction").value) ? (field("direction").value as Direction) : "both");
+    /**
+     * How much stronger the remotes reach the site than the site reaches them,
+     * dB. The path, antennas and cables are the same both ways, so only the
+     * transmit powers and receiver sensitivities differ.
+     */
+    const returnDelta = () =>
+      toDbm(num("rxPower"), asPowerUnit(field("rxPowerUnit").value)) -
+      toDbm(num("power"), asPowerUnit(field("powerUnit").value)) +
+      sensitivity() -
+      siteSensitivity();
+    /** What the shading adds to the site-to-remotes margin, for the chosen direction. */
+    const shadeOffset = () => {
+      const dir = direction();
+      if (dir === "out") return 0;
+      const d = returnDelta();
+      return dir === "in" ? d : Math.min(0, d);
+    };
+    // The offset the current margins were drawn with.
+    let shownOffset = 0;
 
     for (const [name, value] of Object.entries(loadState(defaults))) {
       const el = form.elements.namedItem(name);
@@ -432,7 +480,8 @@ export const coverageCalculator: Calculator = {
         if (!mapped()) return undefined;
         const v = marginAt(samples!, margins!, bearingDeg(samples!.site, p), distanceBetweenM(samples!.site, p));
         // Margins include any correction; predictions are compared without it.
-        return Number.isFinite(v) ? v - readingsCard.correctionDb() + sensitivity() : undefined;
+        // Readings are of the site, heard at the spot: the site-to-remote margin.
+        return Number.isFinite(v) ? v - shownOffset - readingsCard.correctionDb() + sensitivity() : undefined;
       },
       coverAt: (p) => {
         const at = cover && cover.samples === samples && mapped() ? nearestPoint(p) : undefined;
@@ -503,6 +552,30 @@ export const coverageCalculator: Calculator = {
       view3d?.refresh();
     };
 
+    // Which way the shading is for, and how far apart the two ways are.
+    const syncDirectionNote = () => {
+      const d = returnDelta();
+      const dir = direction();
+      const note = out("dirNote");
+      const gap = Number.isFinite(d) ? Math.abs(d) : 0;
+      let text = "";
+      if (dir === "both" && gap >= 0.1) {
+        text = d < 0
+          ? `Shaded for the weaker way: the remotes reach the site ${fmt(gap)} dB less well than the site reaches them, from their transmit power and the site's sensitivity.`
+          : `Shaded for the weaker way: the site reaches the remotes ${fmt(gap)} dB less well than they reach it, from its transmit power and the remotes' sensitivity.`;
+      } else if (dir === "out") {
+        text = d <= -0.1
+          ? `Shows where the remotes hear the site, not where they can answer: their talk-back is ${fmt(gap)} dB weaker, so some shaded areas can hear but not be heard. Pick Both ways to map that.`
+          : "Shows where the remotes hear the site.";
+      } else if (dir === "in") {
+        text = d >= 0.1
+          ? `Shows where the site hears the remotes, not where they hear it: the site's transmissions are ${fmt(gap)} dB weaker. Pick Both ways to map that.`
+          : "Shows where the site hears the remotes.";
+      }
+      note.textContent = text;
+      note.hidden = !text;
+    };
+
     const recompute = () => {
       const ready = !!samples && sampledFor === sampleKey();
       out("stale").hidden = !samples || ready;
@@ -557,6 +630,10 @@ export const coverageCalculator: Calculator = {
         const flat = b.pattern.id === "omni" && b.downtiltDeg === 0 && b.vBeamwidthDeg >= 90;
         patternLoss = { samples, key: beamKey, loss: flat ? undefined : coveragePatternLoss(samples, b, txH, rxH) };
       }
+      const offset = shadeOffset();
+      if (!Number.isFinite(offset)) return;
+      shownOffset = offset;
+      syncDirectionNote();
       const correction = readingsCard.correctionDb();
       out("corrNote").hidden = correction === 0;
       out("derateNote").textContent = derateNote();
@@ -564,7 +641,7 @@ export const coverageCalculator: Calculator = {
       out("corrNote").textContent = `Corrected by ${correction > 0 ? "+" : ""}${fmt(correction)} dB, the average error of your field readings.`;
       margins = marginsFromLoss(
         pathLoss.loss,
-        { ...r, eirpDbm: r.eirpDbm + correction, clutterLossDb: clutterLossDb(siteEnv, r.freqHz, txH) + (lc ? 0 : clutterLossDb(env, r.freqHz, rxH)) },
+        { ...r, eirpDbm: r.eirpDbm + correction + offset, clutterLossDb: clutterLossDb(siteEnv, r.freqHz, txH) + (lc ? 0 : clutterLossDb(env, r.freqHz, rxH)) },
         sumGrids(patternLoss.loss, lc ? clutterGrids!.loss : undefined),
       );
       const fade = num("fade") || 0;
@@ -686,17 +763,20 @@ export const coverageCalculator: Calculator = {
         else showDefaultView(m);
       });
       clearControl = addClearControl(map, "the site and coverage", clearCoverage);
+      // A field the Radios card shows (not set by a preset, or unused).
+      const shown = (name: string) => !field(name).closest("label")!.hidden;
       // What the 3D view's editor shows for the site, by field name.
       const siteFields = (p: LatLon): EditField[] => {
         const f = (key: string, label: string, unit?: string, type: EditField["type"] = "number"): EditField => ({ key, label, value: field(key).value, unit, type });
         const fields = [
           f("siteName", "Name", undefined, "text"),
-          ...(sitePreset()?.power ? [] : [f("power", "TX power", field("powerUnit").value)]),
-          ...(sitePreset()?.gain ? [] : [f("txGain", "Antenna gain", "dBi")]),
+          ...(shown("power") ? [f("power", "TX power", field("powerUnit").value)] : []),
+          ...(shown("txGain") ? [f("txGain", "Antenna gain", "dBi")] : []),
           { ...f("txPattern", "Antenna pattern", undefined, "select"), options: patterns.map((q) => ({ value: q.id, label: q.name })) },
           ...(field("txPattern").value === "omni" ? [] : [f("txAzimuth", "Points", "° true")]),
           f("txHeight", "Antenna height", field("heightUnit").value),
-          ...(rungs().length ? [] : [f("sens", "RX sensitivity", "dBm")]),
+          ...(shown("siteSens") ? [f("siteSens", "RX sensitivity", "dBm")] : []),
+          ...(shown("sens") ? [f("sens", "Remote RX sensitivity", "dBm")] : []),
           f("radius", "Radius", field("radiusUnit").value),
         ];
         return [...fields, { key: "location", label: "Location", value: formatCoordinates(p), type: "text" }];
@@ -752,12 +832,24 @@ export const coverageCalculator: Calculator = {
           const v = marginAt(samples, margins, b, d);
           const unit: DistanceUnit = field("radiusUnit").value === "mi" ? "mi" : "km";
           // With a rate ladder, the fastest rate that keeps the fade margin there.
-          const ladderHere = rungs();
-          const held = Number.isFinite(v) && ladderHere.length ? rateAt(v + sensitivity() - readingsCard.correctionDb(), ladderHere, num("fade") || 0) : undefined;
-          const rateText = held?.solid ? `, holds ${formatRate(held.solid.kbps)}${held.any && held.any.kbps > held.solid.kbps ? ` (${formatRate(held.any.kbps)} under the fade margin)` : ""}` : held?.any ? `, ${formatRate(held.any.kbps)} under the fade margin` : "";
-          const text = Number.isFinite(v)
-            ? `${fmt(v)} dB margin${rateText}`
-            : "Outside the mapped circle";
+          const fade = num("fade") || 0;
+          const words = (m: number, ladderHere: Rung[]) => {
+            const held = ladderHere.length ? rateAt(m + slowest(ladderHere), ladderHere, fade) : undefined;
+            const rateText = held?.solid ? `, holds ${formatRate(held.solid.kbps)}${held.any && held.any.kbps > held.solid.kbps ? ` (${formatRate(held.any.kbps)} under the fade margin)` : ""}` : held?.any ? `, ${formatRate(held.any.kbps)} under the fade margin` : "";
+            return `${fmt(m)} dB margin${rateText}`;
+          };
+          // Each way's margin: the shading's offset comes off, the return difference goes on.
+          const vOut = v - shownOffset;
+          const vIn = vOut + returnDelta();
+          const outText = words(vOut, rungs());
+          const inText = Number.isFinite(vIn) ? words(vIn, siteRungs()) : "";
+          const dir = direction();
+          const text = !Number.isFinite(v)
+            ? "Outside the mapped circle"
+            : dir === "out" ? outText
+            : dir === "in" ? inText
+            : outText === inText ? `${outText} both ways`
+            : `${words(Math.min(vOut, vIn), [])} the weaker way. Site to here: ${outText}. Here to site: ${inText}`;
           L.popup({ className: "coverage-popup" })
             .setLatLng(e.latlng)
             .setContent(`<b>${text}</b><br>${fmt(fromMetres(d, unit), 2)} ${unit} at ${Math.round(b)}° ${compassPoint(b)}`)
@@ -808,10 +900,14 @@ export const coverageCalculator: Calculator = {
         set("powerUnit", s.powerUnit);
         set("txGain", s.gain);
         set("txCable", s.cable);
+        set("siteSens", s.sens);
       }
       if (r) {
         set("rxGain", r.gain);
         set("rxCable", r.cable);
+        set("rxPower", r.power);
+        set("rxPowerUnit", r.powerUnit);
+        set("sens", r.sens);
       }
       const hide = (name: string, hidden: boolean) => (field(name).closest("label")!.hidden = hidden);
       hide("power", !!s?.power);
@@ -819,9 +915,13 @@ export const coverageCalculator: Calculator = {
       hide("txCable", !!s?.cable);
       hide("rxGain", !!r?.gain);
       hide("rxCable", !!r?.cable);
-      hide("sens", rungs().length > 0);
+      hide("sens", rungs().length > 0 || !!r?.sens);
+      // The return way's numbers only matter when it's mapped.
+      const outOnly = direction() === "out";
+      hide("siteSens", outOnly || siteRungs().length > 0 || !!s?.sens);
+      hide("rxPower", outOnly || !!r?.power);
     };
-    for (const name of ["sitePreset", "rxPreset"]) field(name).addEventListener("change", applyPresets);
+    for (const name of ["sitePreset", "rxPreset", "direction"]) field(name).addEventListener("change", applyPresets);
     const pickSaved = (id: string) => {
       fillPresetOptions();
       field("sitePreset").value = id;

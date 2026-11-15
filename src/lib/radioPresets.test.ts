@@ -29,6 +29,11 @@ describe("cleanPreset", () => {
     expect(c.sharedChannel).toBe(true);
   });
 
+  it("keeps a plain sensitivity for a radio without a ladder", () => {
+    expect(cleanPreset({ name: "Analog", sens: "-117", rates: [] })!.sens).toBe("-117");
+    expect(cleanPreset({ name: "Analog", sens: "weak" })!.sens).toBeUndefined();
+  });
+
   it("makes duplicate ids unique", () => {
     const list = cleanPresets([preset, preset]);
     expect(list).toHaveLength(2);
