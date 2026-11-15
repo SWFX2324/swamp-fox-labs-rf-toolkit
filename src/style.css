@@ -627,7 +627,7 @@ main .leaflet-container { background: var(--card-2); }
   .power-item [data-f="total"] { grid-area: 3 / 5 / 4 / 7; align-self: center; }
   .power-plan[data-mode="simple"] .power-item [data-f="total"] { grid-area: 3 / 3 / 4 / 7; }
 }
-/* Sat Pointing's map matches the Mesh Analysis's on desktop; phones keep 300px. */
+/* Satellite Pointing's map matches the Mesh Analysis's on desktop; phones keep 300px. */
 @media (min-width: 601px) { .sat-map { height: 380px; } }
 .chart-readout { color: var(--text); font-variant-numeric: tabular-nums; }
 

@@ -1,4 +1,4 @@
-// RF Converter: cards of linked fields. Each card keeps one canonical value
+// Unit Converter: cards of linked fields. Each card keeps one canonical value
 // (dBm, reflection coefficient, dBi, dB); typing in any field converts it to
 // that value and refills the others. Wavelengths live in Antenna Length.
 
@@ -139,7 +139,7 @@ const SIGNED = new Set(["dbm", "dbw", "dbi", "dbd", "db"]);
 
 export const converterCalculator: Calculator = {
   id: "convert",
-  title: "RF Converter",
+  title: "Unit Converter",
   shortTitle: "Convert",
   render() {
     const root = document.createElement("form");

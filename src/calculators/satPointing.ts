@@ -1,4 +1,4 @@
-// Sat Pointing: azimuth, elevation and polarization skew from a ground site
+// Satellite Pointing: azimuth, elevation and polarization skew from a ground site
 // to a geostationary orbital slot, with magnetic azimuth from the World
 // Magnetic Model and a bearing line on the map.
 
@@ -165,7 +165,7 @@ function drawPointing(azTrue: number, declination: number, elevation: number): s
 
 export const satPointingCalculator: Calculator = {
   id: "sat",
-  title: "Sat Pointing",
+  title: "Satellite Pointing",
   shortTitle: "Pointing",
   render() {
     const form = document.createElement("form");

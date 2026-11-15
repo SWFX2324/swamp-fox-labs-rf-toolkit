@@ -1,4 +1,4 @@
-// A small satellite terminal, the Sat Pointing tool's marker. Matches the radio
+// A small satellite terminal, the Satellite Pointing tool's marker. Matches the radio
 // marker's black and white look (see radioIcon.ts). The dish turns about its
 // mount, so the feed horn sits on the map's azimuth line.
 

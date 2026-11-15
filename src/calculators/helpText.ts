@@ -39,7 +39,7 @@ const shared = {
 const patternHelp =
   "The shape of the antenna's beam. Omni sends the same way in every direction; a sector covers a wedge (its beamwidth); Directional is a Yagi, panel or dish, with a beam that narrows as its gain rises. Antenna gain is the peak, on the beam; off the beam the app takes away what the pattern loses there, down to about 20–25 dB behind it. Higher-gain antennas also have a thinner beam up and down, so they can miss ground right under a tall mast.";
 const aimHelp =
-  "The compass direction the antenna faces, in degrees from true north: 0 is north, 90 east, 180 south, 270 west. A phone compass reads magnetic north; Sat Pointing shows the difference (declination) for your area.";
+  "The compass direction the antenna faces, in degrees from true north: 0 is north, 90 east, 180 south, 270 west. A phone compass reads magnetic north; Satellite Pointing shows the difference (declination) for your area.";
 const tiltHelp =
   "How far the beam points below the horizon, in degrees: built-in (electrical) tilt plus any mechanical tilt. 0 is level. A few degrees of downtilt fills in close to a tall site at the cost of reach. Leave 0 if you don't know it.";
 const kFactorHelp =
@@ -181,7 +181,7 @@ export const satPointingGuide: FieldGuide = {
 
 export const satLinkGuide: FieldGuide = {
   help: {
-    site: "Where your dish is. Press the crosshair for GPS or type coordinates (decimal lat/lon or MGRS). Filled in from Sat Pointing if you've used it.",
+    site: "Where your dish is. Press the crosshair for GPS or type coordinates (decimal lat/lon or MGRS). Filled in from Satellite Pointing if you've used it.",
     slot: shared.slot,
     band: "The satellite band. Picking one fills in typical uplink and downlink frequencies and clear-sky losses.",
     upGHz: "Your transmit (uplink) frequency from the access plan.",

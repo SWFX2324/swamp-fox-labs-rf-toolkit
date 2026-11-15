@@ -1,4 +1,4 @@
-// Sat Link: uplink and downlink budget for a GEO terminal, ending in Es/N0
+// Satellite Link: uplink and downlink budget for a GEO terminal, ending in Es/N0
 // margin for a DVB-S2 MODCOD.
 
 import { enhanceFields, withoutKeys } from "./fieldHelp";
@@ -149,7 +149,7 @@ function loadState(): Record<string, string> {
   const pointing = read(POINTING_KEY);
   return {
     ...defaults,
-    // Start from the site and slot used in Sat Pointing.
+    // Start from the site and slot used in Satellite Pointing.
     site: pointing.site ?? "",
     slot: pointing.slot ?? "",
     ...saved,
@@ -182,7 +182,7 @@ function rateMargin(db: number): { text: string; cls: string } {
 
 export const satLinkCalculator: Calculator = {
   id: "satlink",
-  title: "Sat Link",
+  title: "Satellite Link",
   shortTitle: "Sat Link",
   render() {
     const form = document.createElement("form");
