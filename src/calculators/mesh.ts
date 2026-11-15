@@ -162,7 +162,7 @@ const template = `
 
     <section class="card">
       <div class="card-head"><h2>Nodes</h2><span class="meta" data-out="nodeCount"></span></div>
-      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it. For a sector or directional antenna, pick it under Antenna and enter the way it points. A node with a different radio (a base or vehicle set among manpacks, say) picks its own preset, or custom numbers, under the radio button in its row.</p>
+      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it. For a sector or directional antenna, pick it under Antenna and enter the way it points. A node with a different radio (a base or vehicle set among manpacks, say) picks its own preset, or user-defined numbers, under the radio button in its row.</p>
       <div class="fields">
         <label>Environment
           <select name="environment">${environmentOptions()}</select>
@@ -436,7 +436,7 @@ export const meshCalculator: Calculator = {
           // Which radio: the net's, one of the presets, or custom numbers.
           const presets = loadPresets("mesh");
           const pick = cell.querySelector<HTMLSelectElement>('select[data-k="preset"]')!;
-          pick.replaceChildren(new Option("Same as the net", ""), ...presets.map((p) => new Option(p.name, p.id)), new Option("Custom", "custom"));
+          pick.replaceChildren(new Option("Same as the net", ""), ...presets.map((p) => new Option(p.name, p.id)), new Option("User defined", "custom"));
           const mode = nodeMode(n);
           pick.value = [...pick.options].some((o) => o.value === mode) ? mode : "";
           const chosen = presets.find((p) => p.id === pick.value);
@@ -852,7 +852,7 @@ export const meshCalculator: Calculator = {
           label: "Radio",
           value: [...loadPresets("mesh").map((p) => p.id), "custom"].includes(nodeMode(n)) ? nodeMode(n) : "",
           type: "select",
-          options: [{ value: "", label: "Same as the net" }, ...loadPresets("mesh").map((p) => ({ value: p.id, label: p.name })), { value: "custom", label: "Custom" }],
+          options: [{ value: "", label: "Same as the net" }, ...loadPresets("mesh").map((p) => ({ value: p.id, label: p.name })), { value: "custom", label: "User defined" }],
         },
         // Custom numbers; blank shows the shared value and keeps using it.
         ...NODE_RADIO_FIELDS.filter((f) => nodeMode(n) === "custom" && (f.key !== "sens" || !ladderActive())).map((f): EditField => {

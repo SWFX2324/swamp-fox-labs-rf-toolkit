@@ -98,13 +98,13 @@ const template = `
     <section class="card">
       <div class="card-head"><h2>Radios</h2><span class="meta">Changes recalculate instantly</span></div>
       <div class="fields">
-        <label class="wide">Site radio
+        <label class="wide">Site A
           <span class="preset-pick">
             <select name="sitePreset"></select>
             <button type="button" class="secondary" data-action="presets">Manage presets</button>
           </span>
         </label>
-        <label class="wide">Remote radio
+        <label class="wide">Site B
           <select name="rxPreset"></select>
         </label>
         <label>Frequency
@@ -113,50 +113,50 @@ const template = `
             <select name="freqUnit">${Object.keys(frequencyUnits).map((u) => `<option>${u}</option>`).join("")}</select>
           </span>
         </label>
-        <label>Site TX power
+        <label>Site A TX power
           <span class="input-unit">
             <input name="power" type="number" inputmode="decimal" step="any" />
             <select name="powerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
           </span>
         </label>
-        ${numberField("Site antenna gain", "txGain", "dBi")}
-        <label>Site antenna pattern
+        ${numberField("Site A antenna gain", "txGain", "dBi")}
+        <label>Site A antenna pattern
           <select name="txPattern">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select>
         </label>
-        <label data-show="txAim">Site antenna points
+        <label data-show="txAim">Site A antenna points
           <span class="input-unit">
             <input name="txAzimuth" type="number" inputmode="decimal" step="any" min="0" max="360" />
             <span class="unit">° true</span>
           </span>
         </label>
-        ${numberField("Site downtilt", "txTilt", "°", 'min="-30" max="30"')}
-        ${numberField("Site cable loss", "txCable", "dB", 'min="0"')}
-        <label>Site antenna height
+        ${numberField("Site A downtilt", "txTilt", "°", 'min="-30" max="30"')}
+        ${numberField("Site A cable loss", "txCable", "dB", 'min="0"')}
+        <label>Site A antenna height
           <span class="input-unit">
             <input name="txHeight" type="number" inputmode="decimal" step="any" min="0" />
             <select name="heightUnit"><option>ft</option><option>m</option></select>
           </span>
         </label>
-        ${numberField("Site RX sensitivity", "siteSens", "dBm")}
-        ${numberField("Remote antenna height", "rxHeight", "", 'min="0" title="About 5 ft for a handheld, 8 ft on a vehicle"')}
-        ${numberField("Remote antenna gain", "rxGain", "dBi")}
-        ${numberField("Remote cable loss", "rxCable", "dB", 'min="0"')}
-        <label>Remote TX power
+        ${numberField("Site A RX sensitivity", "siteSens", "dBm")}
+        ${numberField("Site B antenna height", "rxHeight", "", 'min="0" title="About 5 ft for a handheld, 8 ft on a vehicle"')}
+        ${numberField("Site B antenna gain", "rxGain", "dBi")}
+        ${numberField("Site B cable loss", "rxCable", "dB", 'min="0"')}
+        <label>Site B TX power
           <span class="input-unit">
             <input name="rxPower" type="number" inputmode="decimal" step="any" />
             <select name="rxPowerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
           </span>
         </label>
-        ${numberField("Remote RX sensitivity", "sens", "dBm")}
+        ${numberField("Site B RX sensitivity", "sens", "dBm")}
         ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
       </div>
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Site</h2><span class="meta">Transmitter or repeater</span></div>
+      <div class="card-head"><h2>Site A</h2><span class="meta">Transmitter or repeater</span></div>
       <div class="fields">
         <label>Name
-          <input name="siteName" type="text" autocomplete="off" maxlength="40" placeholder="Site" />
+          <input name="siteName" type="text" autocomplete="off" maxlength="40" placeholder="Site A" />
         </label>
         <label>Location
           <span class="input-unit">
@@ -312,7 +312,7 @@ export const coverageCalculator: Calculator = {
         select.value = [...select.options].some((o) => o.value === keep) ? keep : "";
       };
       fill("sitePreset", [new Option("User defined", "")]);
-      fill("rxPreset", [new Option("Same as the site", "")], [new Option("Custom: enter below", "custom")]);
+      fill("rxPreset", [new Option("Same as Site A", "")], [new Option("User defined", "custom")]);
     };
     fillPresetOptions();
     const sitePreset = (): RadioPreset | undefined => loadPresets("coverage").find((p) => p.id === field("sitePreset").value);
@@ -375,7 +375,7 @@ export const coverageCalculator: Calculator = {
     const heightUnit = () => asDistanceUnit(field("heightUnit").value);
     const radiusM = () => toMetres(num("radius"), asDistanceUnit(field("radiusUnit").value));
     const site = () => parseCoordinates(field("site").value);
-    const siteName = () => field("siteName").value.trim() || "Site";
+    const siteName = () => field("siteName").value.trim() || "Site A";
     const nameTag = () => {
       const tag = document.createElement("span");
       tag.textContent = siteName(); // user text
@@ -545,8 +545,8 @@ export const coverageCalculator: Calculator = {
       let text = "";
       if (gap >= 0.1) {
         text = d < 0
-          ? `Shaded for the weaker way: the remotes reach the site ${fmt(gap)} dB less well than the site reaches them, from their transmit power and the site's sensitivity.`
-          : `Shaded for the weaker way: the site reaches the remotes ${fmt(gap)} dB less well than they reach it, from its transmit power and the remotes' sensitivity.`;
+          ? `Shaded for the weaker way: Site B reaches Site A ${fmt(gap)} dB less well than Site A reaches it, from Site B's transmit power and Site A's sensitivity.`
+          : `Shaded for the weaker way: Site A reaches Site B ${fmt(gap)} dB less well than Site B reaches it, from Site A's transmit power and Site B's sensitivity.`;
       }
       note.textContent = text;
       note.hidden = !text;
@@ -752,7 +752,7 @@ export const coverageCalculator: Calculator = {
           ...(field("txPattern").value === "omni" ? [] : [f("txAzimuth", "Points", "° true")]),
           f("txHeight", "Antenna height", field("heightUnit").value),
           ...(shown("siteSens") ? [f("siteSens", "RX sensitivity", "dBm")] : []),
-          ...(shown("sens") ? [f("sens", "Remote RX sensitivity", "dBm")] : []),
+          ...(shown("sens") ? [f("sens", "Site B RX sensitivity", "dBm")] : []),
           f("radius", "Radius", field("radiusUnit").value),
         ];
         return [...fields, { key: "location", label: "Location", value: formatCoordinates(p), type: "text" }];
@@ -822,7 +822,7 @@ export const coverageCalculator: Calculator = {
           const text = !Number.isFinite(v)
             ? "Outside the mapped circle"
             : outText === inText ? `${outText} both ways`
-            : `${words(Math.min(vOut, vIn), [])} the weaker way. Site to here: ${outText}. Here to site: ${inText}`;
+            : `${words(Math.min(vOut, vIn), [])} the weaker way. Site A to here: ${outText}. Here to Site A: ${inText}`;
           L.popup({ className: "coverage-popup" })
             .setLatLng(e.latlng)
             .setContent(`<b>${text}</b><br>${fmt(fromMetres(d, unit), 2)} ${unit} at ${Math.round(b)}° ${compassPoint(b)}`)

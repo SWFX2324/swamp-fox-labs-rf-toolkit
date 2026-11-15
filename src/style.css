@@ -564,11 +564,9 @@ main .leaflet-container { background: var(--card-2); }
 .plan-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .plan-btn {
   display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 6px 8px;
-  font-weight: 600; color: var(--text);
-  background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent);
+  font-weight: 600;
 }
-.plan-btn:hover { background: color-mix(in srgb, var(--accent) 28%, transparent); }
-.plan-btn svg { flex: none; width: 18px; height: 18px; color: var(--accent); }
+.plan-btn svg { flex: none; width: 18px; height: 18px; }
 .plan-status { margin: 10px 0 0; }
 .plan-status:empty { display: none; }
 .terrain-actions { gap: 8px; }
