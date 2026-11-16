@@ -54,14 +54,15 @@ export function derateNote(): string {
   return d > 0 ? `Receiver sensitivity is derated by ${fieldNumber(d)} dB (Settings).` : "";
 }
 
-/** The Longley-Rice fields as Settings fill them. */
+/**
+ * The Longley-Rice fields a tab keeps, as Settings start them: reliability and
+ * confidence. Climate, ground, polarization and Earth curvature live only in
+ * Settings, and every tab reads them from there.
+ */
 export function modelFromSettings(s: AppSettings = getSettings()): Record<string, string> {
   return {
     reliability: fieldNumber(s.reliability),
     confidence: fieldNumber(s.confidence),
-    climate: s.climate,
-    ground: s.ground,
-    polarization: s.polarization,
   };
 }
 
@@ -76,7 +77,6 @@ export function sharedFields(s: AppSettings = getSettings()) {
     connectors: fieldNumber(connectorsDb(s)),
     environment: s.environment,
     treeHeight: inUnit(s.treeHeightM, s.heightUnit),
-    kFactor: s.kFactor,
     height: inUnit(s.defaultHeightM, s.heightUnit),
     heightUnit: s.heightUnit,
     distanceUnit: s.distanceUnit,

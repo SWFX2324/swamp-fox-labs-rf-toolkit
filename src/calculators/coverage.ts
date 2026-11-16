@@ -21,7 +21,7 @@ import { type Environment, clutterLossDb, effectiveHeightM, findEnvironment } fr
 import { applySettings, createPlanBar, downloadFile, pngBytes } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { bindTreeField, environmentNote, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
-import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { globalK, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { tabStateToSave, tabValues } from "../lib/appSettings";
 import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { loadTiles } from "./tileElevation";
@@ -293,7 +293,6 @@ export const coverageCalculator: Calculator = {
     const defaults = currentDefaults();
     form.className = "calculator two-col coverage";
     form.innerHTML = template;
-    linkGroundToEnvironment(form);
     bindTreeField(form, "heightUnit");
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -773,7 +772,7 @@ export const coverageCalculator: Calculator = {
           // Only shading that matches the current settings, as on this map.
           overlay: overlay && lastOverlay ? lastOverlay : undefined,
           ring: p && r > 0 ? { center: p, radiusM: r } : undefined,
-          k: 4 / 3,
+          k: globalK(),
           // Moving the site in 3D maps its coverage again straight away, so
           // there is something to see there.
           onMove: (_i, q) => {

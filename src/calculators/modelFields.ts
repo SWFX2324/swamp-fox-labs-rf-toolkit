@@ -1,17 +1,20 @@
 // The propagation model settings (Longley-Rice / ITM), shared by the Link
-// Budget, Mesh Analysis and Coverage Analysis. Each page adds modelDefaults to its
-// own defaults, so the settings save, reset and travel in plans like any
-// other field.
+// Analysis, Mesh Analysis and Coverage Analysis. Reliability and confidence
+// are fields on each tab: they save, reset and travel in plans like any other
+// field. Climate, ground, polarization and Earth curvature are global: they
+// live only in Settings and every tab reads them from there.
 
-import { type ModelSettings, climates, defaultModel, groundForEnvironment, grounds, parseModel } from "../lib/propagation";
+import { parseKFactor } from "../lib/horizon";
+import { type ModelSettings, defaultModel, groundForEnvironment, parseModel } from "../lib/propagation";
+import { getSettings } from "./settingsStore";
 
 export const modelDefaults: Record<string, string> = {
   reliability: String(defaultModel.reliability),
   confidence: String(defaultModel.confidence),
-  climate: String(defaultModel.climate),
-  ground: defaultModel.ground,
-  polarization: defaultModel.polarization,
 };
+
+/** Earth curvature (k) from Settings. */
+export const globalK = (): number => parseKFactor(getSettings().kFactor);
 
 const percentField = (label: string, name: string) => `
     <label>${label}
@@ -25,47 +28,26 @@ export function modelFieldsHtml(): string {
   return `
     <div class="field-group-head" role="heading" aria-level="3">Longley-Rice model <span class="meta">Terrain loss settings</span></div>
     ${percentField("Reliability (time)", "reliability")}
-    ${percentField("Confidence", "confidence")}
-    <label>Radio climate
-      <select name="climate">${climates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select>
-    </label>
-    <label>Ground
-      <select name="ground">${grounds.map((g) => `<option value="${g.id}">${g.name}</option>`).join("")}</select>
-    </label>
-    <label>Polarization
-      <select name="polarization"><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option></select>
-    </label>`;
-}
-
-/** The settings as the form has them now. */
-export function readModel(form: HTMLFormElement): ModelSettings {
-  const value = (name: string) => (form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)?.value;
-  return parseModel({
-    climate: value("climate"),
-    ground: value("ground"),
-    polarization: value("polarization"),
-    reliability: value("reliability"),
-    confidence: value("confidence"),
-  });
+    ${percentField("Confidence", "confidence")}`;
 }
 
 /**
- * Picking an Environment suggests the matching Ground (Open Water → sea
- * water, Desert → poor ground), unless Ground was already changed from what
- * the previous Environment suggested. The previous Environment is read when
- * the dropdown gets focus, so plans and resets that set values directly are
- * handled too.
+ * The model for this tab: its reliability and confidence, with climate, ground
+ * and polarization from Settings. Ground follows the tab's Environment (Open
+ * Water → sea water, Desert or Urban → poor ground) unless Ground in Settings
+ * was changed from what its own Environment suggests.
  */
-export function linkGroundToEnvironment(form: HTMLFormElement): void {
-  const env = form.elements.namedItem("environment");
-  const ground = form.elements.namedItem("ground");
-  if (!(env instanceof HTMLSelectElement) || !(ground instanceof HTMLSelectElement)) return;
-  let previous = env.value;
-  env.addEventListener("focus", () => (previous = env.value));
-  // Runs before the form's own change handler, so the page recalculates once with both.
-  env.addEventListener("change", () => {
-    if (ground.value === groundForEnvironment(previous)) ground.value = groundForEnvironment(env.value);
-    previous = env.value;
+export function readModel(form: HTMLFormElement): ModelSettings {
+  const value = (name: string) => (form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)?.value;
+  const s = getSettings();
+  const env = value("environment");
+  const ground = env !== undefined && s.ground === groundForEnvironment(s.environment) ? groundForEnvironment(env) : s.ground;
+  return parseModel({
+    climate: s.climate,
+    ground,
+    polarization: s.polarization,
+    reliability: value("reliability"),
+    confidence: value("confidence"),
   });
 }
 
@@ -77,9 +59,9 @@ export const modelHelp: Record<string, string> = {
   climate:
     "The broad climate the path is in, which changes how much signals vary over time, especially on long paths. Continental temperate suits most inland mid-latitude areas; maritime suits coasts; subtropical and equatorial suit hot, humid regions.",
   ground:
-    "The ground's electrical type along the path, which affects reflections and diffraction. Average ground suits most land. It matters most for low antennas and over water. Picking an Environment sets a matching Ground (sea water for Open Water, poor ground for Desert and Urban) unless you've changed it; switch to Fresh water for lakes and rivers.",
+    "The ground's electrical type along the path, which affects reflections and diffraction. Average ground suits most land. It matters most for low antennas and over water. Every tab uses it. While it matches what your Environment here suggests, a tab's own Environment picks the ground instead (sea water for Open Water, poor ground for Desert and Urban); set it to anything else to use it everywhere, such as Fresh water for lakes and rivers.",
   polarization:
     "The orientation of the antennas. Most VHF/UHF FM, mesh and handheld radios use vertical; some point-to-point, SSB and weak-signal links use horizontal.",
 };
 
-export const modelAdvanced = ["confidence", "climate", "ground", "polarization"];
+export const modelAdvanced = ["confidence"];

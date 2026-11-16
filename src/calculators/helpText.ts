@@ -43,7 +43,7 @@ const aimHelp =
 const tiltHelp =
   "How far the beam points below the horizon, in degrees: built-in (electrical) tilt plus any mechanical tilt. 0 is level. A few degrees of downtilt fills in close to a tall site at the cost of reach. Leave 0 if you don't know it.";
 const kFactorHelp =
-  "How much the air bends signals back toward the earth, used for the line-of-sight and Fresnel checks and the radio horizon. 4/3 is the normal atmosphere. 2/3 is the bad case, a few percent of the time, when the earth effectively bulges higher; microwave links are often planned to stay clear even then. It doesn't change the Longley-Rice loss, which has its own atmosphere model.";
+  "How much the air bends signals back toward the earth, used for the line-of-sight and Fresnel checks and the radio horizon. 4/3 is the normal atmosphere. 2/3 is the bad case, a few percent of the time, when the earth effectively bulges higher; microwave links are often planned to stay clear even then. It doesn't change the Longley-Rice loss, which has its own atmosphere model. Every tab uses it; on the Mesh Analysis it also decides whether a good link is drawn as clear line of sight (solid) or obstructed (long dashes).";
 
 export const linkBudgetGuide: FieldGuide = {
   help: {
@@ -77,11 +77,10 @@ export const linkBudgetGuide: FieldGuide = {
     fadeMargin: `${shared.fade} It sets the max range and the margin rating.`,
     txLoc: shared.location,
     rxLoc: shared.location,
-    ...modelHelp,
-    kFactor: kFactorHelp,
+    reliability: modelHelp.reliability,
+    confidence: modelHelp.confidence,
   },
   advanced: [
-    "kFactor",
     "txCable",
     "txCableLen",
     '[data-show="txCable"]',
@@ -109,10 +108,10 @@ export const meshGuide: FieldGuide = {
     environment: shared.environment,
     treeHeight: shared.treeHeight,
     height: `${shared.height} Each node can override it in the node list.`,
-    ...modelHelp,
-    kFactor: `${kFactorHelp} Here it decides whether a good link is drawn as clear line of sight (solid) or obstructed (long dashes).`,
+    reliability: modelHelp.reliability,
+    confidence: modelHelp.confidence,
   },
-  advanced: ["fade", "distUnit", "kFactor", ...modelAdvanced],
+  advanced: ["fade", "distUnit", ...modelAdvanced],
 };
 
 export const coverageGuide: FieldGuide = {
@@ -140,7 +139,8 @@ export const coverageGuide: FieldGuide = {
     fade: `${shared.fade} Areas that keep it show as solid.`,
     environment: shared.environment,
     treeHeight: shared.treeHeight,
-    ...modelHelp,
+    reliability: modelHelp.reliability,
+    confidence: modelHelp.confidence,
   },
   advanced: ["detail", "txTilt", "txCable", "rxGain", "rxCable", "fade", ...modelAdvanced],
 };

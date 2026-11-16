@@ -17,7 +17,7 @@ import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { bindTreeField, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { AUTO_ENVIRONMENT, type LandCoverPoint, describePoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
-import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { globalK, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { tabStateToSave, tabValues } from "../lib/appSettings";
 import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { fetchPathElevations } from "./tileElevation";
@@ -29,7 +29,6 @@ import { sampleCount } from "../lib/profile";
 import type { EditField } from "../lib/scene3d";
 import { type RadioPreset, type Route, bestRoutes, formatRate, hopLimit, ladder, rateAt } from "../lib/radioPresets";
 import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager, presetsEventFor } from "./presetManager";
-import { kFactors, parseKFactor } from "../lib/horizon";
 import {
   type DistanceUnit,
   frequencyUnits,
@@ -97,7 +96,6 @@ const legacySettingDefaults: Record<string, string> = {
   distUnit: "mi",
   height: "30",
   heightUnit: "ft",
-  kFactor: "4/3",
   ...modelDefaults,
 };
 
@@ -152,9 +150,6 @@ const template = `
         </label>
         <label>Show distances in
           <select name="distUnit"><option>mi</option><option>km</option></select>
-        </label>
-        <label>Earth curvature (k)
-          <select name="kFactor">${kFactors.map((f) => `<option value="${f.id}">${f.name}</option>`).join("")}</select>
         </label>
         ${modelFieldsHtml()}
       </div>
@@ -240,7 +235,6 @@ function currentSettingDefaults(): Record<string, string> {
     distUnit: s.distanceUnit,
     height: s.height,
     heightUnit: s.heightUnit,
-    kFactor: s.kFactor,
   };
 }
 
@@ -271,7 +265,6 @@ export const meshCalculator: Calculator = {
     const settingDefaults = currentSettingDefaults();
     form.className = "calculator two-col mesh";
     form.innerHTML = template;
-    linkGroundToEnvironment(form);
     bindTreeField(form, "heightUnit");
     form.querySelector('[data-out="legend"]')!.replaceWith(linkLegend());
     form.addEventListener("submit", (e) => e.preventDefault());
@@ -576,7 +569,7 @@ export const meshCalculator: Calculator = {
           field("environment").value === AUTO_ENVIRONMENT ? fallbackEnvironment() : findEnvironment(field("environment").value),
         ),
         model: readModel(form),
-        k: parseKFactor(field("kFactor").value),
+        k: globalK(),
       };
       // A rate ladder: links are checked against its most sensitive (slowest) rate.
       const preset = activePreset();
@@ -868,7 +861,7 @@ export const meshCalculator: Calculator = {
         links: lastLinks
           .filter((r) => r.a < nodes.length && r.b < nodes.length)
           .map((r) => ({ a: r.a, b: r.b, style: linkLineStyle(r.link.status, r.link.profile) })),
-        k: parseKFactor(field("kFactor").value),
+        k: globalK(),
         // A node dragged in 3D moves just as if it were dragged on this map.
         onMove: (i, p) => {
           if (!nodes[i]) return;

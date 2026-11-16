@@ -6,13 +6,13 @@ import { type Environment, clutterLossDb, effectiveHeightM, findEnvironment } fr
 import { bindTreeField, environmentNote, environmentOptions, landCoverNote, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { AUTO_ENVIRONMENT, type LandCoverPoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
-import { linkGroundToEnvironment, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { globalK, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
 import { tabStateToSave, tabValues } from "../lib/appSettings";
 import type { EditField } from "../lib/scene3d";
 import type { RelayFinderInputs } from "./relayFinder";
 import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
 import { type ModelSettings, timeAvailable } from "../lib/propagation";
-import { STANDARD_K, kFactors, midpointClearance, parseKFactor } from "../lib/horizon";
+import { STANDARD_K, midpointClearance } from "../lib/horizon";
 import { type SiteId, createTerrainCard } from "./terrain";
 import { type LatLon, distanceBetweenM } from "../lib/geo";
 import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
@@ -75,7 +75,6 @@ const legacyDefaults: Record<string, string> = {
   rxOther: "0.5",
   rxSens: "-100",
   fadeMargin: "10",
-  kFactor: "4/3",
   ...modelDefaults,
 };
 
@@ -199,9 +198,6 @@ const template = `
           <select name="environment">${environmentOptions()}</select>
         </label>
         ${treeHeightFieldHtml()}
-        <label>Earth curvature (k)
-          <select name="kFactor">${kFactors.map((f) => `<option value="${f.id}">${f.name}</option>`).join("")}</select>
-        </label>
         ${numberField("Extra path loss", "extraLoss", "dB", 'min="0" title="Foliage, buildings, rain, partial Fresnel blockage"')}
         ${modelFieldsHtml()}
       </div>
@@ -311,7 +307,6 @@ function currentDefaults(): Record<string, string> {
     distUnit: s.distanceUnit,
     environment: s.environment,
     treeHeight: s.treeHeight,
-    kFactor: s.kFactor,
   };
 }
 
@@ -374,7 +369,6 @@ export const linkBudgetCalculator: Calculator = {
     const defaults = currentDefaults();
     form.className = "calculator link-budget";
     form.innerHTML = template;
-    linkGroundToEnvironment(form);
     bindTreeField(form, "txHeightUnit");
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -611,7 +605,7 @@ export const linkBudgetCalculator: Calculator = {
         txHeightM,
         rxHeightM,
         clutterLossDb: clutterLossDb(txEnv, freqHz, txHeightM) + clutterLossDb(rxEnv, freqHz, rxHeightM),
-        k: parseKFactor(field("kFactor").value),
+        k: globalK(),
       };
 
       // B back to A: the same path, each end's own power, gains, losses and sensitivity.

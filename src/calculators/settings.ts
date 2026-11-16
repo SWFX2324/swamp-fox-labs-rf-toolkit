@@ -32,9 +32,6 @@ const template = `
         ${numberField("Reliability (time)", "reliability", "%", 'min="1" max="99"')}
         ${numberField("Confidence", "confidence", "%", 'min="1" max="99"')}
         ${numberField("Fade margin", "fadeMarginDb", "dB", 'min="0"')}
-        <label>Earth curvature (k)
-          <select name="kFactor">${options(kFactors)}</select>
-        </label>
       </div>
     </section>
 
@@ -68,8 +65,11 @@ const template = `
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Longley-Rice model</h2><span class="meta">Terrain loss</span></div>
+      <div class="card-head"><h2>Propagation</h2><span class="meta">Every tab uses these</span></div>
       <div class="fields">
+        <label>Earth curvature (k)
+          <select name="kFactor">${options(kFactors)}</select>
+        </label>
         <label>Radio climate
           <select name="climate">${options(climates)}</select>
         </label>
