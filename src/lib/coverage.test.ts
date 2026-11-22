@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coverageMargins, coveragePathLoss, coveragePatternLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials, sumGrids } from "./coverage";
+import { bestSite, combinedStats, coverageMargins, coveragePathLoss, coveragePatternLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials, siteMarginsAt, sumGrids, unionBounds } from "./coverage";
 import { beam } from "./pattern";
 import { fsplDb } from "./fspl";
 import { bearingDeg, distanceBetweenM } from "./geo";
@@ -121,5 +121,48 @@ describe("antenna pattern on coverage", () => {
     const b = [new Float32Array([10, 20])];
     expect(sumGrids(undefined, undefined)).toBeUndefined();
     expect(Array.from(sumGrids(a, undefined, b)![0])).toEqual([11, 22]);
+  });
+});
+
+describe("several sites", () => {
+  // Flat ground, every point at a fixed margin: easy to reason about.
+  const flatSite = (lat: number, lon: number, margin: number) => {
+    const samples = sampleRadials({ lat, lon }, 5000, 36, 20, () => 0);
+    return { samples, margins: samples.elevations.map((e) => e.map((_, k) => (k === 0 ? Number.NaN : margin))) };
+  };
+
+  it("picks the strongest site at a point", () => {
+    const a = flatSite(35, -80, 5);
+    const b = flatSite(35, -79.99, 20);
+    const p = { lat: 35, lon: -79.995 };
+    const m = siteMarginsAt([a, b], p);
+    expect(m[0]).toBe(5);
+    expect(m[1]).toBe(20);
+    expect(bestSite(m)).toEqual({ index: 1, margin: 20 });
+    expect(bestSite([Number.NaN, Number.NaN])).toBeUndefined();
+  });
+
+  it("bounds every circle", () => {
+    const a = flatSite(35, -80, 5);
+    const b = flatSite(35.2, -79.8, 5);
+    const box = unionBounds([a.samples, b.samples]);
+    expect(box.south).toBeLessThan(35);
+    expect(box.north).toBeGreaterThan(35.2);
+    expect(box.west).toBeLessThan(-80);
+    expect(box.east).toBeGreaterThan(-79.8);
+  });
+
+  it("counts solid, marginal and redundant area together", () => {
+    // Far apart: one solid site and one marginal site, equal areas, no overlap.
+    const solid = flatSite(35, -80, 20);
+    const weak = flatSite(35, -79, 3);
+    const s = combinedStats([solid, weak], 10, 120);
+    expect(s.solid).toBeCloseTo(0.5, 1);
+    expect(s.marginal).toBeCloseTo(0.5, 1);
+    expect(s.redundant).toBe(0);
+    // The same site twice overlaps completely: all of it is covered twice.
+    const twice = combinedStats([solid, flatSite(35, -80, 15)], 10, 80);
+    expect(twice.solid).toBeCloseTo(1, 1);
+    expect(twice.redundant).toBeCloseTo(1, 1);
   });
 });

@@ -8,7 +8,8 @@
 
 import { type ModelSettings, defaultModel, terrainLoss } from "./propagation";
 import { fsplDb } from "./fspl";
-import { type LatLon, destinationPoint } from "./geo";
+import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM } from "./geo";
+import { EARTH_RADIUS_M } from "./horizon";
 import { type Beam, elevationAngleDeg, patternLossDb } from "./pattern";
 
 export interface RadialSamples {
@@ -177,4 +178,79 @@ export function coverageStats(s: RadialSamples, margins: Float32Array[], fadeMar
     farthestSolidM: farthest,
     farthestSolidBearing: farthestBearing,
   };
+}
+
+// ------------------------------------------------------------ several sites
+
+/** One site's mapped margins, for combining sites. */
+export interface SiteMargins {
+  samples: RadialSamples;
+  margins: Float32Array[];
+}
+
+/** Each site's margin at a point (NaN outside its circle or at the site itself). */
+export function siteMarginsAt(sites: SiteMargins[], p: LatLon): number[] {
+  return sites.map((s) => marginAt(s.samples, s.margins, bearingDeg(s.samples.site, p), distanceBetweenM(s.samples.site, p)));
+}
+
+/** The best margin at a point and which site gives it, or undefined if no site reaches it at all. */
+export function bestSite(margins: number[]): { index: number; margin: number } | undefined {
+  let best: { index: number; margin: number } | undefined;
+  margins.forEach((m, index) => {
+    if (Number.isFinite(m) && (!best || m > best.margin)) best = { index, margin: m };
+  });
+  return best;
+}
+
+/** The box around every site's circle, in degrees. */
+export function unionBounds(sites: RadialSamples[]): { north: number; south: number; east: number; west: number } {
+  let north = -90;
+  let south = 90;
+  let east = -180;
+  let west = 180;
+  for (const s of sites) {
+    const dLat = (s.radiusM / EARTH_RADIUS_M) * (180 / Math.PI);
+    const dLon = dLat / Math.max(0.01, Math.cos((s.site.lat * Math.PI) / 180));
+    north = Math.max(north, s.site.lat + dLat);
+    south = Math.min(south, s.site.lat - dLat);
+    east = Math.max(east, s.site.lon + dLon);
+    west = Math.min(west, s.site.lon - dLon);
+  }
+  return { north, south, east, west };
+}
+
+export interface CombinedStats {
+  /** Share of the area inside any site's circle where the best site meets the fade margin, 0–1. */
+  solid: number;
+  /** Share where the best site connects but is under the fade margin. */
+  marginal: number;
+  /** Share where two or more sites each meet the fade margin. */
+  redundant: number;
+}
+
+/**
+ * Coverage shares for several sites together, over the area inside any of
+ * their circles, sampled on a grid of cells (each weighted by its true area).
+ */
+export function combinedStats(sites: SiteMargins[], fadeMarginDb: number, cells = 160): CombinedStats {
+  const b = unionBounds(sites.map((s) => s.samples));
+  let total = 0;
+  let solid = 0;
+  let marginal = 0;
+  let redundant = 0;
+  for (let j = 0; j < cells; j++) {
+    const lat = b.south + ((j + 0.5) / cells) * (b.north - b.south);
+    const w = Math.cos((lat * Math.PI) / 180);
+    for (let i = 0; i < cells; i++) {
+      const p = { lat, lon: b.west + ((i + 0.5) / cells) * (b.east - b.west) };
+      if (!sites.some((s) => distanceBetweenM(s.samples.site, p) <= s.samples.radiusM)) continue;
+      total += w;
+      const m = siteMarginsAt(sites, p);
+      const best = bestSite(m)?.margin ?? Number.NaN;
+      if (best >= fadeMarginDb) solid += w;
+      else if (best >= 0) marginal += w;
+      if (m.filter((v) => v >= fadeMarginDb).length >= 2) redundant += w;
+    }
+  }
+  return total ? { solid: solid / total, marginal: marginal / total, redundant: redundant / total } : { solid: 0, marginal: 0, redundant: 0 };
 }

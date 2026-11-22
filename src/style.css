@@ -164,6 +164,15 @@ main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
   font-size: 13px; font-weight: 600; color: var(--text);
 }
 .field-group-head .meta { font-weight: 400; font-size: 12px; color: var(--text-2); }
+.fields > .field-group-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+/* Coverage: sites beyond Site A, one bordered block each. */
+.fields > .extra-sites, .fields > .add-site-row { grid-column: 1 / -1; }
+.extra-sites { display: grid; gap: 10px; }
+.extra-sites:empty { display: none; }
+.extra-site { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 12px; min-width: 0; }
+.extra-site-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.add-site-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.add-site-row .note { margin: 0; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
 select, input {
   background: var(--card); border: 1px solid var(--border); border-radius: 7px;

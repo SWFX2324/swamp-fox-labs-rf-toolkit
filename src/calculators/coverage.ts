@@ -1,4 +1,6 @@
-// Coverage Analysis: shade the area one site can reach, over terrain, on the map.
+// Coverage Analysis: shade the area one or more sites can reach, over terrain,
+// on the map. With several sites, each point is shaded for the site that
+// serves it best.
 
 import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
@@ -7,8 +9,23 @@ import * as L from "leaflet";
 import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
-import { type RadialSamples, coveragePathLoss, coveragePatternLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials, sumGrids } from "../lib/coverage";
-import { beam, patterns } from "../lib/pattern";
+import {
+  type RadialSamples,
+  type SiteMargins,
+  bestSite,
+  combinedStats,
+  coveragePathLoss,
+  coveragePatternLoss,
+  coverageStats,
+  marginAt,
+  marginsFromLoss,
+  sampleRadials,
+  siteMarginsAt,
+  sumGrids,
+  unionBounds,
+} from "../lib/coverage";
+import { type Beam, beam, patterns } from "../lib/pattern";
+import { type PlanNode, sanitizePlan } from "../lib/plans";
 import { AUTO_ENVIRONMENT, LAND_COVER_CREDIT, LandCoverGrid, type LandCoverPoint, describePoint, landCoverNames } from "../lib/landCover";
 import { loadLandCover } from "./landCoverTiles";
 import { createReadingsCard } from "./readingsCard";
@@ -153,8 +170,9 @@ const template = `
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Site A</h2><span class="meta">Transmitter or repeater</span></div>
+      <div class="card-head"><h2>Sites</h2><span class="meta">Transmitters or repeaters</span></div>
       <div class="fields">
+        <div class="field-group-head" role="heading" aria-level="3">Site A</div>
         <label>Name
           <input name="siteName" type="text" autocomplete="off" maxlength="40" placeholder="Site A" />
         </label>
@@ -164,6 +182,12 @@ const template = `
             ${locateButton('data-action="locate"')}
           </span>
         </label>
+        <div class="extra-sites" data-out="extraSites"></div>
+        <div class="add-site-row">
+          <button type="button" class="secondary" data-action="addSite">Add site</button>
+          <span class="note" data-out="addNote"></span>
+        </div>
+        <div class="field-group-head" role="heading" aria-level="3">Mapping <span class="meta">For every site</span></div>
         <label>Radius
           <span class="input-unit">
             <input name="radius" type="number" inputmode="decimal" step="any" min="0.5" max="80" />
@@ -189,7 +213,7 @@ const template = `
         <span class="key"><span class="sw cov-solid"></span>Solid (meets fade margin)</span>
         <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
       </div>
-      <p class="note">Tap the map to place the site, then drag the TX pin to move it. Once mapped, tap anywhere to read the margin there.</p>
+      <p class="note">Tap the map to place Site A, then drag a pin to move a site. Add site places another, mapped with the same radius; each point is shaded for its best site. Once mapped, tap anywhere to read the margin there.</p>
     </section>
   </div>
 
@@ -200,13 +224,13 @@ const template = `
         <span class="pill" data-out="pill" hidden></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
-      <p class="note" data-out="empty">Place the site, set the radius and press Map coverage.</p>
-      <p class="callout" data-out="stale" hidden>The site, radius or detail changed. Press Map coverage to update.</p>
+      <p class="note" data-out="empty">Place Site A, set the radius and press Map coverage.</p>
+      <p class="callout" data-out="stale" hidden>A site, the radius or the detail changed. Press Map coverage to update.</p>
       <div data-out="results" hidden>
         <div class="tiles">
           <div class="tile"><span class="label">Solid coverage</span><span class="value" data-out="solid"></span><span class="sub" data-out="solidSub"></span></div>
           <div class="tile"><span class="label">Marginal</span><span class="value" data-out="marginal"></span><span class="sub">Connects, under the fade margin</span></div>
-          <div class="tile"><span class="label">Farthest solid point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
+          <div class="tile"><span class="label" data-out="farLabel">Farthest solid point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
         </div>
         <p class="note" data-out="dirNote" hidden></p>
         <p class="note" data-out="envNote" hidden></p>
@@ -214,7 +238,7 @@ const template = `
         <p class="note" data-out="derateNote" hidden></p>
         <p class="note" data-out="probe"></p>
       </div>
-      <details class="about"><summary>About this calculation</summary><p>Free-space loss plus terrain loss from the Irregular Terrain Model (Longley-Rice) over bare-earth terrain, sampled along radials from the site, at the reliability and confidence you set. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. ${LAND_COVER_CREDIT}. Tiles you've loaded work offline.</p></details>
+      <details class="about"><summary>About this calculation</summary><p>Free-space loss plus terrain loss from the Irregular Terrain Model (Longley-Rice) over bare-earth terrain, sampled along radials from each site, at the reliability and confidence you set. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. ${LAND_COVER_CREDIT}. Tiles you've loaded work offline.</p></details>
     </section>
   </aside>
 `;
@@ -284,6 +308,80 @@ function landCoverSummary(lc: { site: LandCoverPoint; points: LandCoverPoint[][]
   return `From the land-cover map: the site is in ${describePoint(lc.site)}${siteLoss > 0 ? `, adding ${siteLoss.toFixed(1)} dB` : ""}. Across the circle: ${top.join(", ") || "no data"}. Each point is charged for the clutter where it is, and terrain is checked from the clutter tops, or from the antenna itself under trees.`;
 }
 
+/** A site beyond Site A: where it is, its mast, its antenna and its radio. */
+interface ExtraSite {
+  name: string;
+  lat: number;
+  lon: number;
+  /** Antenna height as typed, in the shared height unit; blank uses Site A's. */
+  height: string;
+  /** Antenna pattern id. */
+  antenna: string;
+  /** Degrees true the antenna points, as typed. */
+  aim: string;
+  /** Blank for Site A's radio, or a preset id. */
+  preset: string;
+}
+
+const SITES_KEY = "rf-toolkit:coverage-sites";
+/** Sites beyond Site A. Each adds its own terrain run. */
+const MAX_EXTRA_SITES = 4;
+
+function cleanExtras(raw: unknown): ExtraSite[] {
+  const nodes = sanitizePlan({ settings: {}, nodes: raw }, [])?.nodes ?? [];
+  return nodes.slice(0, MAX_EXTRA_SITES).map(toExtra);
+}
+
+const toExtra = (n: PlanNode): ExtraSite => ({
+  name: n.name,
+  lat: n.lat,
+  lon: n.lon,
+  height: n.height,
+  antenna: n.antenna ?? "omni",
+  aim: n.aim ?? "0",
+  preset: n.preset ?? "",
+});
+
+function loadExtras(): ExtraSite[] {
+  try {
+    return cleanExtras(JSON.parse(localStorage.getItem(SITES_KEY) ?? "[]"));
+  } catch {
+    return [];
+  }
+}
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** One site's radio and antenna, ready for the math. */
+interface SiteSpec {
+  name: string;
+  at: LatLon;
+  heightM: number;
+  beam: Beam;
+  powerDbm: number;
+  cableDb: number;
+  gainDbi: number;
+  /** The weakest signal the site's receiver uses, derated. */
+  sensDbm: number;
+  /** The site's rate ladder, derated; empty without one. */
+  rungs: Rung[];
+}
+
+/** One site's terrain and the work that depends on it. */
+interface SiteRun {
+  at: LatLon;
+  samples: RadialSamples;
+  cover?: { site: LandCoverPoint; points: LandCoverPoint[][] };
+  pathLoss?: { key: string; loss: Float32Array[] };
+  patternLoss?: { key: string; loss: Float32Array[] | undefined };
+  clutter?: { key: string; heights: Float32Array[]; loss: Float32Array[] };
+  margins?: Float32Array[];
+  /** What the shading added to the outbound margin: the weaker way. */
+  offset: number;
+  /** How much stronger Site B reaches this site than this site reaches Site B, dB. */
+  delta: number;
+}
+
 export const coverageCalculator: Calculator = {
   id: "coverage",
   title: "Coverage Analysis",
@@ -300,8 +398,8 @@ export const coverageCalculator: Calculator = {
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
     const num = (name: string) => Number.parseFloat(field(name).value);
 
-    // Radio presets: the user's own, from this device. The remotes use the
-    // site's radio unless another is picked, or custom numbers.
+    // Radio presets: the user's own, from this device. Site B uses Site A's
+    // radio unless another is picked, or user-defined numbers.
     const fillPresetOptions = () => {
       const presets = loadPresets("coverage");
       const fill = (name: string, first: HTMLOptionElement[], last: HTMLOptionElement[] = []) => {
@@ -320,35 +418,21 @@ export const coverageCalculator: Calculator = {
       if (v === "custom") return undefined;
       return v ? loadPresets("coverage").find((p) => p.id === v) : sitePreset();
     };
-    /** The remotes' rate ladder, derated, fastest first; empty without one. */
+    /** Site B's rate ladder, derated, fastest first; empty without one. */
     const rungs = () => ladder(rxPreset(), deratedSensitivity);
-    /** The site's rate ladder, for the remotes reaching it. */
+    /** Site A's rate ladder, for Site B reaching it. */
     const siteRungs = () => ladder(sitePreset(), deratedSensitivity);
     const slowest = (r: Rung[]) => Math.min(...r.map((x) => x.sensDbm));
-    /** The remotes' sensitivity: their ladder's slowest rate, or the field. */
+    /** Site B's sensitivity: its ladder's slowest rate, or the field. */
     const sensitivity = () => {
       const r = rungs();
       return r.length ? slowest(r) : deratedSensitivity(num("sens"));
     };
-    /** The site's sensitivity, the same way. */
+    /** Site A's sensitivity, the same way. */
     const siteSensitivity = () => {
       const r = siteRungs();
       return r.length ? slowest(r) : deratedSensitivity(num("siteSens"));
     };
-    /**
-     * How much stronger the remotes reach the site than the site reaches them,
-     * dB. The path, antennas and cables are the same both ways, so only the
-     * transmit powers and receiver sensitivities differ.
-     */
-    const returnDelta = () =>
-      toDbm(num("rxPower"), asPowerUnit(field("rxPowerUnit").value)) -
-      toDbm(num("power"), asPowerUnit(field("powerUnit").value)) +
-      sensitivity() -
-      siteSensitivity();
-    /** What the shading adds to the site-to-remotes margin: the map is for the weaker way. */
-    const shadeOffset = () => Math.min(0, returnDelta());
-    // The offset the current margins were drawn with.
-    let shownOffset = 0;
 
     for (const [name, value] of Object.entries(loadState(defaults))) {
       const el = form.elements.namedItem(name);
@@ -358,11 +442,17 @@ export const coverageCalculator: Calculator = {
     const savedSite = parseCoordinates(field("site").value);
     if (savedSite) field("site").value = formatCoordinates(savedSite);
 
+    // Sites beyond Site A.
+    let extras: ExtraSite[] = loadExtras();
+    // The next map tap places a new site.
+    let placing = false;
+
     const save = () => {
       const state: Record<string, string> = {};
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(tabStateToSave(state, defaults)));
+        localStorage.setItem(SITES_KEY, JSON.stringify(extras));
       } catch {
         // Storage blocked: settings just won't be remembered.
       }
@@ -375,101 +465,154 @@ export const coverageCalculator: Calculator = {
     const radiusM = () => toMetres(num("radius"), asDistanceUnit(field("radiusUnit").value));
     const site = () => parseCoordinates(field("site").value);
     const siteName = () => field("siteName").value.trim() || "Site A";
-    const nameTag = () => {
-      const tag = document.createElement("span");
-      tag.textContent = siteName(); // user text
-      return tag;
+    const extraLabel = (i: number) => `Site A${i + 2}`;
+    const extraName = (i: number) => extras[i]?.name.trim() || extraLabel(i);
+    const txBeam = () => beam(field("txPattern").value, num("txGain") || 0, num("txAzimuth"), num("txTilt"));
+
+    /** Every placed site's radio and antenna, Site A first. */
+    const siteSpecs = (): SiteSpec[] => {
+      const a = site();
+      if (!a) return [];
+      const A: SiteSpec = {
+        name: siteName(),
+        at: a,
+        heightM: toMetres(num("txHeight") || 0, heightUnit()),
+        beam: txBeam(),
+        powerDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)),
+        cableDb: num("txCable") || 0,
+        gainDbi: num("txGain") || 0,
+        sensDbm: siteSensitivity(),
+        rungs: siteRungs(),
+      };
+      const presets = loadPresets("coverage");
+      const val = (v?: string) => {
+        const x = Number.parseFloat(v ?? "");
+        return Number.isFinite(x) ? x : undefined;
+      };
+      return [
+        A,
+        ...extras.map((e, i): SiteSpec => {
+          // Its own preset where it has one; Site A's numbers for anything it leaves out.
+          const p = e.preset ? presets.find((q) => q.id === e.preset) : undefined;
+          const gain = val(p?.gain) ?? A.gainDbi;
+          const own = p ? ladder(p, deratedSensitivity) : A.rungs;
+          const presetSens = val(p?.sens);
+          return {
+            name: extraName(i),
+            at: { lat: e.lat, lon: e.lon },
+            heightM: val(e.height) !== undefined ? toMetres(val(e.height)!, heightUnit()) : A.heightM,
+            beam: beam(e.antenna || "omni", gain, val(e.aim) ?? 0, 0),
+            powerDbm: p?.power ? toDbm(Number(p.power), asPowerUnit(p.powerUnit ?? "W")) : A.powerDbm,
+            cableDb: val(p?.cable) ?? A.cableDb,
+            gainDbi: gain,
+            sensDbm: own.length ? slowest(own) : presetSens !== undefined ? deratedSensitivity(presetSens) : A.sensDbm,
+            rungs: own,
+          };
+        }),
+      ];
+    };
+    const siteLocations = (): LatLon[] => {
+      const a = site();
+      return a ? [a, ...extras.map((e) => ({ lat: e.lat, lon: e.lon }))] : [];
     };
 
     let map: L.Map | undefined;
     let clearControl: ClearControl | undefined;
-    let marker: L.Marker | undefined;
-    let ring: L.Circle | undefined;
+    let siteLayers: L.Layer[] = [];
+    let rings: L.Circle[] = [];
     let overlay: L.ImageOverlay | undefined;
-    let samples: RadialSamples | undefined;
+    let runs: SiteRun[] = [];
     let sampledFor = "";
-    let margins: Float32Array[] | undefined;
-    let pathLoss: { samples: RadialSamples; key: string; loss: Float32Array[] } | undefined;
-    let patternLoss: { samples: RadialSamples; key: string; loss: Float32Array[] | undefined } | undefined;
-    let aimLine: L.Polyline | undefined;
     let view3d: Control3D | undefined;
-    // Land cover at the site and every radial point, read with the terrain.
-    let cover: { samples: RadialSamples; site: LandCoverPoint; points: LandCoverPoint[][] } | undefined;
     let coverError = "";
-    let clutterGrids: { samples: RadialSamples; key: string; heights: Float32Array[]; loss: Float32Array[] } | undefined;
     let running: AbortController | undefined;
     let lastOverlay: { url: string; bounds: OverlayBounds } | undefined;
     let runWhenReady = false;
 
     const autoCover = () => field("environment").value === AUTO_ENVIRONMENT;
-    const sampleKey = () => `${field("site").value}|${radiusM()}|${field("detail").value}|${autoCover()}`;
+    const sampleKey = () =>
+      `${field("site").value}|${extras.map((e) => `${e.lat.toFixed(6)},${e.lon.toFixed(6)}`).join(";")}|${radiusM()}|${field("detail").value}|${autoCover()}`;
+    const mapped = () => runs.length > 0 && runs.every((r) => r.margins) && sampledFor === sampleKey();
 
-    const placeSite = (recenter: boolean) => {
-      const p = site();
-      clearControl?.setVisible(!!p || !!samples);
+    // Pins, circles and aim lines for every site.
+    const placeSites = (recenter: boolean) => {
+      const a = site();
+      clearControl?.setVisible(!!a || runs.length > 0);
       if (!map) return;
-      if (!p) {
-        marker?.remove();
-        ring?.remove();
-        marker = ring = undefined;
-        return;
-      }
-      if (!marker) {
-        marker = L.marker([p.lat, p.lon], {
-          icon: radioMarker("TX"),
-          draggable: true,
-        }).addTo(map);
+      for (const layer of siteLayers) layer.remove();
+      siteLayers = [];
+      rings = [];
+      const r = radiusM();
+      const specs = siteSpecs();
+      specs.forEach((spec, i) => {
+        const tag = document.createElement("span");
+        tag.textContent = spec.name; // user text
+        const marker = L.marker([spec.at.lat, spec.at.lon], { icon: radioMarker("TX"), draggable: true }).addTo(map!);
+        marker.bindTooltip(tag, { permanent: true, direction: "right", offset: [8, -16], className: "pin-name" });
         marker.on("dragend", () => {
-          const q = marker!.getLatLng();
-          field("site").value = formatCoordinates({ lat: q.lat, lon: q.lng });
+          const q = marker.getLatLng();
+          moveSite(i, { lat: q.lat, lon: q.lng });
           inputsChanged();
         });
-        marker.bindTooltip(nameTag(), { permanent: true, direction: "right", offset: [8, -16], className: "pin-name" });
-      } else {
-        marker.setLatLng([p.lat, p.lon]);
-        marker.setTooltipContent(nameTag());
+        siteLayers.push(marker);
+        if (spec.beam.pattern.id !== "omni" && r > 0) {
+          const tip = destinationPoint(spec.at, spec.beam.azimuthDeg, r);
+          siteLayers.push(L.polyline([[spec.at.lat, spec.at.lon], [tip.lat, tip.lon]], { className: "coverage-aim", interactive: false }).addTo(map!));
+        }
+        if (r > 0) {
+          const ring = L.circle([spec.at.lat, spec.at.lon], { radius: r, className: "coverage-ring", interactive: false }).addTo(map!);
+          rings.push(ring);
+          siteLayers.push(ring);
+        }
+      });
+      if (recenter && rings.length) {
+        const bounds = rings[0].getBounds();
+        for (const ring of rings.slice(1)) bounds.extend(ring.getBounds());
+        map.fitBounds(bounds, { padding: [10, 10] });
       }
-      const r = radiusM();
-      aimLine?.remove();
-      aimLine = undefined;
-      const b = txBeam();
-      if (b.pattern.id !== "omni" && r > 0) {
-        const tip = destinationPoint(p, b.azimuthDeg, r);
-        aimLine = L.polyline([[p.lat, p.lon], [tip.lat, tip.lon]], { className: "coverage-aim", interactive: false }).addTo(map);
-      }
-      ring?.remove();
-      ring = r > 0 ? L.circle([p.lat, p.lon], { radius: r, className: "coverage-ring", interactive: false }).addTo(map) : undefined;
-      if (recenter && ring) map.fitBounds(ring.getBounds(), { padding: [10, 10] });
       view3d?.refresh();
     };
+    /** Site i (0 is Site A) moved to q. */
+    const moveSite = (i: number, q: LatLon) => {
+      if (i === 0) field("site").value = formatCoordinates(q);
+      else if (extras[i - 1]) {
+        extras[i - 1].lat = q.lat;
+        extras[i - 1].lon = q.lon;
+        renderExtras();
+      }
+    };
 
-    const txBeam = () => beam(field("txPattern").value, num("txGain") || 0, num("txAzimuth"), num("txTilt"));
     const syncPattern = () => {
       form.querySelector<HTMLElement>('[data-show="txAim"]')!.hidden = field("txPattern").value === "omni";
     };
 
-    // The nearest radial point to p, as [radial, step], or undefined outside the circle.
-    const nearestPoint = (p: LatLon): [number, number] | undefined => {
-      if (!samples) return undefined;
-      const k = Math.round(distanceBetweenM(samples.site, p) / samples.stepM);
-      if (k > samples.elevations[0].length - 1) return undefined;
-      const n = samples.bearings.length;
-      return [Math.round((((bearingDeg(samples.site, p) % 360) + 360) % 360) / (360 / n)) % n, k];
+    // The nearest radial point to p in a run, as [radial, step], or undefined outside its circle.
+    const nearestPoint = (run: SiteRun, p: LatLon): [number, number] | undefined => {
+      const s = run.samples;
+      const k = Math.round(distanceBetweenM(s.site, p) / s.stepM);
+      if (k > s.elevations[0].length - 1) return undefined;
+      const n = s.bearings.length;
+      return [Math.round((((bearingDeg(s.site, p) % 360) + 360) % 360) / (360 / n)) % n, k];
     };
-    const mapped = () => !!samples && !!margins && sampledFor === sampleKey();
+    const siteMargins = (): SiteMargins[] => runs.map((r) => ({ samples: r.samples, margins: r.margins! }));
 
     const readingsCard = createReadingsCard({
       site,
       predict: (p) => {
         if (!mapped()) return undefined;
-        const v = marginAt(samples!, margins!, bearingDeg(samples!.site, p), distanceBetweenM(samples!.site, p));
+        const best = bestSite(siteMarginsAt(siteMargins(), p));
+        if (!best) return undefined;
         // Margins include any correction; predictions are compared without it.
-        // Readings are of the site, heard at the spot: the site-to-remote margin.
-        return Number.isFinite(v) ? v - shownOffset - readingsCard.correctionDb() + sensitivity() : undefined;
+        // Readings are of the best site, heard at the spot: its outbound margin.
+        return best.margin - runs[best.index].offset - readingsCard.correctionDb() + sensitivity();
       },
       coverAt: (p) => {
-        const at = cover && cover.samples === samples && mapped() ? nearestPoint(p) : undefined;
-        if (at) return cover!.points[at[0]][at[1]].environment.name;
+        if (mapped()) {
+          for (const run of runs) {
+            const at = run.cover ? nearestPoint(run, p) : undefined;
+            if (at) return run.cover!.points[at[0]][at[1]].environment.name;
+          }
+        }
         const env = findEnvironment(field("environment").value);
         return autoCover() || env.id === "none" ? undefined : env.name;
       },
@@ -477,45 +620,46 @@ export const coverageCalculator: Calculator = {
       onCorrectionChange: () => recompute(),
     });
 
-    const radio = () => ({
-      freqHz: toHz(num("freq"), asFrequencyUnit(field("freqUnit").value)),
-      eirpDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)) - (num("txCable") || 0) + (num("txGain") || 0),
-      rxGainDbi: num("rxGain") || 0,
-      rxCableLossDb: num("rxCable") || 0,
-      sensitivityDbm: sensitivity(),
-    });
-
     const drawOverlay = () => {
       overlay?.remove();
       overlay = undefined;
-      if (!map || !samples || !margins) return;
-      const s = samples;
-      const m = margins;
+      if (!map || !mapped()) return;
+      const sites = siteMargins();
+      const box = unionBounds(sites.map((s) => s.samples));
       const fade = num("fade") || 0;
-      const dLat = (s.radiusM / EARTH_RADIUS_M) * (180 / Math.PI);
-      const dLon = dLat / Math.cos((s.site.lat * Math.PI) / 180);
-      const size = 640;
+      const mPerDegLat = (Math.PI / 180) * EARTH_RADIUS_M;
+      const midLat = (box.north + box.south) / 2;
+      // The canvas keeps the area's true shape, 640 pixels on the long side.
+      const heightM = (box.north - box.south) * mPerDegLat;
+      const widthM = (box.east - box.west) * mPerDegLat * Math.cos((midLat * Math.PI) / 180);
+      const w = widthM >= heightM ? 640 : Math.max(64, Math.round((640 * widthM) / heightM));
+      const h = heightM >= widthM ? 640 : Math.max(64, Math.round((640 * heightM) / widthM));
       const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = size;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext("2d")!;
-      const img = ctx.createImageData(size, size);
+      const img = ctx.createImageData(w, h);
       const strong = cssColor("--good");
       const solid = cssColor("--good");
       const marginal = cssColor("--warning");
-      const mPerDegLat = (Math.PI / 180) * EARTH_RADIUS_M;
-      for (let j = 0; j < size; j++) {
-        const lat = s.site.lat + dLat - ((j + 0.5) / size) * 2 * dLat;
+      for (let j = 0; j < h; j++) {
+        const lat = box.north - ((j + 0.5) / h) * (box.north - box.south);
         const mPerDegLon = mPerDegLat * Math.cos((lat * Math.PI) / 180);
-        for (let i = 0; i < size; i++) {
-          const lon = s.site.lon - dLon + ((i + 0.5) / size) * 2 * dLon;
-          const x = (lon - s.site.lon) * mPerDegLon;
-          const y = (lat - s.site.lat) * mPerDegLat;
-          const d = Math.hypot(x, y);
-          if (d > s.radiusM) continue;
-          const v = marginAt(s, m, (Math.atan2(x, y) * 180) / Math.PI, d);
+        for (let i = 0; i < w; i++) {
+          const lon = box.west + ((i + 0.5) / w) * (box.east - box.west);
+          // The best site here: the map is shaded for whichever serves it best.
+          let v = Number.NaN;
+          for (const s of sites) {
+            const x = (lon - s.samples.site.lon) * mPerDegLon;
+            const y = (lat - s.samples.site.lat) * mPerDegLat;
+            const d = Math.hypot(x, y);
+            if (d > s.samples.radiusM) continue;
+            const m = marginAt(s.samples, s.margins, (Math.atan2(x, y) * 180) / Math.PI, d);
+            if (!(m <= v)) v = m;
+          }
           if (!(v >= 0)) continue;
           const [c, alpha] = v >= fade + 10 ? [strong, 165] : v >= fade ? [solid, 105] : [marginal, 120];
-          const o = (j * size + i) * 4;
+          const o = (j * w + i) * 4;
           img.data[o] = c[0];
           img.data[o + 1] = c[1];
           img.data[o + 2] = c[2];
@@ -524,115 +668,163 @@ export const coverageCalculator: Calculator = {
       }
       ctx.putImageData(img, 0, 0);
       const url = canvas.toDataURL();
-      lastOverlay = {
-        url,
-        bounds: { north: s.site.lat + dLat, south: s.site.lat - dLat, east: s.site.lon + dLon, west: s.site.lon - dLon },
-      };
+      lastOverlay = { url, bounds: box };
       overlay = L.imageOverlay(url, [
-        [s.site.lat - dLat, s.site.lon - dLon],
-        [s.site.lat + dLat, s.site.lon + dLon],
+        [box.south, box.west],
+        [box.north, box.east],
       ], { interactive: false, className: "coverage-overlay" }).addTo(map);
-      ring?.bringToFront();
+      for (const ring of rings) ring.bringToFront();
       view3d?.refresh();
     };
 
-    // Which way the shading is for, and how far apart the two ways are.
-    const syncDirectionNote = () => {
-      const d = returnDelta();
+    // Which way the shading is for at each site, and how far apart the two ways are.
+    const syncDirectionNote = (specs: SiteSpec[]) => {
       const note = out("dirNote");
-      const gap = Number.isFinite(d) ? Math.abs(d) : 0;
+      const apart = specs.map((s, i) => ({ name: s.name, d: runs[i]?.delta ?? 0 })).filter((x) => Number.isFinite(x.d) && Math.abs(x.d) >= 0.1);
       let text = "";
-      if (gap >= 0.1) {
-        text = d < 0
+      if (specs.length === 1 && apart.length) {
+        const gap = Math.abs(apart[0].d);
+        text = apart[0].d < 0
           ? `Shaded for the weaker way: Site B reaches Site A ${fmt(gap)} dB less well than Site A reaches it, from Site B's transmit power and Site A's sensitivity.`
           : `Shaded for the weaker way: Site A reaches Site B ${fmt(gap)} dB less well than Site B reaches it, from Site A's transmit power and Site B's sensitivity.`;
+      } else if (apart.length === specs.length && apart.every((x) => Math.abs(x.d - apart[0].d) < 0.05)) {
+        // Every site the same: say it once.
+        const gap = Math.abs(apart[0].d);
+        text = apart[0].d < 0
+          ? `Shaded for the weaker way: Site B reaches each site ${fmt(gap)} dB less well than the site reaches it, from Site B's transmit power and the sites' sensitivity.`
+          : `Shaded for the weaker way: each site reaches Site B ${fmt(gap)} dB less well than Site B reaches it, from the sites' transmit power and Site B's sensitivity.`;
+      } else if (apart.length) {
+        text = `Shaded for the weaker way at each site: ${apart
+          .map((x) => (x.d < 0 ? `Site B reaches ${x.name} ${fmt(-x.d)} dB less well than ${x.name} reaches it` : `${x.name} reaches Site B ${fmt(x.d)} dB less well than Site B reaches it`))
+          .join("; ")}.`;
       }
       note.textContent = text;
       note.hidden = !text;
     };
 
     const recompute = () => {
-      const ready = !!samples && sampledFor === sampleKey();
-      out("stale").hidden = !samples || ready;
+      const ready = runs.length > 0 && sampledFor === sampleKey();
+      out("stale").hidden = runs.length === 0 || ready;
       out("results").hidden = !ready;
       out("pill").hidden = !ready;
-      out("empty").hidden = !!samples;
-      if (!ready || !samples) {
+      out("empty").hidden = runs.length > 0;
+      if (!ready) {
         overlay?.remove();
         overlay = undefined;
         readingsCard.refresh();
         view3d?.refresh();
         return;
       }
-      const r = radio();
-      if (!(r.freqHz > 0) || !Number.isFinite(r.eirpDbm) || !Number.isFinite(r.sensitivityDbm)) return;
+      const specs = siteSpecs();
+      if (specs.length !== runs.length) return;
+      const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
+      const rxSens = sensitivity();
+      const rxPowerDbm = toDbm(num("rxPower"), asPowerUnit(field("rxPowerUnit").value));
+      const rxGainDbi = num("rxGain") || 0;
+      const rxCableLossDb = num("rxCable") || 0;
+      if (!(freqHz > 0) || !Number.isFinite(rxSens)) return;
       const trees = (e: Environment) => withFormTrees(form, "heightUnit", e);
       // Where the land-cover map has no data yet, the Settings fallback stands in.
       const env = trees(autoCover() ? fallbackEnvironment() : findEnvironment(field("environment").value));
-      const txH = toMetres(num("txHeight") || 0, heightUnit());
       const rxH = toMetres(num("rxHeight") || 0, heightUnit());
-      const lc = autoCover() && cover?.samples === samples ? cover : undefined;
-      const siteEnv = lc ? trees(lc.site.environment) : env;
-      if (lc && (!clutterGrids || clutterGrids.samples !== samples || clutterGrids.key !== JSON.stringify([r.freqHz, rxH, field("treeHeight").value, heightUnit()]))) {
-        const at = (rr: number, k: number) => trees(lc.points[rr][k].environment);
-        clutterGrids = {
-          samples,
-          key: JSON.stringify([r.freqHz, rxH, field("treeHeight").value, heightUnit()]),
-          heights: samples.elevations.map((e, rr) => e.map((_, k) => effectiveHeightM(at(rr, k), rxH))),
-          loss: samples.elevations.map((e, rr) => e.map((_, k) => (k === 0 ? 0 : clutterLossDb(at(rr, k), r.freqHz, rxH)))),
-        };
+      const model = readModel(form);
+      const correction = readingsCard.correctionDb();
+      // Each site's margins, from its own terrain, antenna and radio. The
+      // terrain work only reruns when what it depends on changes.
+      const next: { margins: Float32Array[]; offset: number; delta: number }[] = [];
+      for (const [i, spec] of specs.entries()) {
+        const run = runs[i];
+        const eirpDbm = spec.powerDbm - spec.cableDb + spec.gainDbi;
+        // The path is the same both ways: only power and sensitivity differ.
+        const delta = rxPowerDbm - spec.powerDbm + rxSens - spec.sensDbm;
+        if (!Number.isFinite(eirpDbm) || !Number.isFinite(delta)) return;
+        const txH = spec.heightM;
+        const lc = autoCover() ? run.cover : undefined;
+        const siteEnv = lc ? trees(lc.site.environment) : env;
+        const clutterKey = JSON.stringify([freqHz, rxH, field("treeHeight").value, heightUnit()]);
+        if (lc && run.clutter?.key !== clutterKey) {
+          const at = (rr: number, k: number) => trees(lc.points[rr][k].environment);
+          run.clutter = {
+            key: clutterKey,
+            heights: run.samples.elevations.map((e, rr) => e.map((_, k) => effectiveHeightM(at(rr, k), rxH))),
+            loss: run.samples.elevations.map((e, rr) => e.map((_, k) => (k === 0 ? 0 : clutterLossDb(at(rr, k), freqHz, rxH)))),
+          };
+        }
+        const pathTxH = effectiveHeightM(siteEnv, txH);
+        const pathRxH = lc ? run.clutter!.heights : effectiveHeightM(env, rxH);
+        const lossKey = JSON.stringify([freqHz, pathTxH, lc ? `cover${rxH}` : pathRxH, model]);
+        if (run.pathLoss?.key !== lossKey) run.pathLoss = { key: lossKey, loss: coveragePathLoss(run.samples, freqHz, pathTxH, pathRxH, model) };
+        const b = spec.beam;
+        const beamKey = JSON.stringify([b, txH, rxH]);
+        if (run.patternLoss?.key !== beamKey) {
+          // An omni at 0 dBi with no tilt has a 90° beam: not worth the grid.
+          const flat = b.pattern.id === "omni" && b.downtiltDeg === 0 && b.vBeamwidthDeg >= 90;
+          run.patternLoss = { key: beamKey, loss: flat ? undefined : coveragePatternLoss(run.samples, b, txH, rxH) };
+        }
+        const offset = Math.min(0, delta);
+        next.push({
+          offset,
+          delta,
+          margins: marginsFromLoss(
+            run.pathLoss.loss,
+            {
+              eirpDbm: eirpDbm + correction + offset,
+              rxGainDbi,
+              rxCableLossDb,
+              sensitivityDbm: rxSens,
+              clutterLossDb: clutterLossDb(siteEnv, freqHz, txH) + (lc ? 0 : clutterLossDb(env, freqHz, rxH)),
+            },
+            sumGrids(run.patternLoss.loss, lc ? run.clutter!.loss : undefined),
+          ),
+        });
       }
+      next.forEach((n, i) => Object.assign(runs[i], n));
+      syncDirectionNote(specs);
+
+      const first = runs[0];
+      const lc = autoCover() ? first.cover : undefined;
       out("envNote").hidden = env.id === "none" && !autoCover();
       out("envNote").textContent = lc
-        ? landCoverSummary(lc, siteEnv, r.freqHz, txH)
+        ? landCoverSummary(lc, trees(lc.site.environment), freqHz, specs[0].heightM)
         : autoCover()
           ? coverError
             ? `Couldn't read the land-cover map (${coverError}), so ${env.name} is used everywhere instead (the land-cover fallback in Settings). Press Map coverage to try again.`
             : `The land-cover map isn't loaded for this area yet, so ${env.name} is used everywhere (the land-cover fallback in Settings). Press Map coverage to read it.`
-          : environmentNote(env, r.freqHz, txH, rxH);
-      // The terrain work only reruns when what it depends on changes.
-      const model = readModel(form);
-      const pathTxH = effectiveHeightM(siteEnv, txH);
-      const pathRxH = lc ? clutterGrids!.heights : effectiveHeightM(env, rxH);
-      const lossKey = JSON.stringify([r.freqHz, pathTxH, lc ? `cover${rxH}` : pathRxH, model]);
-      if (!pathLoss || pathLoss.samples !== samples || pathLoss.key !== lossKey) {
-        pathLoss = { samples, key: lossKey, loss: coveragePathLoss(samples, r.freqHz, pathTxH, pathRxH, model) };
-      }
-      const b = txBeam();
-      const beamKey = JSON.stringify([b, txH, rxH]);
-      if (!patternLoss || patternLoss.samples !== samples || patternLoss.key !== beamKey) {
-        // An omni at 0 dBi with no tilt has a 90° beam: not worth the grid.
-        const flat = b.pattern.id === "omni" && b.downtiltDeg === 0 && b.vBeamwidthDeg >= 90;
-        patternLoss = { samples, key: beamKey, loss: flat ? undefined : coveragePatternLoss(samples, b, txH, rxH) };
-      }
-      const offset = shadeOffset();
-      if (!Number.isFinite(offset)) return;
-      shownOffset = offset;
-      syncDirectionNote();
-      const correction = readingsCard.correctionDb();
+          : environmentNote(env, freqHz, specs[0].heightM, rxH);
       out("corrNote").hidden = correction === 0;
       out("derateNote").textContent = derateNote();
       out("derateNote").hidden = !derateNote();
       out("corrNote").textContent = `Corrected by ${correction > 0 ? "+" : ""}${fmt(correction)} dB, the average error of your field readings.`;
-      margins = marginsFromLoss(
-        pathLoss.loss,
-        { ...r, eirpDbm: r.eirpDbm + correction + offset, clutterLossDb: clutterLossDb(siteEnv, r.freqHz, txH) + (lc ? 0 : clutterLossDb(env, r.freqHz, rxH)) },
-        sumGrids(patternLoss.loss, lc ? clutterGrids!.loss : undefined),
-      );
+
       const fade = num("fade") || 0;
-      const stats = coverageStats(samples, margins, fade);
-      const pill = out("pill");
-      const reach = stats.solid + stats.marginal;
-      pill.className = `pill ${stats.solid >= 0.6 ? "s-good" : reach >= 0.3 ? "s-marginal" : "s-fail"}`;
-      pill.textContent = `${fmt(reach * 100, 0)}% reachable`;
-      out("solid").textContent = `${fmt(stats.solid * 100, 0)}%`;
-      out("solidSub").textContent = `of the ${fmt(fromMetres(samples.radiusM, asDistanceUnit(field("radiusUnit").value)), 1)} ${asDistanceUnit(field("radiusUnit").value)} circle`;
-      out("marginal").textContent = `${fmt(stats.marginal * 100, 0)}%`;
       const unit: DistanceUnit = field("radiusUnit").value === "mi" ? "mi" : "km";
-      out("far").textContent = stats.farthestSolidM ? `${fmt(fromMetres(stats.farthestSolidM, unit))} ${unit}` : "—";
-      out("farSub").textContent = stats.farthestSolidM
-        ? `Toward ${Math.round(stats.farthestSolidBearing)}° ${compassPoint(stats.farthestSolidBearing)}`
-        : "Nowhere meets the fade margin";
+      const pill = out("pill");
+      let solid: number;
+      let reach: number;
+      if (runs.length === 1) {
+        const stats = coverageStats(first.samples, first.margins!, fade);
+        solid = stats.solid;
+        reach = stats.solid + stats.marginal;
+        out("marginal").textContent = `${fmt(stats.marginal * 100, 0)}%`;
+        out("solidSub").textContent = `of the ${fmt(fromMetres(first.samples.radiusM, unit), 1)} ${unit} circle`;
+        out("farLabel").textContent = "Farthest solid point";
+        out("far").textContent = stats.farthestSolidM ? `${fmt(fromMetres(stats.farthestSolidM, unit))} ${unit}` : "—";
+        out("farSub").textContent = stats.farthestSolidM
+          ? `Toward ${Math.round(stats.farthestSolidBearing)}° ${compassPoint(stats.farthestSolidBearing)}`
+          : "Nowhere meets the fade margin";
+      } else {
+        const stats = combinedStats(siteMargins(), fade);
+        solid = stats.solid;
+        reach = stats.solid + stats.marginal;
+        out("marginal").textContent = `${fmt(stats.marginal * 100, 0)}%`;
+        out("solidSub").textContent = `of the area inside the ${runs.length} sites' circles`;
+        out("farLabel").textContent = "Covered by 2+ sites";
+        out("far").textContent = `${fmt(stats.redundant * 100, 0)}%`;
+        out("farSub").textContent = "Meets the fade margin from more than one site";
+      }
+      pill.className = `pill ${solid >= 0.6 ? "s-good" : reach >= 0.3 ? "s-marginal" : "s-fail"}`;
+      pill.textContent = `${fmt(reach * 100, 0)}% reachable`;
+      out("solid").textContent = `${fmt(solid * 100, 0)}%`;
       drawOverlay();
       readingsCard.refresh();
     };
@@ -641,7 +833,7 @@ export const coverageCalculator: Calculator = {
       const p = site();
       const r = radiusM();
       if (!p) {
-        setStatus("Place the site first.", true);
+        setStatus("Place Site A first.", true);
         return;
       }
       if (!(r >= 500 && r <= 80_000)) {
@@ -652,8 +844,16 @@ export const coverageCalculator: Calculator = {
       const controller = new AbortController();
       running = controller;
       const detail = detailLevels[field("detail").value] ?? detailLevels.standard;
+      const locations = siteLocations();
+      // One zoom for every site, so they share tiles where their circles overlap.
       const z = chooseZoom(p, r, 36);
-      const tiles = tilesCovering(p, r, z);
+      const seen = new Set<string>();
+      const tiles = locations.flatMap((at) => tilesCovering(at, r, z)).filter((t) => {
+        const key = `${t.x}/${t.y}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
       const grid = new ElevationGrid(z);
       setStatus(`Loading terrain 0 of ${tiles.length}…`);
       try {
@@ -686,21 +886,24 @@ export const coverageCalculator: Calculator = {
         }
       }
       if (controller.signal.aborted) return;
-      setStatus("Calculating…");
+      setStatus(locations.length > 1 ? `Calculating ${locations.length} sites…` : "Calculating…");
       // Let the status paint before the heavy loop.
       await new Promise((resolve) => setTimeout(resolve, 30));
-      // Sea-floor depths become sea level: the signal crosses the water surface.
-      samples = sampleRadials(p, r, detail.radials, detail.steps, (q) => Math.max(0, grid.sample(q)));
-      sampledFor = sampleKey();
-      if (coverGrid) {
+      runs = locations.map((at): SiteRun => {
+        // Sea-floor depths become sea level: the signal crosses the water surface.
+        const s = sampleRadials(at, r, detail.radials, detail.steps, (q) => Math.max(0, grid.sample(q)));
         const g = coverGrid;
-        const s = samples;
-        cover = {
+        return {
+          at,
           samples: s,
-          site: g.at(p),
-          points: s.bearings.map((b, rr) => Array.from({ length: s.elevations[rr].length }, (_, k) => g.at(k === 0 ? p : destinationPoint(p, b, k * s.stepM)))),
+          offset: 0,
+          delta: 0,
+          ...(g
+            ? { cover: { site: g.at(at), points: s.bearings.map((b, rr) => Array.from({ length: s.elevations[rr].length }, (_, k) => g.at(k === 0 ? at : destinationPoint(at, b, k * s.stepM)))) } }
+            : {}),
         };
-      } else cover = undefined;
+      });
+      sampledFor = sampleKey();
       recompute();
       setStatus("");
     };
@@ -708,21 +911,119 @@ export const coverageCalculator: Calculator = {
     const inputsChanged = () => {
       save();
       syncPattern();
-      placeSite(false);
+      placeSites(false);
       recompute();
     };
 
-    // Remove the site, its circle and the coverage, so a tap places a new site.
-    // Radio and antenna settings stay.
+    // The rows for sites beyond Site A.
+    const renderExtras = () => {
+      const presets = loadPresets("coverage");
+      const unit = field("heightUnit").value;
+      out("extraSites").replaceChildren(
+        ...extras.map((e, i) => {
+          const row = document.createElement("div");
+          row.className = "extra-site";
+          row.innerHTML = `
+            <div class="extra-site-head"><b></b><button type="button" class="secondary icon-btn" data-k="remove">✕</button></div>
+            <div class="fields">
+              <label>Name<input data-k="name" type="text" maxlength="40" autocomplete="off" /></label>
+              <label>Location<input data-k="loc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>
+              <label>Antenna height<span class="input-unit"><input data-k="height" type="number" inputmode="decimal" step="any" min="0" /><span class="unit"></span></span></label>
+              <label>Radio<select data-k="preset"></select></label>
+              <label>Antenna pattern<select data-k="antenna">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select></label>
+              <label data-k="aimRow">Antenna points<span class="input-unit"><input data-k="aim" type="number" inputmode="decimal" step="any" min="0" max="360" /><span class="unit">° true</span></span></label>
+            </div>`;
+          const q = <T extends HTMLElement>(k: string) => row.querySelector<T>(`[data-k="${k}"]`)!;
+          row.querySelector("b")!.textContent = extraLabel(i);
+          q("remove").setAttribute("aria-label", `Remove ${extraName(i)}`); // user text, as an attribute
+          const name = q<HTMLInputElement>("name");
+          name.value = e.name;
+          name.placeholder = extraLabel(i);
+          const loc = q<HTMLInputElement>("loc");
+          loc.value = formatCoordinates({ lat: e.lat, lon: e.lon });
+          const height = q<HTMLInputElement>("height");
+          height.value = e.height;
+          height.placeholder = field("txHeight").value;
+          row.querySelector<HTMLElement>('[data-k="height"] + .unit')!.textContent = unit;
+          const preset = q<HTMLSelectElement>("preset");
+          preset.replaceChildren(new Option("Same as Site A", ""), ...presets.map((p) => new Option(p.name, p.id)));
+          preset.value = presets.some((p) => p.id === e.preset) ? e.preset : "";
+          const antenna = q<HTMLSelectElement>("antenna");
+          antenna.value = e.antenna;
+          const aim = q<HTMLInputElement>("aim");
+          aim.value = e.aim;
+          q("aimRow").hidden = e.antenna === "omni";
+          // These fields aren't the page's own: handle them here, not in the form's listeners.
+          for (const type of ["input", "change"]) row.addEventListener(type, (ev) => ev.stopPropagation());
+          name.addEventListener("input", () => {
+            e.name = name.value;
+            save();
+            placeSites(false);
+          });
+          loc.addEventListener("change", () => {
+            const at = parseCoordinates(loc.value);
+            if (!at) {
+              setStatus("That location wasn't understood. Use decimal degrees like 35.22710, -80.84310, or MGRS.", true);
+              return;
+            }
+            e.lat = at.lat;
+            e.lon = at.lon;
+            loc.value = formatCoordinates(at);
+            setStatus("");
+            inputsChanged();
+            placeSites(true);
+          });
+          const live = (input: HTMLInputElement | HTMLSelectElement, set: (v: string) => void) =>
+            input.addEventListener(input instanceof HTMLSelectElement ? "change" : "input", () => {
+              set(input.value);
+              q("aimRow").hidden = e.antenna === "omni";
+              inputsChanged();
+            });
+          live(height, (v) => (e.height = v));
+          live(preset, (v) => (e.preset = v));
+          live(antenna, (v) => (e.antenna = v));
+          live(aim, (v) => (e.aim = v));
+          q("remove").addEventListener("click", () => {
+            extras.splice(i, 1);
+            renderExtras();
+            inputsChanged();
+          });
+          return row;
+        }),
+      );
+      const add = form.querySelector<HTMLButtonElement>('[data-action="addSite"]')!;
+      add.disabled = extras.length >= MAX_EXTRA_SITES;
+      add.textContent = placing ? "Cancel" : "Add site";
+      out("addNote").textContent = placing
+        ? `Tap the map to place ${extraLabel(extras.length)}.`
+        : extras.length >= MAX_EXTRA_SITES
+          ? `Up to ${MAX_EXTRA_SITES + 1} sites in all.`
+          : "";
+    };
+    form.querySelector('[data-action="addSite"]')!.addEventListener("click", () => {
+      if (!placing && !site()) {
+        setStatus("Place Site A first.", true);
+        return;
+      }
+      placing = !placing && extras.length < MAX_EXTRA_SITES;
+      renderExtras();
+      if (placing) out("map").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+
+    // Remove every site, their circles and the coverage, so a tap places a new
+    // Site A. Radio and antenna settings stay.
     const clearCoverage = () => {
       running?.abort();
       running = undefined;
-      samples = margins = pathLoss = patternLoss = cover = clutterGrids = undefined;
+      runs = [];
       sampledFor = "";
       lastOverlay = undefined;
       map?.closePopup();
       out("probe").textContent = "";
       field("site").value = "";
+      extras = [];
+      placing = false;
+      renderExtras();
       setStatus("");
       inputsChanged();
     };
@@ -731,16 +1032,19 @@ export const coverageCalculator: Calculator = {
       if (map || !form.isConnected) return;
       const p = site();
       map = createMap(out("map"), (m) => {
-        // Frame the coverage circle, or the site, or the default view.
+        // Frame the coverage circles, or the site, or the default view.
         const here = site();
-        if (ring) m.fitBounds(ring.getBounds(), { padding: [10, 10] });
-        else if (here) m.setView([here.lat, here.lon], 11);
+        if (rings.length) {
+          const bounds = rings[0].getBounds();
+          for (const ring of rings.slice(1)) bounds.extend(ring.getBounds());
+          m.fitBounds(bounds, { padding: [10, 10] });
+        } else if (here) m.setView([here.lat, here.lon], 11);
         else showDefaultView(m);
       });
-      clearControl = addClearControl(map, "the site and coverage", clearCoverage);
+      clearControl = addClearControl(map, "the sites and coverage", clearCoverage);
       // A field the Radios card shows (not set by a preset, or unused).
       const shown = (name: string) => !field(name).closest("label")!.hidden;
-      // What the 3D view's editor shows for the site, by field name.
+      // What the 3D view's editor shows for Site A, by field name.
       const siteFields = (p: LatLon): EditField[] => {
         const f = (key: string, label: string, unit?: string, type: EditField["type"] = "number"): EditField => ({ key, label, value: field(key).value, unit, type });
         const fields = [
@@ -756,6 +1060,17 @@ export const coverageCalculator: Calculator = {
         ];
         return [...fields, { key: "location", label: "Location", value: formatCoordinates(p), type: "text" }];
       };
+      // And for the other sites.
+      const extraFields = (i: number): EditField[] => {
+        const e = extras[i];
+        return [
+          { key: "name", label: "Name", value: e.name, type: "text", placeholder: extraLabel(i) },
+          { key: "antenna", label: "Antenna pattern", value: e.antenna, type: "select", options: patterns.map((q) => ({ value: q.id, label: q.name })) },
+          ...(e.antenna === "omni" ? [] : [{ key: "aim", label: "Points", value: e.aim, unit: "° true", type: "number" as const }]),
+          { key: "height", label: "Antenna height", value: e.height, unit: field("heightUnit").value, type: "number", placeholder: field("txHeight").value },
+          { key: "location", label: "Location", value: formatCoordinates({ lat: e.lat, lon: e.lon }), type: "text" },
+        ];
+      };
       // Mapping again after a 3D change, so the shading there matches it.
       const remap = () => {
         setStatus("");
@@ -765,33 +1080,45 @@ export const coverageCalculator: Calculator = {
       view3d = add3DControl(map, () => {
         const p = site();
         const r = radiusM();
+        const specs = siteSpecs();
         return {
           title: "Coverage Analysis",
-          points: p ? [{ ...p, label: siteName(), heightM: toMetres(num("txHeight") || 0, heightUnit()), fields: siteFields(p) }] : [],
+          points: specs.map((s, i) => ({ ...s.at, label: s.name, heightM: s.heightM, fields: i === 0 ? siteFields(s.at) : extraFields(i - 1) })),
           links: [],
           // Only shading that matches the current settings, as on this map.
           overlay: overlay && lastOverlay ? lastOverlay : undefined,
-          ring: p && r > 0 ? { center: p, radiusM: r } : undefined,
+          ring: p && r > 0 && specs.length === 1 ? { center: p, radiusM: r } : undefined,
           k: globalK(),
-          // Moving the site in 3D maps its coverage again straight away, so
+          // Moving a site in 3D maps the coverage again straight away, so
           // there is something to see there.
-          onMove: (_i, q) => {
-            field("site").value = formatCoordinates(q);
+          onMove: (i, q) => {
+            moveSite(i, q);
             remap();
           },
           // The pop-up editor: changes land in the fields as if typed there.
-          onEdit: (_i, values) => {
+          onEdit: (i, values) => {
             const { location, ...rest } = values;
-            for (const [key, value] of Object.entries(rest)) field(key).value = value;
+            let at: LatLon | undefined;
             if (location !== undefined) {
-              const q = parseCoordinates(location);
-              if (q) field("site").value = formatCoordinates(q);
-              else setStatus("That location wasn't understood. Use decimal degrees like 35.22710, -80.84310, or MGRS.", true);
+              at = parseCoordinates(location);
+              if (!at) setStatus("That location wasn't understood. Use decimal degrees like 35.22710, -80.84310, or MGRS.", true);
+            }
+            if (i === 0) {
+              for (const [key, value] of Object.entries(rest)) field(key).value = value;
+              if (at) field("site").value = formatCoordinates(at);
+            } else if (extras[i - 1]) {
+              const e = extras[i - 1];
+              for (const key of ["name", "antenna", "aim", "height"] as const) if (rest[key] !== undefined) e[key] = rest[key];
+              if (at) {
+                e.lat = at.lat;
+                e.lon = at.lon;
+              }
+              renderExtras();
             }
             syncPattern();
-            placeSite(location !== undefined);
+            placeSites(!!at);
             // Only the name changed: nothing to map again.
-            if (Object.keys(values).every((k) => k === "siteName")) {
+            if (Object.keys(values).every((k) => k === "siteName" || k === "name")) {
               inputsChanged();
               view3d?.refresh();
             } else remap();
@@ -801,11 +1128,26 @@ export const coverageCalculator: Calculator = {
       map.on("click", (e: L.LeafletMouseEvent) => {
         const q = { lat: e.latlng.lat, lon: e.latlng.lng };
         if (readingsCard.takeMapTap(q)) return;
-        if (samples && margins && sampledFor === sampleKey()) {
-          const d = distanceBetweenM(samples.site, q);
-          const b = bearingDeg(samples.site, q);
-          const v = marginAt(samples, margins, b, d);
+        if (placing) {
+          placing = false;
+          extras.push({ name: "", lat: q.lat, lon: q.lon, height: "", antenna: "omni", aim: "0", preset: "" });
+          renderExtras();
+          setStatus("");
+          inputsChanged();
+          return;
+        }
+        if (mapped()) {
+          const specs = siteSpecs();
+          const all = siteMarginsAt(siteMargins(), q);
+          const best = bestSite(all);
           const unit: DistanceUnit = field("radiusUnit").value === "mi" ? "mi" : "km";
+          if (!best) {
+            L.popup({ className: "coverage-popup" }).setLatLng(e.latlng).setContent("<b>Outside the mapped circles</b>").openOn(map!);
+            out("probe").textContent = "";
+            return;
+          }
+          const bestRun = runs[best.index];
+          const spec = specs[best.index];
           // With a rate ladder, the fastest rate that keeps the fade margin there.
           const fade = num("fade") || 0;
           const words = (m: number, ladderHere: Rung[]) => {
@@ -814,34 +1156,42 @@ export const coverageCalculator: Calculator = {
             return `${fmt(m)} dB margin${rateText}`;
           };
           // Each way's margin: the shading's offset comes off, the return difference goes on.
-          const vOut = v - shownOffset;
-          const vIn = vOut + returnDelta();
+          const vOut = best.margin - bestRun.offset;
+          const vIn = vOut + bestRun.delta;
           const outText = words(vOut, rungs());
-          const inText = Number.isFinite(vIn) ? words(vIn, siteRungs()) : "";
-          const text = !Number.isFinite(v)
-            ? "Outside the mapped circle"
-            : outText === inText ? `${outText} both ways`
-            : `${words(Math.min(vOut, vIn), [])} the weaker way. Site A to here: ${outText}. Here to Site A: ${inText}`;
+          const inText = words(vIn, spec.rungs);
+          const name = spec.name;
+          const text = outText === inText ? `${outText} both ways` : `${words(Math.min(vOut, vIn), [])} the weaker way. ${name} to here: ${outText}. Here to ${name}: ${inText}`;
+          const multi = specs.length > 1;
+          // The other sites that reach here too.
+          const others = all
+            .map((m, i) => ({ m, i }))
+            .filter((x) => x.i !== best.index && x.m >= 0)
+            .sort((a, b) => b.m - a.m)
+            .map((x) => `${specs[x.i].name} (${fmt(x.m)} dB)`);
+          const d = distanceBetweenM(spec.at, q);
+          const b = bearingDeg(spec.at, q);
+          const where = `${fmt(fromMetres(d, unit), 2)} ${unit} ${multi ? `from ${name} ` : ""}at ${Math.round(b)}° ${compassPoint(b)}`;
+          const alsoText = multi ? (others.length ? `Also reaches here: ${others.join(", ")}.` : "No other site reaches here.") : "";
+          const lead = multi ? `Best: ${name}. ` : "";
           L.popup({ className: "coverage-popup" })
             .setLatLng(e.latlng)
-            .setContent(`<b>${text}</b><br>${fmt(fromMetres(d, unit), 2)} ${unit} at ${Math.round(b)}° ${compassPoint(b)}`)
+            .setContent(`<b>${escapeHtml(lead + text)}</b><br>${escapeHtml(where)}${alsoText ? `<br>${escapeHtml(alsoText)}` : ""}`)
             .openOn(map!);
-          out("probe").textContent = Number.isFinite(v)
-            ? `Tapped point: ${text}, ${fmt(fromMetres(d, unit), 2)} ${unit} toward ${Math.round(b)}°.`
-            : "";
+          out("probe").textContent = `Tapped point: ${lead}${text}, ${where}.${alsoText ? ` ${alsoText}` : ""}`;
           return;
         }
-        // Only an empty site is placed by tapping: a stray tap while panning
+        // Only an empty Site A is placed by tapping: a stray tap while panning
         // shouldn't silently move a site someone chose or was sent.
         if (site()) {
-          setStatus("Drag the TX pin to move the site.");
+          setStatus("Drag a pin to move a site, or press Add site for another.");
           return;
         }
         field("site").value = formatCoordinates(q);
         setStatus("");
         inputsChanged();
       });
-      placeSite(!!p);
+      placeSites(!!p);
       readingsCard.refresh();
       if (runWhenReady) {
         runWhenReady = false;
@@ -908,6 +1258,7 @@ export const coverageCalculator: Calculator = {
       }
       fillPresetOptions();
       applyPresets();
+      renderExtras();
       inputsChanged();
     };
     window.addEventListener(PRESETS_EVENT, onPresets);
@@ -919,7 +1270,7 @@ export const coverageCalculator: Calculator = {
         field("site").value = formatCoordinates(p);
         setStatus("");
         inputsChanged();
-        placeSite(true);
+        placeSites(true);
       });
     });
     form.querySelector('[data-action="reset"]')!.addEventListener("click", () => {
@@ -936,23 +1287,23 @@ export const coverageCalculator: Calculator = {
       const name = (e.target as HTMLElement).getAttribute("name");
       if (name === "site") return;
       if (name === "siteName") {
-        marker?.setTooltipContent(nameTag());
+        placeSites(false);
         save();
-        view3d?.refresh();
         return;
       }
       clearTimeout(pending);
       pending = setTimeout(inputsChanged, 200);
     });
     form.addEventListener("change", (e) => {
-      if ((e.target as HTMLElement).getAttribute("name") === "site") placeSite(true);
+      if ((e.target as HTMLElement).getAttribute("name") === "site") placeSites(true);
       inputsChanged();
     });
 
-    // Label the RX height with the shared height unit.
+    // Label the Site B height, and the other sites', with the shared height unit.
     const syncHeightUnit = () => {
       const unit = form.querySelector<HTMLElement>('input[name="rxHeight"] + .unit');
       if (unit) unit.textContent = field("heightUnit").value;
+      renderExtras();
     };
     field("heightUnit").addEventListener("change", syncHeightUnit);
     syncHeightUnit();
@@ -966,10 +1317,21 @@ export const coverageCalculator: Calculator = {
         getPlan: () => {
           const settings: Record<string, string> = {};
           for (const name of Object.keys(defaults)) settings[name] = field(name).value;
+          const presets = loadPresets("coverage");
           const site = sitePreset();
           const rxId = field("rxPreset").value;
-          const rx = rxId && rxId !== "custom" ? loadPresets("coverage").find((p) => p.id === rxId) : undefined;
-          return { settings, ...(site ? { preset: site } : {}), ...(rx ? { nodePresets: [rx] } : {}) };
+          // Every other preset the plan uses: Site B's and the other sites'.
+          const otherIds = new Set([...(rxId && rxId !== "custom" ? [rxId] : []), ...extras.map((e) => e.preset).filter(Boolean)]);
+          const others = presets.filter((p) => otherIds.has(p.id) && p.id !== site?.id);
+          const nodes: PlanNode[] = extras.map((e) => ({
+            name: e.name,
+            lat: e.lat,
+            lon: e.lon,
+            height: e.height,
+            ...(e.antenna !== "omni" ? { antenna: e.antenna, aim: e.aim } : {}),
+            ...(e.preset ? { preset: e.preset } : {}),
+          }));
+          return { settings, ...(site ? { preset: site } : {}), ...(others.length ? { nodePresets: others } : {}), ...(nodes.length ? { nodes } : {}) };
         },
         applyPlan: (plan) => {
           // The plan's presets join this device's (once), pointed at their ids here.
@@ -984,12 +1346,15 @@ export const coverageCalculator: Calculator = {
             rxPreset: rxWas === "custom" || rxWas === "" ? rxWas : (ids.get(rxWas) ?? ""),
           });
           applyPresets();
+          // The plan's other sites replace these.
+          extras = (plan.nodes ?? []).slice(0, MAX_EXTRA_SITES).map((n) => ({ ...toExtra(n), preset: n.preset ? (ids.get(n.preset) ?? "") : "" }));
+          placing = false;
           // Show the location in this reader's coordinate format.
           const planned = site();
           if (planned) field("site").value = formatCoordinates(planned);
           syncHeightUnit();
           inputsChanged();
-          placeSite(true);
+          placeSites(true);
           // A plan carries settings, not the finished map, so draw it now. A
           // shared link opens before the map exists; initMap picks that up.
           if (!planned) return;
@@ -998,9 +1363,9 @@ export const coverageCalculator: Calculator = {
         },
         exportLabel: "Export KMZ",
         onExport: (name) => {
-          const p = site();
-          if (!p || !samples || sampledFor !== sampleKey() || !lastOverlay) return "Press Map coverage first.";
-          const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, [{ name: siteName(), lat: p.lat, lon: p.lon }], RADIO_FILE);
+          if (!mapped() || !lastOverlay) return "Press Map coverage first.";
+          const points = siteSpecs().map((s) => ({ name: s.name, lat: s.at.lat, lon: s.at.lon }));
+          const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, points, RADIO_FILE);
           const encoder = new TextEncoder();
           const kmz = buildZip([
             { name: "doc.kml", data: encoder.encode(kml) },
