@@ -5,21 +5,23 @@ import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
 import { meshGuide } from "./helpText";
 import * as L from "leaflet";
-import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, type Control3D, DATA_ATTRIBUTION, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { buildKml, fileName, buildZip } from "../lib/export";
 import { linkLineLabels, linkLineStyle } from "../lib/linkLines";
 import { drawLinkLine, linkLegend } from "./linkLine";
 import { findEnvironment } from "../lib/environment";
-import { applySettings, createPlanBar } from "./planBar";
+import { applySettings, createPlanCard } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { bindTreeField, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
-import { AUTO_ENVIRONMENT, type LandCoverPoint, describePoint } from "../lib/landCover";
+import { AUTO_ENVIRONMENT, type LandCoverPoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
-import { globalK, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { globalK, readModel } from "./modelFields";
+import { climates, grounds } from "../lib/propagation";
+import { PANE_ICONS, moveModeBar, pane, setupMapFirst, sideToggles } from "./mapFirst";
 import { tabStateToSave, tabValues } from "../lib/appSettings";
-import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
+import { deratedSensitivity, fallbackEnvironment, getSettings, setSettings, sharedFields } from "./settingsStore";
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM, samplePath } from "../lib/geo";
 import { beam, elevationAngleDeg, patternLossDb, patterns } from "../lib/pattern";
@@ -43,6 +45,9 @@ import {
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:mesh";
+// Cards start closed; these remember which are open and which side panes are folded.
+const PANES_KEY = "rf-toolkit:mesh-panes";
+const SIDES_KEY = "rf-toolkit:mesh-sides";
 const MAX_NODES = 10;
 
 interface MeshNode extends LatLon {
@@ -93,10 +98,8 @@ const legacySettingDefaults: Record<string, string> = {
   fade: "10",
   environment: "none",
   treeHeight: "",
-  distUnit: "mi",
   height: "30",
   heightUnit: "ft",
-  ...modelDefaults,
 };
 
 const statusText: Record<MeshLinkStatus, [string, string]> = {
@@ -116,11 +119,12 @@ function numberField(label: string, name: string, unit: string, attrs = ""): str
 }
 
 const template = `
-  <div class="inputs">
-    <section class="card">
-      <div class="card-head"><h2>Radios</h2><span class="meta">Every node, unless it has its own</span></div>
+  <div class="lb-shell floating">
+  ${sideToggles("mesh results")}
+  <div class="lb-left">
+    ${pane("config", "mesh", "Mesh configuration", `
       <div class="fields">
-        <label class="wide">Radio preset
+        <label class="wide">Radio
           <span class="preset-pick">
             <select name="preset"></select>
             <button type="button" class="secondary" data-action="presets">Manage presets</button>
@@ -148,43 +152,49 @@ const template = `
             <select name="heightUnit"><option>ft</option><option>m</option></select>
           </span>
         </label>
-        <label>Show distances in
-          <select name="distUnit"><option>mi</option><option>km</option></select>
-        </label>
-        ${modelFieldsHtml()}
-      </div>
-    </section>
+      </div>`)}
 
-    <section class="card">
-      <div class="card-head"><h2>Nodes</h2><span class="meta" data-out="nodeCount"></span></div>
-      <p class="note top">Tap the map to add a node (up to ${MAX_NODES}), or type coordinates. Drag a node to move it. For a sector or directional antenna, pick it under Antenna and enter the way it points. A node with a different radio (a base or vehicle set among manpacks, say) picks its own preset, or user-defined numbers, under the radio button in its row.</p>
-      <div class="fields">
-        <label>Environment
-          <select name="environment">${environmentOptions()}</select>
-        </label>
-        ${treeHeightFieldHtml()}
-      </div>
-      <div class="map mesh-map" data-out="map"></div>
-      <div data-out="legend"></div>
+    ${pane("nodes", "radio", "Node list", `
       <div class="add-node">
         <input name="addLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <button type="button" class="secondary" data-action="add">Add node</button>
         ${locateButton('data-action="locate"', "Add a node at my location", "")}
       </div>
+      <p class="note node-count" data-out="nodeCount"></p>
       <p class="note warn" data-out="status"></p>
       <div class="table-wrap">
         <table class="ledger node-list">
           <thead><tr><th></th><th>Name</th><th>Location</th><th>Height</th><th>Antenna</th><th></th></tr></thead>
           <tbody data-out="nodes"></tbody>
         </table>
-      </div>
-    </section>
+      </div>`)}
+
+    ${pane("env", "env", "Environment", `
+      <div class="fields">
+        <label class="wide">Environment
+          <select name="environment">${environmentOptions()}</select>
+        </label>
+        <label>Climate
+          <select name="climate">${climates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select>
+        </label>
+        <label>Ground type
+          <select name="ground">${grounds.map((g) => `<option value="${g.id}">${g.name}</option>`).join("")}</select>
+        </label>
+        ${treeHeightFieldHtml()}
+      </div>`)}
+
+    ${pane("share", "share", "Share", `<div class="pane-slot" data-slot="share"></div>`)}
   </div>
 
-  <aside class="results">
+  <div class="lb-map">
+    <div class="map mesh-map" data-out="map"></div>
+    <div class="map-legend"><div data-out="legend"></div></div>
+  </div>
+
+  <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
-        <h2>Mesh</h2>
+        <h2 class="with-icon">${PANE_ICONS.budget}Mesh</h2>
         <span class="pill" data-out="pill" hidden></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
@@ -192,8 +202,6 @@ const template = `
       <div data-out="results" hidden>
         <p class="callout" data-out="split" hidden></p>
         <p class="callout" data-out="hopNote" hidden></p>
-        <p class="note" data-out="envNote" hidden></p>
-        <p class="note" data-out="derateNote" hidden></p>
         <div class="tiles">
           <div class="tile"><span class="label">Links up</span><span class="value" data-out="up"></span><span class="sub" data-out="upSub"></span></div>
           <div class="tile"><span class="label">Most hops</span><span class="value" data-out="hops"></span><span class="sub" data-out="hopsSub"></span></div>
@@ -215,10 +223,10 @@ const template = `
           </div>
           <p class="note" data-out="routesNote"></p>
         </details>
-        <details class="about"><summary>About this calculation</summary><p>Solid links keep your fade margin; marginal ones connect with less. Terrain loss uses the Irregular Terrain Model (Longley-Rice) on bare-earth elevation (Terrain Tiles, USGS in the US), at the reliability and confidence you set, so trees and buildings aren't counted unless you pick an Environment.</p></details>
       </div>
     </section>
   </aside>
+  </div>
 `;
 
 /** The defaults now: the built-in ones, with Settings on top for everything Settings covers. */
@@ -226,13 +234,11 @@ function currentSettingDefaults(): Record<string, string> {
   const s = sharedFields();
   return {
     ...legacySettingDefaults,
-    ...modelFromSettings(),
     fade: s.fade,
     gain: s.gain,
     cable: s.cableAndConnectors,
     environment: s.environment,
     treeHeight: s.treeHeight,
-    distUnit: s.distanceUnit,
     height: s.height,
     heightUnit: s.heightUnit,
   };
@@ -263,7 +269,7 @@ export const meshCalculator: Calculator = {
   render() {
     const form = document.createElement("form");
     const settingDefaults = currentSettingDefaults();
-    form.className = "calculator two-col mesh";
+    form.className = "calculator mesh map-first";
     form.innerHTML = template;
     bindTreeField(form, "heightUnit");
     form.querySelector('[data-out="legend"]')!.replaceWith(linkLegend());
@@ -345,7 +351,7 @@ export const meshCalculator: Calculator = {
     };
 
     const renderNodes = () => {
-      out("nodeCount").textContent = `${nodes.length} of ${MAX_NODES}`;
+      out("nodeCount").textContent = `${nodes.length} of ${MAX_NODES} nodes`;
       const body = out("nodes");
       body.replaceChildren(
         ...nodes.flatMap((n, idx) => {
@@ -667,18 +673,6 @@ export const meshCalculator: Calculator = {
         const named = groups.map((g) => (g.length === 1 ? `${ref(g[0])} on its own` : g.map(ref).join(", ")));
         split.textContent = `The mesh splits into ${groups.length} groups that can't reach each other: ${named.join("; ")}. A relay between groups, or taller antennas, would join them.`;
       }
-      const envLoss = results.map((r) => r.link.clutterLossDb);
-      const envLow = Math.min(...envLoss);
-      const envHigh = Math.max(...envLoss);
-      const env = radio.environment;
-      out("envNote").hidden = !landCover && (env.id === "none" || !(envHigh > 0));
-      if (landCover) {
-        out("envNote").textContent = landCover.points
-          ? `From the land-cover map: ${landCover.points.map((p, i) => `${ref(i)} is in ${describePoint(p)}`).join("; ")}. Clutter adds ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB per link, included in the margins below.`
-          : landCover.note;
-      } else out("envNote").textContent = `${env.name} adds about ${envLow === envHigh ? fmt(envHigh) : `${fmt(envLow)}–${fmt(envHigh)}`} dB to each link, included in the margins below. An estimate; ${env.model === "forest" ? "below the canopy the Terrain column is checked from each antenna's real height (ITU-R P.833 woodland)" : "the Terrain column is checked from the top of the clutter"}.`;
-      out("derateNote").textContent = derateNote();
-      out("derateNote").hidden = !derateNote();
       out("up").textContent = `${up.length} of ${results.length}`;
       out("upSub").textContent = `${solid.length} solid, ${up.length - solid.length} marginal`;
       out("hops").textContent = groups.length === 1 ? String(maxHops) : "—";
@@ -716,7 +710,7 @@ export const meshCalculator: Calculator = {
         } Protocol overhead and other traffic aren't counted, so expect less in practice.`;
       }
 
-      const distUnit: DistanceUnit = asDistanceUnit(field("distUnit").value, "mi");
+      const distUnit: DistanceUnit = asDistanceUnit(getSettings().distanceUnit, "mi");
       out("links").innerHTML = [...results]
         .sort((x, y) => y.link.marginDb - x.link.marginDb)
         .map((r) => {
@@ -826,7 +820,8 @@ export const meshCalculator: Calculator = {
       map = createMap(out("map"), (m) => {
         if (nodes.length) m.fitBounds(L.latLngBounds(nodes.map((n) => [n.lat, n.lon] as [number, number])), { padding: [40, 40], maxZoom: 14 });
         else showDefaultView(m);
-      });
+      }, { taskbar: true });
+      map.attributionControl.addAttribution(DATA_ATTRIBUTION);
       clearControl = addClearControl(map, "the nodes", clearNodes);
       // What the 3D view's editor shows for a node. A blank height uses the default.
       const nodeFields = (n: MeshNode): EditField[] => [
@@ -997,8 +992,8 @@ export const meshCalculator: Calculator = {
     recompute();
     if (nodes.length >= 2) void loadTerrain();
     const nodeLabel = (i: number) => nodes[i].name.trim() || String(i + 1);
-    out("nodes").closest(".card")!.append(
-      createPlanBar({
+    form.querySelector('[data-slot="share"]')!.append(
+      createPlanCard({
         toolId: "mesh",
         settingNames: Object.keys(settingDefaults),
         getPlan: () => {
@@ -1055,6 +1050,20 @@ export const meshCalculator: Calculator = {
       }),
     );
     enhanceFields(form, meshGuide, settingDefaults);
+    moveModeBar(form);
+    setupMapFirst(form, { panesKey: PANES_KEY, sidesKey: SIDES_KEY, rightName: "mesh results" });
+    // Climate and ground type are global: shown here, kept in Settings, so a
+    // change here applies on every tab.
+    const climateSel = field("climate") as HTMLSelectElement;
+    const groundSel = field("ground") as HTMLSelectElement;
+    climateSel.value = getSettings().climate;
+    groundSel.value = getSettings().ground;
+    for (const sel of [climateSel, groundSel]) {
+      sel.addEventListener("change", () => {
+        setSettings({ ...getSettings(), climate: climateSel.value, ground: groundSel.value });
+        recompute();
+      });
+    }
     return form;
   },
 };

@@ -987,6 +987,8 @@ main:has(.map-first) { max-width: none; }
   }
   /* The terrain profile gets room to draw: the pane widens while it's open. */
   .lb-shell.floating .lb-left:has(details[data-pane="terrain"][open]) { width: 560px; }
+  /* The node list needs a little more, so each location stays on one line. */
+  .lb-shell.floating .lb-left:has(details[data-pane="nodes"][open]) { width: 620px; }
   /* Fold-away tabs on each pane's outer edge. */
   .lb-shell.floating .side-toggle {
     display: grid; place-items: center; position: absolute; z-index: 1001; top: 20px; width: 22px; height: 44px; padding: 0;
@@ -1001,6 +1003,7 @@ main:has(.map-first) { max-width: none; }
   .lb-shell.floating .side-toggle[data-side="right"] { right: 398px; border-radius: 8px 0 0 8px; }
   .lb-shell.floating .side-toggle[data-side="right"]::before { transform: translateX(-2px) rotate(-135deg); }
   .lb-shell.floating:has(.lb-left details[data-pane="terrain"][open]) .side-toggle[data-side="left"] { left: 578px; }
+  .lb-shell.floating:has(.lb-left details[data-pane="nodes"][open]) .side-toggle[data-side="left"] { left: 638px; }
   .lb-shell.floating.left-closed .lb-left, .lb-shell.floating.right-closed .lb-right { display: none; }
   .lb-shell.floating.left-closed .side-toggle[data-side="left"] { left: 0 !important; }
   .lb-shell.floating.left-closed .side-toggle[data-side="left"]::before { transform: translateX(-2px) rotate(-135deg); }
@@ -1133,3 +1136,15 @@ main:has(.map-first) { max-width: none; }
   /* No key on a phone: the taskbar sits right above the credits. */
   .lb-map .map-taskbar { bottom: calc(var(--attr-h, 16px) + 10px); }
 }
+.lb-map .map { margin-top: 0; }
+.pane-body .add-node { margin-top: 2px; }
+.pane-body .node-count { margin-top: 6px; }
+
+/* Node list in its card: each location on one line; the other columns give a little. */
+.pane-body .node-list .node-loc { white-space: nowrap; font-size: 11.5px; }
+.pane-body .node-list .node-name { min-width: 70px; }
+.pane-body .node-list .node-height { width: 100px; }
+/* The unit label stays slim so the height itself has room. */
+.pane-body .node-list .node-height .unit { min-width: 0; padding: 0 8px; }
+.pane-body .node-list .node-height input { min-width: 0; }
+.pane-body .node-list .node-antenna { min-width: 104px; }

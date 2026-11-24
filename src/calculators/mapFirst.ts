@@ -11,6 +11,10 @@ export const PANE_ICONS = {
   rx: svgIcon('<path d="M4 20h16"/><path d="M6 20 12 6l6 14"/><path d="M8.5 15h7"/><path d="M12 3v3"/>'),
   relay: svgIcon('<circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><circle cx="12" cy="6" r="2"/><path d="m6.5 15.5 4-7.5M17.5 15.5l-4-7.5"/>'),
   sites: svgIcon('<path d="M7 14v7M5 21h4"/><circle cx="7" cy="12" r="1.5"/><path d="M17 10v11M15 21h4"/><circle cx="17" cy="8" r="1.5"/><path d="M14.5 5.5a4 4 0 0 1 5 0M4.5 9.5a4 4 0 0 1 5 0"/>'),
+  // A mesh: scattered nodes, each linked to several others.
+  mesh: svgIcon('<circle cx="4.5" cy="8" r="2"/><circle cx="13" cy="3.5" r="2"/><circle cx="20" cy="10" r="2"/><circle cx="11.5" cy="12.5" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="17.5" cy="19.5" r="2"/><path d="M6.4 7.1 11.1 4.4M14.9 4.6l3.4 3.8M6.4 9.1l3.3 2.4M13 5.5l-1.2 5M13.5 12.2l4.6-1.4M11 14.4 7 18.3M13.1 13.8l3.3 4.2M8 20h7.5M19.5 12l-1.6 5.6M4.8 10l.9 8"/>'),
+  // A small rugged box radio: squarish body, a display, an antenna at each top corner.
+  radio: svgIcon('<rect x="4.5" y="9" width="15" height="12" rx="1.5"/><path d="M7.5 9V3.5M16.5 9V5"/><circle cx="7.5" cy="3" r=".6" fill="currentColor"/><circle cx="16.5" cy="4.5" r=".6" fill="currentColor"/><rect x="7.5" y="12" width="9" height="3.5" rx=".5"/><path d="M8 18.5h2M12 18.5h.01M15 18.5h1"/>'),
   env: svgIcon('<path d="M12 21v-5"/><path d="m12 3-6 9h3l-3 4h12l-3-4h3z"/>'),
   mapping: svgIcon('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
   terrain: svgIcon('<path d="m3 19 6-9 4 5 3-4 5 8z"/>'),

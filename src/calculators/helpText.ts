@@ -109,7 +109,7 @@ export const meshGuide: FieldGuide = {
     reliability: modelHelp.reliability,
     confidence: modelHelp.confidence,
   },
-  advanced: ["fade", "distUnit", ...modelAdvanced],
+  advanced: ["fade"],
 };
 
 export const coverageGuide: FieldGuide = {
