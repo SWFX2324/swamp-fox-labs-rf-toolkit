@@ -48,12 +48,25 @@ export function applySettings(form: HTMLFormElement, settings: Record<string, st
 }
 
 const icon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-const ICONS = {
+export const ICONS = {
   save: icon('<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>'),
   share: icon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/>'),
   export: icon('<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>'),
   import: icon('<path d="M12 15V3M7 8l5-5 5 5M4 21h16"/>'),
 };
+
+/** The Export choice row: a KMZ file or a TAK data package. attr names the elements (data-p or data-t). */
+export const exportChoiceHtml = (attr: string) => `
+    <div class="plan-choice" ${attr}="exportRow" hidden>
+      <button type="button" ${attr}="exportKmz">KMZ file</button>
+      <button type="button" ${attr}="exportTak">TAK data package</button>
+      <p class="note">KMZ opens in Google Earth and TAK as an overlay. A TAK data package imports into ATAK, WinTAK or iTAK in one step, with each site as a marker.</p>
+    </div>`;
+
+/** What the file picker for Import takes. */
+export const IMPORT_ACCEPT = ".kml,.kmz,.zip,.cot,.xml";
+/** Said when an imported file has no points. */
+export const NO_POINTS = "No named points found in that file. Import reads points from KML, KMZ, CoT or a TAK data package.";
 
 /** The bytes of a PNG data URL, for packing into a KMZ. */
 export const pngBytes = (dataUrl: string) => Uint8Array.from(atob(dataUrl.split(",")[1]), (c) => c.charCodeAt(0));
@@ -81,13 +94,9 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
       <button type="button" class="plan-btn" data-p="share">${ICONS.share}Share</button>
       <button type="button" class="plan-btn" data-p="export" aria-expanded="false">${ICONS.export}Export</button>
       <button type="button" class="plan-btn" data-p="import">${ICONS.import}Import</button>
-      <input type="file" data-p="file" accept=".kml,.kmz,.zip,.cot,.xml" hidden />
+      <input type="file" data-p="file" accept="${IMPORT_ACCEPT}" hidden />
     </div>
-    <div class="plan-choice" data-p="exportRow" hidden>
-      <button type="button" data-p="exportKmz">KMZ file</button>
-      <button type="button" data-p="exportTak">TAK data package</button>
-      <p class="note">KMZ opens in Google Earth and TAK as an overlay. A TAK data package imports into ATAK, WinTAK or iTAK in one step, with each site as a marker.</p>
-    </div>
+    ${exportChoiceHtml("data-p")}
     <p class="note plan-status" data-p="status" role="status"></p>
     <div class="fields">
       <label data-p="nameRow" hidden>Plan name
@@ -217,7 +226,7 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
     status("Reading…");
     try {
       const points = await importPoints(file.name, new Uint8Array(await file.arrayBuffer()));
-      status(points.length ? o.onImport(points) : "No named points found in that file. Import reads points from KML, KMZ, CoT or a TAK data package.");
+      status(points.length ? o.onImport(points) : NO_POINTS);
     } catch {
       status("That file couldn't be read.");
     }

@@ -428,7 +428,6 @@ input.invalid { border-color: var(--critical); }
 .input-unit .locate-btn { min-width: 44px; }
 .locate-btn { display: inline-grid; place-items: center; }
 .locate-btn svg { width: 18px; height: 18px; }
-.terrain-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
 .saved-paths { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grid-line); }
 .saved-paths .input-unit select {
   flex: 1; min-width: 0; border-radius: 7px 0 0 7px; border-left: 1px solid var(--border); background: var(--card);
@@ -577,6 +576,7 @@ main .leaflet-container { background: var(--card-2); }
 .plan-choice[hidden] { display: none; }
 .plan-choice button { min-height: 44px; }
 .plan-choice .note { grid-column: 1 / -1; margin: 0; }
+.plan-actions.terrain-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
 .plan-btn {
   display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 6px 8px;
   font-weight: 600;
@@ -584,7 +584,6 @@ main .leaflet-container { background: var(--card-2); }
 .plan-btn svg { flex: none; width: 18px; height: 18px; }
 .plan-status { margin: 10px 0 0; }
 .plan-status:empty { display: none; }
-.terrain-actions { gap: 8px; }
 .add-node { flex-wrap: wrap; }
 .profile-chart svg { touch-action: pan-y; cursor: crosshair; }
 .profile-chart .crosshair { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; }

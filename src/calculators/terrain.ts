@@ -7,8 +7,9 @@ import { type ClearControl, type Control3D, add3DControl, addClearControl, creat
 import type { EditField, Link3D, Point3D } from "../lib/scene3d";
 import type { RelaySurface } from "../lib/relay";
 import { type RelayFinderInputs, findRelay, surfaceImage } from "./relayFinder";
-import { buildKml, buildZip } from "../lib/export";
-import { downloadFile } from "./planBar";
+import { type ExportPoint, buildKml, buildZip } from "../lib/export";
+import { ICONS, IMPORT_ACCEPT, NO_POINTS, downloadFile, exportChoiceHtml } from "./planBar";
+import { buildDataPackage, importPoints } from "../lib/tak";
 import { drawLinkLine, linkLegend } from "./linkLine";
 import { type LinkQuality, linkLineLabels, linkLineStyle } from "../lib/linkLines";
 import { locateButton, locateMe } from "./locate";
@@ -60,6 +61,8 @@ export interface SiteHooks {
   fields(site: SiteId): EditField[];
   /** Values changed in the 3D editor (location is handled here). */
   edit(site: SiteId, values: Record<string, string>): void;
+  /** A site's name from an imported file. */
+  setName(site: SiteId, name: string): void;
   /** Everything the relay finder needs, or why it can't run. */
   finderInputs(): RelayFinderInputs | string;
   fadeMarginDb(): number;
@@ -146,9 +149,12 @@ const template = `
   <div class="profile-chart" data-t="chart" hidden></div>
   <p class="note" data-t="losNote" hidden></p>
   <table class="ledger geometry" data-t="facts" hidden><tbody></tbody></table>
-  <div class="terrain-actions">
-    <button type="button" class="secondary" data-t="export">Export KMZ</button>
+  <div class="plan-actions terrain-plan">
+    <button type="button" class="plan-btn" data-t="export" aria-expanded="false">${ICONS.export}Export</button>
+    <button type="button" class="plan-btn" data-t="import">${ICONS.import}Import</button>
+    <input type="file" data-t="file" accept="${IMPORT_ACCEPT}" hidden />
   </div>
+  ${exportChoiceHtml("data-t")}
   <div class="fields saved-paths">
     <label>Saved paths
       <span class="input-unit">
@@ -709,11 +715,9 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     if (e.pointerType === "mouse" || e.buttons) readPoint(e);
   });
 
-  el("export").addEventListener("click", () => {
-    if (!tx || !rx) {
-      setStatus("Drop both pins before exporting.", true);
-      return;
-    }
+  // The path as a KMZ (pins and rated lines), and the pins as TAK markers.
+  const pathExport = (): { kmz: Uint8Array; places: ExportPoint[] } | undefined => {
+    if (!tx || !rx) return undefined;
     const status = quality ? linkLineStyle(quality, lineOfSight) : undefined;
     const [txName, rxName, relayName] = [nameOf("tx"), nameOf("rx"), nameOf("relay")];
     const places = [
@@ -731,8 +735,70 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     }
     const kml = buildKml("RF Toolkit path", places, lines, RADIO_FILE);
     const kmz = buildZip([{ name: "doc.kml", data: new TextEncoder().encode(kml) }, radioIconFile()]);
-    downloadFile("rf-toolkit-path.kmz", new Uint8Array(kmz), "application/vnd.google-earth.kmz");
-    setStatus("Exported. Import the file in ATAK, WinTAK or Google Earth.");
+    return { kmz: new Uint8Array(kmz), places };
+  };
+  const showExport = (open: boolean) => {
+    el("exportRow").hidden = !open;
+    el("export").setAttribute("aria-expanded", String(open));
+  };
+  el("export").addEventListener("click", () => showExport(el("exportRow").hidden !== false));
+  const exportAs = (tak: boolean) => {
+    const out = pathExport();
+    if (!out) {
+      setStatus("Drop both pins before exporting.", true);
+      return;
+    }
+    if (tak) {
+      const name = `${nameOf("tx")} to ${nameOf("rx")}`;
+      const pkg = buildDataPackage(name, [{ name: "rf-toolkit-path.kmz", data: out.kmz }], out.places.map((p) => ({ ...p, description: "Link site, from RF Toolkit" })));
+      downloadFile("rf-toolkit-path.zip", pkg as BlobPart, "application/zip");
+      setStatus("Exported. Import the .zip in ATAK, WinTAK or iTAK (Import, or drag it onto the map).");
+    } else {
+      downloadFile("rf-toolkit-path.kmz", out.kmz as BlobPart, "application/vnd.google-earth.kmz");
+      setStatus("Exported. Import the file in ATAK, WinTAK or Google Earth.");
+    }
+    showExport(false);
+  };
+  el("exportKmz").addEventListener("click", () => exportAs(false));
+  el("exportTak").addEventListener("click", () => exportAs(true));
+
+  const listWords = (w: string[]) => (w.length < 2 ? w.join("") : `${w.slice(0, -1).join(", ")} and ${w[w.length - 1]}`);
+  // Import: points fill Site A, Site B, then the relay. With both sites
+  // already down, the file's points replace them in that order.
+  const fileInput = el("file") as HTMLInputElement;
+  el("import").addEventListener("click", () => {
+    fileInput.value = "";
+    fileInput.click();
+  });
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    setStatus("Reading…");
+    let points: Awaited<ReturnType<typeof importPoints>>;
+    try {
+      points = await importPoints(file.name, new Uint8Array(await file.arrayBuffer()));
+    } catch {
+      setStatus("That file couldn't be read.", true);
+      return;
+    }
+    if (!points.length) {
+      setStatus(NO_POINTS, true);
+      return;
+    }
+    const replace = !!tx && !!rx;
+    const slots: SiteId[] = (replace ? ["tx", "rx", "relay"] : (["tx", "rx", "relay"] as SiteId[]).filter((s) => !{ tx, rx, relay }[s]));
+    const used = slots.slice(0, points.length);
+    used.forEach((site, i) => {
+      const p = { lat: points[i].lat, lon: points[i].lon };
+      if (site === "tx") tx = p;
+      else if (site === "rx") rx = p;
+      else relay = p;
+      hooks.setName(site, points[i].name);
+    });
+    placingRelay = false;
+    pinsChanged();
+    const left = points.length - used.length;
+    setStatus(`${replace ? "Replaced" : "Placed"} ${listWords(used.map((s) => siteDefaults[s]))} from the file${left ? `; ${left} more point${left === 1 ? "" : "s"} left out (a link has two sites and a relay)` : ""}.`);
   });
 
   const hfNote = "A line-of-sight terrain profile doesn't apply below 30 MHz.";

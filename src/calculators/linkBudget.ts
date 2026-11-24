@@ -416,6 +416,10 @@ export const linkBudgetCalculator: Calculator = {
       names: () => ({ tx: field("txName").value, rx: field("rxName").value, relay: field("relayName").value }),
       fields: siteFields,
       edit: editSite,
+      setName: (site, name) => {
+        field(`${site}Name`).value = name;
+        field(`${site}Name`).dispatchEvent(new Event("input", { bubbles: true }));
+      },
       finderInputs: () => finderInputs(),
       fadeMarginDb: () => num("fadeMargin") || 0,
     });
