@@ -23,6 +23,8 @@ export const PANE_ICONS = {
   dish: svgIcon('<path d="M4 7a10 10 0 0 0 10 10z"/><path d="M9 12l5-5"/><circle cx="15" cy="6" r="1.2"/><path d="M7 15.5V21M4 21h6"/>'),
   // A compass rose, for pointing.
   compass: svgIcon('<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>'),
+  // A radiation pattern: two lobes either side of an antenna.
+  pattern: svgIcon('<path d="M12 12c-3-5-9-5-9 0s6 5 9 0zM12 12c3-5 9-5 9 0s-6 5-9 0z"/><path d="M12 4v16"/>'),
   budget: svgIcon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
 };
 
@@ -148,6 +150,21 @@ export function setupMapFirst(form: HTMLElement, o: MapFirstOptions): void {
   new ResizeObserver(fitShell).observe(document.body);
   window.addEventListener("resize", fitShell);
   requestAnimationFrame(fitShell);
+}
+
+/**
+ * Size a page whose middle is a graphic rather than a map: it fills the window
+ * below the header on a wide screen, like the map pages.
+ */
+export function fitStage(form: HTMLElement): void {
+  const shell = form.querySelector<HTMLElement>(".lb-shell")!;
+  const fit = () => {
+    if (!shell.isConnected) return;
+    shell.style.setProperty("--lb-top", `${Math.max(0, shell.getBoundingClientRect().top + window.scrollY)}px`);
+  };
+  new ResizeObserver(fit).observe(document.body);
+  window.addEventListener("resize", fit);
+  requestAnimationFrame(fit);
 }
 
 /** The Simple/Advanced switch (with Reset) heads the left pane. Call after enhanceFields. */

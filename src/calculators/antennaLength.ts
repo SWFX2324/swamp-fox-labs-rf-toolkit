@@ -5,6 +5,9 @@ import { bandPresets, designs, elementLengths, findDesign } from "../lib/antenna
 import { cables, findCable } from "../lib/coax";
 import { wavelengthM } from "../lib/fspl";
 import { drawAntenna } from "./antennaDiagrams";
+import { pattern3d } from "../lib/antennaPattern";
+import { type PatternScene, createPattern3d } from "./pattern3dView";
+import { PANE_ICONS, fitStage, moveModeBar } from "./mapFirst";
 import {
   formatFeetInches,
   frequencyUnits,
@@ -13,6 +16,17 @@ import {
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:antenna-length";
+
+/** How each design stands in the 3D pattern view. */
+const ANTENNA_POSE: Record<string, PatternScene["antenna"]> = {
+  dipole: "horizontal",
+  fullwave: "horizontal",
+  efhw: "horizontal",
+  groundplane: "ground",
+  fiveeighths: "ground",
+  jpole: "vertical",
+  loop: "loop",
+};
 
 const defaults: Record<string, string> = {
   freq: "146.52",
@@ -23,9 +37,10 @@ const defaults: Record<string, string> = {
 };
 
 const template = `
-  <div class="inputs">
+  <div class="lb-shell stage-page">
+  <div class="lb-left">
     <section class="card">
-      <div class="card-head"><h2>Antenna</h2><span class="meta">Cut lengths</span></div>
+      <div class="card-head"><h2 class="with-icon">${PANE_ICONS.tx}Antenna</h2></div>
       <div class="fields">
         <label>Frequency
           <span class="input-unit">
@@ -46,18 +61,22 @@ const template = `
       <div class="chips" role="group" aria-label="Band presets">
         ${bandPresets.map((b) => `<button type="button" class="chip" data-mhz="${b.mhz}">${b.label}</button>`).join("")}
       </div>
-      <p class="note" data-out="factorNote"></p>
     </section>
   </div>
 
-  <aside class="results">
+  <div class="lb-map lb-stage">
+    <p class="error" data-out="error" hidden></p>
+    <div class="antenna-diagram" data-out="diagram"></div>
+    <div data-out="patterns"></div>
+    <p class="note pattern-note" data-out="patternNote">Idealized pattern: free space, or perfect ground for verticals with radials. Drag to turn it.</p>
+  </div>
+
+  <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
-        <h2 data-out="designName"></h2>
+        <h2 class="with-icon">${PANE_ICONS.pattern}<span data-out="designName"></span></h2>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
-      <p class="error" data-out="error" hidden></p>
-      <div class="antenna-diagram" data-out="diagram"></div>
       <div class="tiles" data-out="tiles"></div>
       <table class="ledger geometry">
         <tbody>
@@ -66,12 +85,9 @@ const template = `
         </tbody>
       </table>
       <ul class="notes" data-out="notes"></ul>
-      <p class="note">
-        Cut about 3% long and trim to the lowest SWR. Nearby objects, wire
-        insulation and height above ground all shift resonance.
-      </p>
     </section>
   </aside>
+  </div>
 `;
 
 function loadState(): Record<string, string> {
@@ -100,7 +116,7 @@ export const antennaLengthCalculator: Calculator = {
   shortTitle: "Antenna",
   render() {
     const form = document.createElement("form");
-    form.className = "calculator two-col antenna-length";
+    form.className = "calculator antenna-length map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -115,6 +131,8 @@ export const antennaLengthCalculator: Calculator = {
       }
     };
     fill(loadState());
+    const pattern = createPattern3d();
+    out("patterns").replaceWith(pattern.element);
 
     const update = () => {
       const state: Record<string, string> = {};
@@ -129,9 +147,6 @@ export const antennaLengthCalculator: Calculator = {
       form.querySelector<HTMLElement>('[data-show="cable"]')!.hidden = !isStub;
       out("designName").textContent = design.name;
       out("factorLabel").textContent = design.factorLabel;
-      out("factorNote").textContent = isStub
-        ? "Velocity factor comes from the cable. Check your cable's datasheet; foam types vary."
-        : `Default ${design.defaultFactor.toFixed(2)}. Thicker conductors resonate shorter, so tubing may need a slightly lower factor than thin wire.`;
 
       const mhz = freqHz / 1e6;
       for (const chip of form.querySelectorAll<HTMLButtonElement>(".chip")) {
@@ -148,12 +163,18 @@ export const antennaLengthCalculator: Calculator = {
       if (problem) {
         out("tiles").replaceChildren();
         out("diagram").replaceChildren();
+        pattern.show(undefined);
+        out("patternNote").hidden = true;
         out("lambda").textContent = "—";
         return;
       }
 
       const lengths = elementLengths(design, freqHz, factor);
       out("diagram").innerHTML = drawAntenna(design.id, lengths);
+      // The pattern in 3D; a coax stub has none.
+      const shape = pattern3d(design.id);
+      pattern.show(shape ? { field: shape, antenna: ANTENNA_POSE[design.id] ?? "horizontal" } : undefined);
+      out("patternNote").hidden = !shape;
       out("tiles").innerHTML = lengths
         .map(
           (e) => `
@@ -199,6 +220,8 @@ export const antennaLengthCalculator: Calculator = {
     form.addEventListener("change", update);
     update();
     enhanceFields(form, antennaGuide, withoutKeys(defaults, "factor"));
+    moveModeBar(form);
+    fitStage(form);
     return form;
   },
 };
