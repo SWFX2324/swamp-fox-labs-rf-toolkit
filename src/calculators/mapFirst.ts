@@ -26,6 +26,12 @@ export const PANE_ICONS = {
   // A radiation pattern: two lobes either side of an antenna.
   pattern: svgIcon('<path d="M12 12c-3-5-9-5-9 0s6 5 9 0zM12 12c3-5 9-5 9 0s-6 5-9 0z"/><path d="M12 4v16"/>'),
   budget: svgIcon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+  // A map pin, for a place.
+  pin: svgIcon('<path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>'),
+  // A satellite: body and two solar panels.
+  satellite: svgIcon('<rect x="9.5" y="9.5" width="5" height="5" rx="1" transform="rotate(45 12 12)"/><path d="m4 8 3-3 3.5 3.5-3 3zM20 16l-3 3-3.5-3.5 3-3z"/><path d="M16.5 3.5a4 4 0 0 1 4 4"/>'),
+  // A rain cloud, for weather.
+  weather: svgIcon('<path d="M7 15a4 4 0 1 1 1-7.9A5 5 0 0 1 17.6 9 3.5 3.5 0 0 1 17 15z"/><path d="m8 18-1 2.5M12 18l-1 2.5M16 18l-1 2.5"/>'),
   // A coax lead ending in a connector.
   coax: svgIcon('<path d="M3 17c4 0 4-7 9-7h2"/><rect x="14" y="7" width="4.5" height="6" rx="1"/><path d="M18.5 10H21"/>'),
 };

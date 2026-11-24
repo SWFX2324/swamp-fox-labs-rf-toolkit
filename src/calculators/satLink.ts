@@ -9,6 +9,7 @@ import { formatOrbitalSlot, lookAngles, parseOrbitalSlot } from "../lib/satPoint
 import { dvbs2Modcods, satBands, satLinkBudget } from "../lib/satLink";
 import { fromMetres } from "../lib/units";
 import { locateButton, locateMe } from "./locate";
+import { PANE_ICONS, fitStage, moveModeBar } from "./mapFirst";
 
 const STORAGE_KEY = "rf-toolkit:sat-link";
 const POINTING_KEY = "rf-toolkit:sat-pointing";
@@ -47,9 +48,10 @@ function field(label: string, name: string, unit: string, attrs = ""): string {
 }
 
 const template = `
-  <div class="inputs">
+  <div class="lb-shell stage-page">
+  <div class="lb-left">
     <section class="card">
-      <div class="card-head"><h2>Site and satellite</h2><span class="meta" data-out="geo"></span></div>
+      <div class="card-head"><h2 class="with-icon">${PANE_ICONS.pin}Site and satellite</h2><span class="meta" data-out="geo"></span></div>
       <div class="fields">
         <label>Your location
           <span class="input-unit">
@@ -65,7 +67,7 @@ const template = `
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Terminal</h2><span class="meta">Your dish and radio</span></div>
+      <div class="card-head"><h2 class="with-icon">${PANE_ICONS.dish}Terminal</h2></div>
       <div class="fields">
         <label>Band
           <select name="band">${satBands.map((b) => `<option>${b.label}</option>`).join("")}</select>
@@ -84,7 +86,7 @@ const template = `
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Satellite and carrier</h2><span class="meta">From your access documents</span></div>
+      <div class="card-head"><h2 class="with-icon">${PANE_ICONS.satellite}Satellite and carrier</h2></div>
       <div class="fields">
         ${field("Satellite receive sensitivity (G/T)", "satGt", "dB/K")}
         ${field("Downlink EIRP for your carrier", "satEirp", "dBW")}
@@ -97,7 +99,7 @@ const template = `
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Weather</h2><span class="meta">Atmosphere and rain</span></div>
+      <div class="card-head"><h2 class="with-icon">${PANE_ICONS.weather}Weather</h2></div>
       <div class="fields">
         ${field("Uplink loss", "upLoss", "dB", 'min="0"')}
         ${field("Downlink loss", "downLoss", "dB", 'min="0"')}
@@ -105,10 +107,22 @@ const template = `
     </section>
   </div>
 
-  <aside class="results">
+  <div class="lb-map lb-stage">
+    <div class="card-head"><h2 class="with-icon">${PANE_ICONS.budget}Link budget</h2></div>
+    <p class="note" data-out="budgetPrompt"></p>
+    <table class="ledger" data-out="budget">
+      <thead><tr><th>Uplink</th><th class="num"></th></tr></thead>
+      <tbody data-out="up"></tbody>
+      <thead><tr><th>Downlink</th><th class="num"></th></tr></thead>
+      <tbody data-out="down"></tbody>
+      <tbody data-out="total"></tbody>
+    </table>
+  </div>
+
+  <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
-        <h2>Link margin</h2>
+        <h2 class="with-icon">${PANE_ICONS.compass}Link margin</h2>
         <span class="pill" data-out="pill" hidden></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
@@ -123,17 +137,11 @@ const template = `
           <div class="tile"><span class="label">Terminal G/T</span><span class="value" data-out="gt"></span><span class="sub" data-out="gtSub"></span></div>
           <div class="tile"><span class="label">Beamwidth</span><span class="value" data-out="bw"></span><span class="sub" data-out="bwSub"></span></div>
         </div>
-        <table class="ledger">
-          <thead><tr><th>Uplink</th><th class="num"></th></tr></thead>
-          <tbody data-out="up"></tbody>
-          <thead><tr><th>Downlink</th><th class="num"></th></tr></thead>
-          <tbody data-out="down"></tbody>
-          <tbody data-out="total"></tbody>
-        </table>
         <details class="about"><summary>About this calculation</summary><p>Interference from adjacent satellites and transponder intermodulation aren't included, so real margins run a little lower. Required Es/N0 is the ETSI DVB-S2 ideal plus the implementation loss.</p></details>
       </div>
     </section>
   </aside>
+  </div>
 `;
 
 function loadState(): Record<string, string> {
@@ -186,7 +194,7 @@ export const satLinkCalculator: Calculator = {
   shortTitle: "Sat Link",
   render() {
     const form = document.createElement("form");
-    form.className = "calculator two-col sat-link";
+    form.className = "calculator sat-link map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -243,6 +251,9 @@ export const satLinkCalculator: Calculator = {
       out("error").textContent = invalid;
       out("prompt").textContent = invalid ? "" : missing;
       out("results").hidden = !!problem;
+      out("budget").hidden = !!problem;
+      out("budgetPrompt").hidden = !problem;
+      out("budgetPrompt").textContent = invalid || missing;
       out("pill").hidden = !!problem;
       if (problem || !look) return;
 
@@ -336,6 +347,8 @@ export const satLinkCalculator: Calculator = {
     form.addEventListener("change", update);
     update();
     enhanceFields(form, satLinkGuide, withoutKeys(defaults, "upGHz", "downGHz"));
+    moveModeBar(form);
+    fitStage(form);
     return form;
   },
 };
