@@ -7,7 +7,7 @@ import { wavelengthM } from "../lib/fspl";
 import { drawAntenna } from "./antennaDiagrams";
 import { pattern3d } from "../lib/antennaPattern";
 import { type PatternScene, createPattern3d } from "./pattern3dView";
-import { PANE_ICONS, fitStage, moveModeBar } from "./mapFirst";
+import { PANE_ICONS, bandButtons, fitStage, moveModeBar } from "./mapFirst";
 import {
   formatFeetInches,
   frequencyUnits,
@@ -16,13 +16,6 @@ import {
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:antenna-length";
-
-/** Band presets, grouped by range: HF below 30 MHz, VHF to 300 MHz, UHF above. */
-const BAND_GROUPS: [string, number, number][] = [
-  ["HF", 0, 30],
-  ["VHF", 30, 300],
-  ["UHF", 300, Infinity],
-];
 
 /** How each design stands in the 3D pattern view. */
 const ANTENNA_POSE: Record<string, PatternScene["antenna"]> = {
@@ -65,16 +58,7 @@ const template = `
           <input name="factor" type="number" inputmode="decimal" step="0.01" min="0.5" max="1.1" />
         </label>
       </div>
-      <div class="band-groups" role="group" aria-label="Band presets">
-        ${BAND_GROUPS.map(
-          ([name, lo, hi]) =>
-            `<span class="band-name">${name}</span>` +
-            bandPresets
-              .filter((b) => b.mhz >= lo && b.mhz < hi)
-              .map((b) => `<button type="button" class="chip" data-mhz="${b.mhz}">${b.label}</button>`)
-              .join(""),
-        ).join("")}
-      </div>
+      ${bandButtons(bandPresets)}
     </section>
   </div>
 

@@ -2,6 +2,7 @@
 // every cable in the table compared side by side for the same run.
 
 import { enhanceFields } from "./fieldHelp";
+import { PANE_ICONS, bandButtons, fitStage, moveModeBar } from "./mapFirst";
 import { coaxGuide } from "./helpText";
 import type { Calculator } from ".";
 import { bandPresets } from "../lib/antenna";
@@ -47,9 +48,10 @@ const defaults: Record<string, string> = {
 const legacyDefaults: Record<string, string> = { ...defaults, cable: "lmr-400" };
 
 const template = `
-  <div class="inputs">
+  <div class="lb-shell stage-page">
+  <div class="lb-left">
     <section class="card">
-      <div class="card-head"><h2>Coax run</h2><span class="meta">Matched loss plus SWR</span></div>
+      <div class="card-head"><h2 class="with-icon">${PANE_ICONS.coax}Coax run</h2></div>
       <div class="fields">
         <label>Frequency
           <span class="input-unit">
@@ -85,13 +87,12 @@ const template = `
           <select name="cable">${cables.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select>
         </label>
       </div>
-      <div class="chips" role="group" aria-label="Band presets">
-        ${bandPresets.map((b) => `<button type="button" class="chip" data-mhz="${b.mhz}">${b.label}</button>`).join("")}
-      </div>
+      ${bandButtons(bandPresets)}
     </section>
+  </div>
 
-    <section class="card">
-      <div class="card-head"><h2>Compare cables</h2><span class="meta">Same run, lowest loss first</span></div>
+  <div class="lb-map lb-stage">
+    <div class="card-head"><h2 class="with-icon">${PANE_ICONS.budget}Compare cables</h2></div>
       <div class="table-wrap">
         <table class="ledger compare">
           <thead>
@@ -101,13 +102,12 @@ const template = `
         </table>
       </div>
       <p class="note">Tap a row to make it your cable. Loss includes SWR and connector losses.</p>
-    </section>
   </div>
 
-  <aside class="results">
+  <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
-        <h2 data-out="cableName"></h2>
+        <h2 class="with-icon">${PANE_ICONS.coax}<span data-out="cableName"></span></h2>
         <span class="pill" data-out="pill" hidden></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
@@ -122,6 +122,7 @@ const template = `
       <details class="about"><summary>About this calculation</summary><p>Matched loss uses Times Microwave k1/k2 coefficients for LMR cable and typical values for RG types. High SWR adds loss because reflected power crosses the line twice (ARRL Antenna Book formula).</p></details>
     </section>
   </aside>
+  </div>
 `;
 
 function loadState(): Record<string, string> {
@@ -165,7 +166,7 @@ export const coaxLossCalculator: Calculator = {
   shortTitle: "Coax",
   render() {
     const form = document.createElement("form");
-    form.className = "calculator two-col coax-loss";
+    form.className = "calculator coax-loss map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -292,6 +293,8 @@ export const coaxLossCalculator: Calculator = {
     form.addEventListener("change", update);
     update();
     enhanceFields(form, coaxGuide, defaults);
+    moveModeBar(form);
+    fitStage(form);
     return form;
   },
 };

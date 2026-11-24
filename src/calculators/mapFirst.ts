@@ -26,7 +26,27 @@ export const PANE_ICONS = {
   // A radiation pattern: two lobes either side of an antenna.
   pattern: svgIcon('<path d="M12 12c-3-5-9-5-9 0s6 5 9 0zM12 12c3-5 9-5 9 0s-6 5-9 0z"/><path d="M12 4v16"/>'),
   budget: svgIcon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+  // A coax lead ending in a connector.
+  coax: svgIcon('<path d="M3 17c4 0 4-7 9-7h2"/><rect x="14" y="7" width="4.5" height="6" rx="1"/><path d="M18.5 10H21"/>'),
 };
+
+/** Band presets in rows by range: HF below 30 MHz, VHF to 300 MHz, UHF above. */
+const BAND_GROUPS: [string, number, number][] = [
+  ["HF", 0, 30],
+  ["VHF", 30, 300],
+  ["UHF", 300, Infinity],
+];
+export const bandButtons = (presets: { label: string; mhz: number }[]) => `
+      <div class="band-groups" role="group" aria-label="Band presets">
+        ${BAND_GROUPS.map(
+          ([name, lo, hi]) =>
+            `<span class="band-name">${name}</span>` +
+            presets
+              .filter((b) => b.mhz >= lo && b.mhz < hi)
+              .map((b) => `<button type="button" class="chip" data-mhz="${b.mhz}">${b.label}</button>`)
+              .join(""),
+        ).join("")}
+      </div>`;
 
 /** An expandable card in the left pane. */
 export const pane = (id: string, icon: keyof typeof PANE_ICONS, title: string, body: string, extraSummary = "") => `

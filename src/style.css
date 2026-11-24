@@ -1189,4 +1189,6 @@ main:has(.map-first) { max-width: none; }
 /* Graphic stage on narrow screens: as tall as its content, graphics first. */
 @media (max-width: 1099px) {
   .lb-shell .lb-stage { height: auto; min-height: 0; overflow: visible; }
+  /* Coax Loss: inputs and results first, the long comparison after. */
+  .coax-loss .lb-shell .lb-stage { order: 1; }
 }
