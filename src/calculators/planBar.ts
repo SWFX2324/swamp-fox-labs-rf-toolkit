@@ -1,8 +1,13 @@
-// Save, reopen, share and export a tool's plan. Shared by the Mesh Analysis and
-// Coverage Analysis. Share links carry the plan in the URL fragment, which stays in
-// the browser, and are validated when opened (see lib/plans.ts).
+// Save, reopen, share, export and import a tool's plan. Shared by the Mesh
+// Analysis and Coverage Analysis. Share links carry the plan in the URL fragment,
+// which stays in the browser, and are validated when opened (see lib/plans.ts).
+// Export writes a KMZ, or a TAK data package with each site as a marker; import
+// reads sites from KML, KMZ, CoT or a data package (see lib/tak.ts).
 
+import type { ExportPoint } from "../lib/export";
+import { fileName } from "../lib/export";
 import { type Plan, createPlanStore, decodePlan, encodePlan, planFromHash } from "../lib/plans";
+import { type ImportedPoint, type PackageFile, buildDataPackage, importPoints } from "../lib/tak";
 
 const storage = {
   getItem: (key: string) => {
@@ -47,6 +52,7 @@ const ICONS = {
   save: icon('<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>'),
   share: icon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/>'),
   export: icon('<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>'),
+  import: icon('<path d="M12 15V3M7 8l5-5 5 5M4 21h16"/>'),
 };
 
 /** The bytes of a PNG data URL, for packing into a KMZ. */
@@ -57,9 +63,12 @@ export interface PlanBarOptions {
   settingNames: string[];
   getPlan(): Plan;
   applyPlan(plan: Plan): void;
-  exportLabel: string;
-  /** Do the export; returns a message if it can't yet. */
-  onExport(name: string): string | undefined;
+  /** The export file (a KMZ), or a message if there's nothing to export yet. */
+  buildExport(name: string): PackageFile | string;
+  /** The sites or nodes, as TAK markers in a data package. */
+  markers(): ExportPoint[];
+  /** Points read from an imported file; returns what was done with them. */
+  onImport(points: ImportedPoint[]): string;
 }
 
 export function createPlanBar(o: PlanBarOptions): HTMLElement {
@@ -70,7 +79,14 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
     <div class="plan-actions">
       <button type="button" class="plan-btn" data-p="save">${ICONS.save}Save</button>
       <button type="button" class="plan-btn" data-p="share">${ICONS.share}Share</button>
-      <button type="button" class="plan-btn" data-p="export">${ICONS.export}${o.exportLabel}</button>
+      <button type="button" class="plan-btn" data-p="export" aria-expanded="false">${ICONS.export}Export</button>
+      <button type="button" class="plan-btn" data-p="import">${ICONS.import}Import</button>
+      <input type="file" data-p="file" accept=".kml,.kmz,.zip,.cot,.xml" hidden />
+    </div>
+    <div class="plan-choice" data-p="exportRow" hidden>
+      <button type="button" data-p="exportKmz">KMZ file</button>
+      <button type="button" data-p="exportTak">TAK data package</button>
+      <p class="note">KMZ opens in Google Earth and TAK as an overlay. A TAK data package imports into ATAK, WinTAK or iTAK in one step, with each site as a marker.</p>
     </div>
     <p class="note plan-status" data-p="status" role="status"></p>
     <div class="fields">
@@ -163,9 +179,48 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
       status("Couldn't copy the link automatically in this browser.");
     }
   });
+  const showExport = (open: boolean) => {
+    el("exportRow").hidden = !open;
+    el("export").setAttribute("aria-expanded", String(open));
+  };
   el("export").addEventListener("click", () => {
-    const problem = o.onExport(nameInput.value.trim() || o.toolId);
-    status(problem ?? "Exported. Import the file in ATAK, WinTAK or Google Earth.");
+    showExport(el("exportRow").hidden !== false);
+    status("");
+  });
+  const exportAs = (tak: boolean) => {
+    const name = nameInput.value.trim() || o.toolId;
+    const file = o.buildExport(name);
+    if (typeof file === "string") {
+      status(file);
+      return;
+    }
+    if (tak) {
+      downloadFile(fileName(name, "zip"), buildDataPackage(name, [file], o.markers()) as BlobPart, "application/zip");
+      status("Exported. Import the .zip in ATAK, WinTAK or iTAK (Import, or drag it onto the map).");
+    } else {
+      downloadFile(file.name, file.data as BlobPart, "application/vnd.google-earth.kmz");
+      status("Exported. Import the file in ATAK, WinTAK or Google Earth.");
+    }
+    showExport(false);
+  };
+  el("exportKmz").addEventListener("click", () => exportAs(false));
+  el("exportTak").addEventListener("click", () => exportAs(true));
+
+  const fileInput = el<HTMLInputElement>("file");
+  el("import").addEventListener("click", () => {
+    fileInput.value = "";
+    fileInput.click();
+  });
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    status("Reading…");
+    try {
+      const points = await importPoints(file.name, new Uint8Array(await file.arrayBuffer()));
+      status(points.length ? o.onImport(points) : "No named points found in that file. Import reads points from KML, KMZ, CoT or a TAK data package.");
+    } catch {
+      status("That file couldn't be read.");
+    }
   });
 
   // A plan arriving by share link.

@@ -35,7 +35,7 @@ import { compassPoint } from "../lib/satPointing";
 import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
 import { type OverlayBounds, buildOverlayKml, buildZip, fileName } from "../lib/export";
 import { type Environment, clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
-import { applySettings, createPlanBar, downloadFile, pngBytes } from "./planBar";
+import { applySettings, createPlanBar, pngBytes } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { bindTreeField, environmentNote, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { globalK, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
@@ -1361,8 +1361,7 @@ export const coverageCalculator: Calculator = {
           if (map) void run();
           else runWhenReady = true;
         },
-        exportLabel: "Export KMZ",
-        onExport: (name) => {
+        buildExport: (name) => {
           if (!mapped() || !lastOverlay) return "Press Map coverage first.";
           const points = siteSpecs().map((s) => ({ name: s.name, lat: s.at.lat, lon: s.at.lon }));
           const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, points, RADIO_FILE);
@@ -1372,8 +1371,29 @@ export const coverageCalculator: Calculator = {
             { name: "coverage.png", data: pngBytes(lastOverlay.url) },
             radioIconFile(),
           ]);
-          downloadFile(fileName(name, "kmz"), new Uint8Array(kmz), "application/vnd.google-earth.kmz");
-          return undefined;
+          return { name: fileName(name, "kmz"), data: new Uint8Array(kmz) };
+        },
+        markers: () => siteSpecs().map((s) => ({ name: s.name, lat: s.at.lat, lon: s.at.lon, description: "Coverage site, from RF Toolkit" })),
+        onImport: (points) => {
+          // An empty Site A takes the first point; the rest become more sites.
+          let used = 0;
+          if (!site()) {
+            const first = points[used++];
+            field("site").value = formatCoordinates(first);
+            field("siteName").value = first.name;
+          }
+          const room = MAX_EXTRA_SITES - extras.length;
+          const more = points.slice(used, used + room);
+          extras.push(...more.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon, height: "", antenna: "omni", aim: "0", preset: "" })));
+          used += more.length;
+          placing = false;
+          renderExtras();
+          inputsChanged();
+          placeSites(true);
+          const left = points.length - used;
+          return used
+            ? `Added ${used} site${used === 1 ? "" : "s"} from the file${left ? `; ${left} more didn't fit (up to ${MAX_EXTRA_SITES + 1} sites)` : ""}. Press Map coverage to map them.`
+            : `No room for more sites (up to ${MAX_EXTRA_SITES + 1}). Remove one first.`;
         },
       }),
     );

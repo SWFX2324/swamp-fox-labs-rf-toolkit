@@ -570,7 +570,13 @@ main .leaflet-container { background: var(--card-2); }
 .plan-bar { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grid-line); }
 .plan-bar .fields:has(> :not([hidden])) { margin-top: 12px; }
 .plan-bar .input-unit select { flex: 1; min-width: 0; border-radius: 7px 0 0 7px; border-left: 1px solid var(--border); background: var(--card); }
-.plan-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.plan-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 520px) { .plan-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Export: KMZ or a TAK data package. */
+.plan-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.plan-choice[hidden] { display: none; }
+.plan-choice button { min-height: 44px; }
+.plan-choice .note { grid-column: 1 / -1; margin: 0; }
 .plan-btn {
   display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 6px 8px;
   font-weight: 600;

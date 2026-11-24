@@ -12,7 +12,7 @@ import { buildKml, fileName, buildZip } from "../lib/export";
 import { linkLineLabels, linkLineStyle } from "../lib/linkLines";
 import { drawLinkLine, linkLegend } from "./linkLine";
 import { findEnvironment } from "../lib/environment";
-import { applySettings, createPlanBar, downloadFile } from "./planBar";
+import { applySettings, createPlanBar } from "./planBar";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
 import { bindTreeField, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { AUTO_ENVIRONMENT, type LandCoverPoint, describePoint } from "../lib/landCover";
@@ -1020,8 +1020,7 @@ export const meshCalculator: Calculator = {
           nodes = (plan.nodes ?? []).map((n) => ({ ...n, ...(n.preset && n.preset !== "custom" ? { preset: ids.get(n.preset) ?? "" } : {}) }));
           nodesChanged();
         },
-        exportLabel: "Export KMZ",
-        onExport: (name) => {
+        buildExport: (name) => {
           if (!nodes.length) return "Add some nodes first.";
           const kml = buildKml(
             name,
@@ -1041,8 +1040,17 @@ export const meshCalculator: Calculator = {
             { name: "doc.kml", data: new TextEncoder().encode(kml) },
             radioIconFile(),
           ]);
-          downloadFile(fileName(name, "kmz"), new Uint8Array(kmz), "application/vnd.google-earth.kmz");
-          return undefined;
+          return { name: fileName(name, "kmz"), data: new Uint8Array(kmz) };
+        },
+        markers: () => nodes.map((n, i) => ({ name: nodeLabel(i), lat: n.lat, lon: n.lon, description: "Mesh node, from RF Toolkit" })),
+        onImport: (points) => {
+          const room = MAX_NODES - nodes.length;
+          const added = points.slice(0, room);
+          if (!added.length) return `No room for more nodes (up to ${MAX_NODES}). Remove one first.`;
+          nodes.push(...added.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, height: "" })));
+          nodesChanged();
+          const left = points.length - added.length;
+          return `Added ${added.length} node${added.length === 1 ? "" : "s"} from the file${left ? `; ${left} more didn't fit (up to ${MAX_NODES})` : ""}.`;
         },
       }),
     );
