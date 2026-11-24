@@ -1,42 +1,29 @@
 import "./style.css";
 import { registerSW } from "virtual:pwa-register";
 import { calculators } from "./calculators";
+import { renderHome } from "./calculators/home";
 import { THEME_EVENT, isDarkTheme } from "./calculators/theme";
 import { type CoordFormat, getCoordFormat, setCoordFormat } from "./lib/coords";
 import { COORD_EVENT } from "./calculators/settings";
 
 registerSW({ immediate: true });
 
-const tabs = document.querySelector<HTMLElement>("#tabs")!;
 const app = document.querySelector<HTMLElement>("#app")!;
-
-for (const calc of calculators) {
-  if (calc.inTabBar === false) continue;
-  const link = document.createElement("a");
-  link.href = `#${calc.id}`;
-  link.innerHTML = `<span class="long"></span><span class="short"></span>`;
-  link.querySelector(".long")!.textContent = calc.title;
-  link.querySelector(".short")!.textContent = calc.shortTitle ?? calc.title;
-  link.setAttribute("aria-label", calc.title);
-  link.dataset.id = calc.id;
-  tabs.append(link);
-}
+const toolNav = document.querySelector<HTMLElement>("#toolNav")!;
+const toolName = document.querySelector<HTMLElement>("#toolName")!;
 
 function show(): void {
   // A share link looks like "#mesh?plan=…"; the page reads the plan itself.
   const id = location.hash.slice(1).split("?")[0];
-  const calc = calculators.find((c) => c.id === id || c.aliases?.includes(id)) ?? calculators[0];
-  for (const link of tabs.querySelectorAll<HTMLAnchorElement>("a")) {
-    link.toggleAttribute("aria-current", link.dataset.id === calc.id);
-  }
-  document.querySelector("#settingsLink")?.toggleAttribute("aria-current", calc.id === "settings");
-  // On phones the tab row scrolls sideways; keep the current tab in view.
-  const current = tabs.querySelector<HTMLAnchorElement>("a[aria-current]");
-  if (current && tabs.scrollWidth > tabs.clientWidth) {
-    tabs.scrollLeft = current.offsetLeft - (tabs.clientWidth - current.offsetWidth) / 2;
-  }
-  app.replaceChildren(calc.render());
-  document.title = `${calc.title} · RF Toolkit`;
+  // No tool named (or one that no longer exists): the home page of tool cards.
+  const calc = calculators.find((c) => c.id === id || c.aliases?.includes(id));
+  document.body.classList.toggle("at-home", !calc);
+  toolNav.hidden = !calc;
+  toolName.textContent = calc?.title ?? "";
+  document.querySelector("#settingsLink")?.toggleAttribute("aria-current", calc?.id === "settings");
+  app.replaceChildren(calc ? calc.render() : renderHome());
+  document.title = calc ? `${calc.title} · RF Toolkit` : "RF Toolkit";
+  if (!calc) window.scrollTo(0, 0);
 }
 
 // Coordinate display format, shared by every page with a location box.
