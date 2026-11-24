@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // Field help and Simple/Advanced mode, added to a page after it renders.
 //
 // - Every field listed in guide.help gets an ⓘ button beside its label that
@@ -75,7 +76,7 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
     const button = document.createElement("button");
     button.type = "button";
     button.className = "help-btn";
-    button.textContent = "i";
+    button.innerHTML = rfIcon("info");
     button.setAttribute("aria-expanded", "false");
     button.setAttribute("aria-controls", id);
     button.setAttribute("aria-label", `What is ${head.textContent?.trim() || "this"}?`);
@@ -112,7 +113,7 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
       <button type="button" data-mode="simple">Simple</button>
       <button type="button" data-mode="advanced">Advanced</button>
     </div>` : ""}
-    ${root.querySelector(".results") ? '<button type="button" class="secondary jump-btn">Results ↓</button>' : ""}
+    ${root.querySelector(".results") ? `<button type="button" class="secondary jump-btn">Results ${rfIcon("arrowDown")}</button>` : ""}
     <span class="mode-note" hidden></span>`;
   root.prepend(bar);
   bar.querySelector(".jump-btn")?.addEventListener("click", () => root.querySelector(".results")?.scrollIntoView({ behavior: "smooth", block: "start" }));

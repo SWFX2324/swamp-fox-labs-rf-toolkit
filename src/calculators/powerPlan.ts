@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // Power Plan: list the gear, its data plate watts (or volts and amps) and how
 // many of each, and get the total load and the generator size to carry it.
 
@@ -32,7 +33,7 @@ const blankItem = (): PowerItem => ({ name: "", qty: 1, ac: true, powerFactor: 1
 const isBlank = (it: PowerItem) => !it.name.trim() && !it.watts && !it.volts && !it.amps;
 
 const BOOKMARK =
-  '<svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>';
+  rfIcon("bookmark", "inline-icon");
 
 const template = `
   <div class="lb-shell stage-page">
@@ -87,7 +88,7 @@ const template = `
         <details class="about"><summary>About this calculation</summary><p>Data plate ratings are maximums, so the real draw is usually lower and this errs on the safe side. Each item is watts × quantity; with volts and amps, watts are volts × amps × power factor. Power factor is 1 unless you change it in Advanced mode; a lower one means more current, which the generator's kVA rating (kW ÷ 0.8) has to carry too. The planning limit leaves room for startup surges and gear added later. Gear on a DC power supply draws about 10–20% more from the generator than its DC volts × amps; enter the supply's AC rating if you have it.</p></details>
       </div>
       <div class="power-export">
-        <button type="button" class="plan-btn" data-action="export"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>Export CSV</button>
+        <button type="button" class="plan-btn" data-action="export">${rfIcon("download")}Export CSV</button>
         <p class="note plan-status" data-out="exportStatus" role="status"></p>
       </div>
     </section>
@@ -166,7 +167,7 @@ export const powerPlanCalculator: Calculator = {
             ${cell("PF", '<input data-f="pf" type="number" inputmode="decimal" step="0.05" min="0.1" max="1" aria-label="Power factor" title="Power factor (AC only)" />', "c-pf pf-col")}
             <span class="power-total mono" data-f="total"></span>
             <button type="button" class="secondary icon-btn" data-f="keep" aria-label="Save item ${idx + 1} to your equipment" title="Save to your equipment">${BOOKMARK}</button>
-            <button type="button" class="secondary icon-btn" data-f="remove" aria-label="Remove item ${idx + 1}" title="Remove">✕</button>`;
+            <button type="button" class="secondary icon-btn" data-f="remove" aria-label="Remove item ${idx + 1}" title="Remove">${rfIcon("close")}</button>`;
           const f = <T extends HTMLElement>(name: string) => row.querySelector<T>(`[data-f="${name}"]`)!;
           f<HTMLInputElement>("name").value = it.name;
           f<HTMLInputElement>("qty").value = String(it.qty);

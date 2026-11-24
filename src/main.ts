@@ -1,3 +1,4 @@
+import { rfIcon } from "./ui/rfIcons";
 import "./style.css";
 import { registerSW } from "virtual:pwa-register";
 import { calculators } from "./calculators";
@@ -48,8 +49,8 @@ markFormat();
 const THEME_KEY = "rf-toolkit:theme";
 const themeToggle = document.querySelector<HTMLButtonElement>("#themeToggle")!;
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
-const SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1"/></svg>';
+const SUN = rfIcon("sun");
+const MOON = rfIcon("moon");
 const isDark = isDarkTheme;
 const markTheme = () => {
   const dark = isDark();

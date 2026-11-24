@@ -558,7 +558,7 @@ main .leaflet-container { background: var(--card-2); }
 .leaflet-container .leaflet-control-layers-toggle { background-image: none; display: grid; place-items: center; }
 .leaflet-container .leaflet-control-layers-toggle::before {
   content: ""; width: 22px; height: 22px; background: var(--text);
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 1.5 8 12 14l10.5-6zM4.8 11.9 1.5 13.8 12 19.8l10.5-6-3.3-1.9L12 16z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m12%204%208.5%204.5L12%2013%203.5%208.5zM3.5%2012.5%2012%2017l8.5-4.5M3.5%2016.5%2012%2021l8.5-4.5%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
 }
 .leaflet-container .leaflet-control-layers {
   background: var(--card); color: var(--text);
@@ -953,14 +953,12 @@ main:has(.map-first) { max-width: none; }
   font-weight: 600; font-size: 14px; min-height: 48px; box-sizing: border-box;
 }
 .pane-card > summary::-webkit-details-marker { display: none; }
-.pane-card > summary::after {
-  content: ""; width: 8px; height: 8px; margin-left: 4px; flex: none;
-  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translateY(-2px);
+.pane-card > summary > .pane-chevron {
+  width: 16px; height: 16px; margin-left: auto; flex: none; color: var(--muted);
   transition: transform .15s;
 }
-.pane-card[open] > summary::after { transform: rotate(225deg) translateY(-2px); }
+.pane-card[open] > summary > .pane-chevron { transform: rotate(180deg); }
 .pane-card > summary .meta { margin-left: auto; font-weight: 400; text-align: right; }
-.pane-card > summary::after { margin-left: auto !important; }
 .pane-card > summary .pane-pill { margin-left: 2px; }
 .pane-card > summary:hover .pane-title { color: var(--accent); }
 .pane-icon { width: 20px; height: 20px; flex: none; color: var(--accent); }
@@ -1019,7 +1017,10 @@ main:has(.map-first) { max-width: none; }
 }
 .map-layers-menu button:hover { background: var(--card-2); }
 .map-layers-menu button[aria-checked="true"] { color: var(--accent); font-weight: 600; }
-.map-layers-menu button[aria-checked="true"]::before { content: "✓ "; }
+.map-layers-menu button[aria-checked="true"]::before {
+  content: ""; display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px;
+  background: currentColor; mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m5.5%2012%204.2%204.2%208.8-9%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+}
 /* Leaflet's attribution sits under the taskbar; keep it readable beside it. */
 .lb-map .leaflet-control-attribution { font-size: 10px; }
 
@@ -1071,20 +1072,16 @@ main:has(.map-first) { max-width: none; }
     border: 1px solid var(--border); background: color-mix(in srgb, var(--card) 90%, transparent); color: var(--text);
     box-shadow: 0 2px 10px rgb(0 0 0 / .3);
   }
-  .lb-shell.floating .side-toggle::before {
-    content: ""; width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor;
-  }
+  .lb-shell.floating .side-toggle svg { width: 17px; height: 17px; }
   .lb-shell.floating .side-toggle[data-side="left"] { left: 378px; border-radius: 0 8px 8px 0; }
-  .lb-shell.floating .side-toggle[data-side="left"]::before { transform: translateX(2px) rotate(45deg); }
   .lb-shell.floating .side-toggle[data-side="right"] { right: 398px; border-radius: 8px 0 0 8px; }
-  .lb-shell.floating .side-toggle[data-side="right"]::before { transform: translateX(-2px) rotate(-135deg); }
   .lb-shell.floating:has(.lb-left details[data-pane="terrain"][open]) .side-toggle[data-side="left"] { left: 578px; }
   .lb-shell.floating:has(.lb-left details[data-pane="nodes"][open]) .side-toggle[data-side="left"] { left: 638px; }
   .lb-shell.floating.left-closed .lb-left, .lb-shell.floating.right-closed .lb-right { display: none; }
   .lb-shell.floating.left-closed .side-toggle[data-side="left"] { left: 0 !important; }
-  .lb-shell.floating.left-closed .side-toggle[data-side="left"]::before { transform: translateX(-2px) rotate(-135deg); }
   .lb-shell.floating.right-closed .side-toggle[data-side="right"] { right: 0; }
-  .lb-shell.floating.right-closed .side-toggle[data-side="right"]::before { transform: translateX(2px) rotate(45deg); }
+  .lb-shell.floating.left-closed .side-toggle[data-side="left"] svg,
+  .lb-shell.floating.right-closed .side-toggle[data-side="right"] svg { transform: rotate(180deg); }
   .lb-shell.floating.right-closed .leaflet-bottom.leaflet-right { right: 0; }
 }
 .side-toggle { display: none; }
@@ -1231,3 +1228,15 @@ main:has(.map-first) { max-width: none; }
   /* Coax Loss: inputs and results first, the long comparison after. */
   .coax-loss .lb-shell .lb-stage, .sat-link .lb-shell .lb-stage { order: 1; }
 }
+
+/* Preserve each control's existing footprint. */
+.rf-icon { display: inline-block; vertical-align: -.125em; flex: none; }
+:where(.rf-icon) { width: 1em; height: 1em; }
+.view3d-pin .rf-icon { margin-inline-end: 4px; }
+.jump-btn .rf-icon { margin-inline-start: 3px; }
+.node-radio-btn .node-radio-icon, .icon-btn .rf-icon { width: 14px; height: 14px; }
+.power-item .icon-btn .rf-icon { width: 16px; height: 16px; }
+.help-btn > .rf-icon { display: block; margin: auto; }
+/* Retain MapLibre's native buttons and the compass container's rotation. */
+.view3d-map .maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23232321%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%2012h14m-7-7v14%22%2F%3E%3C%2Fsvg%3E"); }
+.view3d-map .maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23232321%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%2012h14%22%2F%3E%3C%2Fsvg%3E"); }

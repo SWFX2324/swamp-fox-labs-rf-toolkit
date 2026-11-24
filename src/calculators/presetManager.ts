@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // Radio presets: stored on this device, and the dialog to make, edit, delete,
 // import and export them. The app ships no presets; each user enters the
 // numbers for the radios they know. Each tab keeps its own list: a mesh radio
@@ -142,8 +143,8 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
         const name = escapeHtml(p.name);
         return `<li>
           <span class="preset-order">
-            <button type="button" class="secondary icon-btn" data-up="${p.id}" aria-label="Move ${name} up"${i === 0 ? " disabled" : ""}>▲</button>
-            <button type="button" class="secondary icon-btn" data-down="${p.id}" aria-label="Move ${name} down"${i === list.length - 1 ? " disabled" : ""}>▼</button>
+            <button type="button" class="secondary icon-btn" data-up="${p.id}" aria-label="Move ${name} up"${i === 0 ? " disabled" : ""}>${rfIcon("arrowUp")}</button>
+            <button type="button" class="secondary icon-btn" data-down="${p.id}" aria-label="Move ${name} down"${i === list.length - 1 ? " disabled" : ""}>${rfIcon("arrowDown")}</button>
           </span>
           <span class="preset-info"><b>${name}</b><span class="note">${bits.join(" · ")}</span></span>
           <span class="preset-row-actions"><button type="button" class="secondary" data-edit="${p.id}">Edit</button><button type="button" class="secondary" data-copy="${p.id}">Copy</button></span>
@@ -167,7 +168,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
   const rateRow = (rate = "", sens = "") => {
     const row = document.createElement("div");
     row.className = "preset-rate";
-    row.innerHTML = `<input type="number" inputmode="decimal" step="any" min="0" aria-label="Data rate" /><span class="input-unit"><input type="number" step="any" aria-label="Sensitivity" /><span class="unit">dBm</span></span><button type="button" class="secondary icon-btn" aria-label="Remove this rate">✕</button>`;
+    row.innerHTML = `<input type="number" inputmode="decimal" step="any" min="0" aria-label="Data rate" /><span class="input-unit"><input type="number" step="any" aria-label="Sensitivity" /><span class="unit">dBm</span></span><button type="button" class="secondary icon-btn" aria-label="Remove this rate">${rfIcon("close")}</button>`;
     const [r, s] = row.querySelectorAll("input");
     r.value = rate;
     s.value = sens;

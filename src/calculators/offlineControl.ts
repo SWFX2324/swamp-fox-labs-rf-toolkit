@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // The map's "save this view" button: stores terrain and satellite tiles for
 // what's on screen, in the same caches the service worker reads from.
 
@@ -91,7 +92,7 @@ export function addOfflineControl(map: L.Map, slot?: HTMLElement, makeButton?: (
       button.setAttribute("aria-label", "Save this view for offline");
       button.setAttribute("aria-expanded", "false");
       button.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>';
+        rfIcon("download");
       L.DomEvent.disableClickPropagation(root);
       L.DomEvent.disableScrollPropagation(root);
       offlinePanel(map, button);

@@ -6,9 +6,9 @@ import { pngBytes } from "./planBar";
 
 const WIDTH = 28;
 const HEIGHT = 40;
-const BODY = "M6 2.5a1.5 1.5 0 0 1 3 0V11h8V7.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V11a3 3 0 0 1 3 3v21a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V14a3 3 0 0 1 3-3z";
-const SCREEN = "M8 15h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z";
-const GRILLE = "M8 30h12M8 34h12";
+const BODY = "M6 13V3a1.5 1.5 0 0 1 3 0v10h7V9a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4h1a3 3 0 0 1 3 3v19a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V17a4 4 0 0 1 2-4Z";
+const SCREEN = "M8.5 16h11a1.5 1.5 0 0 1 1.5 1.5V25a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 7 25v-7.5A1.5 1.5 0 0 1 8.5 16Z";
+const GRILLE = "M9 30h10m-10 4h10";
 const BLACK = "#0b0b0b";
 
 /** The HTML for a marker with a short label on the radio's screen. */

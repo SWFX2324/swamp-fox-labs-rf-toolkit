@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // Coverage Analysis: shade the area one or more sites can reach, over terrain,
 // on the map. With several sites, each point is shaded for the site that
 // serves it best.
@@ -868,7 +869,7 @@ export const coverageCalculator: Calculator = {
           const row = document.createElement("div");
           row.className = "extra-site";
           row.innerHTML = `
-            <div class="extra-site-head"><b></b><button type="button" class="secondary icon-btn" data-k="remove">✕</button></div>
+            <div class="extra-site-head"><b></b><button type="button" class="secondary icon-btn" data-k="remove">${rfIcon("close")}</button></div>
             <div class="fields">
               <label>Name<input data-k="name" type="text" maxlength="40" autocomplete="off" /></label>
               <label>Location<input data-k="loc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>

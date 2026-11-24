@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // Shared Leaflet setup: a Streets, Dark or Satellite base map and a recenter
 // button that frames whatever the page cares about. The base map starts as Dark
 // in dark mode and Streets in light mode; a choice is remembered for that theme
@@ -62,15 +63,14 @@ const taskbars = new WeakMap<L.Map, HTMLElement>();
 export const taskbarSlot = (map: L.Map, name: "zoom" | "recenter" | "layers" | "download" | "clear" | "view3d"): HTMLElement | undefined =>
   taskbars.get(map)?.querySelector<HTMLElement>(`[data-slot="${name}"]`) ?? undefined;
 
-const svg = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 export const TASK_ICONS = {
-  layers: svg('<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>'),
-  download: svg('<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>'),
-  clear: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
-  zoomIn: svg('<path d="M12 5v14M5 12h14"/>'),
-  zoomOut: svg('<path d="M5 12h14"/>'),
-  recenter: svg('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>'),
-  view3d: svg('<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/>'),
+  layers: rfIcon("layers"),
+  download: rfIcon("download"),
+  clear: rfIcon("clear"),
+  zoomIn: rfIcon("zoomIn"),
+  zoomOut: rfIcon("zoomOut"),
+  recenter: rfIcon("recenter"),
+  view3d: rfIcon("view3d"),
 };
 
 /** A labelled taskbar button. */
@@ -116,7 +116,7 @@ export function addClearControl(map: L.Map, what: string, onClear: () => void): 
       button.hidden = true;
       button.setAttribute("aria-label", `Clear ${what} from the map`);
       button.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Clear map';
+        `${TASK_ICONS.clear}Clear map`;
       L.DomEvent.disableClickPropagation(button);
       L.DomEvent.on(button, "click", (e) => {
         L.DomEvent.preventDefault(e);
@@ -271,7 +271,7 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
       button.setAttribute("role", "button");
       button.setAttribute("aria-label", "Recenter the map");
       button.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg>';
+        TASK_ICONS.recenter;
       L.DomEvent.disableClickPropagation(bar);
       L.DomEvent.on(button, "click", (e) => {
         L.DomEvent.preventDefault(e);

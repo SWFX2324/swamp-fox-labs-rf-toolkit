@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // Save, reopen, share, export and import a tool's plan. Shared by the Mesh
 // Analysis and Coverage Analysis. Share links carry the plan in the URL fragment,
 // which stays in the browser, and are validated when opened (see lib/plans.ts).
@@ -47,12 +48,11 @@ export function applySettings(form: HTMLFormElement, settings: Record<string, st
   }
 }
 
-const icon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 export const ICONS = {
-  save: icon('<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>'),
-  share: icon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/>'),
-  export: icon('<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>'),
-  import: icon('<path d="M12 15V3M7 8l5-5 5 5M4 21h16"/>'),
+  save: rfIcon("save"),
+  share: rfIcon("share"),
+  export: rfIcon("download"),
+  import: rfIcon("upload"),
 };
 
 /** The Export choice row: a KMZ file or a TAK data package. attr names the elements (data-p or data-t). */
@@ -63,13 +63,12 @@ export const exportChoiceHtml = (attr: string) => `
       <p class="note">KMZ opens in Google Earth and TAK as an overlay. A TAK data package imports into ATAK, WinTAK or iTAK in one step, with each site as a marker.</p>
     </div>`;
 
-const shareIcon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-/** Plain icons for the Share card's choices: generic, no product logos. */
+/** Generic icons for share destinations and file actions. */
 export const SHARE_ICONS = {
-  tak: shareIcon('<path d="M12 21s-7-6.3-7-12a7 7 0 0 1 14 0c0 5.7-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>'),
-  earth: shareIcon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
-  file: shareIcon('<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M12 11v6M9 14l3 3 3-3"/>'),
-  link: shareIcon('<path d="M21 12a8 8 0 0 1-11.6 7.2L4 21l1.8-5.4A8 8 0 1 1 21 12z"/>'),
+  tak: rfIcon("pin"),
+  earth: rfIcon("globe"),
+  file: rfIcon("file"),
+  link: rfIcon("link"),
 };
 
 /** What the file picker for Import takes. */
@@ -310,7 +309,7 @@ export function createPlanCard(o: PlanBarOptions): HTMLElement {
         const del = document.createElement("button");
         del.type = "button";
         del.className = "secondary icon-btn saved-del";
-        del.textContent = "✕";
+        del.innerHTML = rfIcon("close");
         del.setAttribute("aria-label", `Delete ${p.name}`);
         del.addEventListener("click", () => {
           if (!confirm(`Delete the saved plan "${p.name}"?`)) return;

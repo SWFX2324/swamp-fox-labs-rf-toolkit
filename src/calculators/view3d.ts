@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // The 3D view: the area around a link, mesh or coverage site on real terrain
 // that you can tilt and turn, with links draped on the ground and, optionally,
 // each link's line of sight in the air between antenna tops. Loaded only when
@@ -558,7 +559,8 @@ export function open3DView(first: Scene3D): View3D {
     markers = scene.points.map((p, i) => {
       const pin = document.createElement("div");
       pin.className = "view3d-pin";
-      pin.textContent = p.label; // user text: set as text, not markup
+      pin.innerHTML = rfIcon("radio");
+      pin.append(document.createTextNode(p.label));
       const marker = new maplibregl.Marker({ element: pin, anchor: "bottom", offset: [0, -6], draggable: !!scene.onMove })
         .setLngLat([p.lon, p.lat])
         .addTo(map!);

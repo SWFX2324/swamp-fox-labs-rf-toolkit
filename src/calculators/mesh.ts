@@ -1,3 +1,4 @@
+import { rfIcon } from "../ui/rfIcons";
 // Mesh Analysis: drop nodes on a map and see every node-to-node link over
 // real terrain with identical radios, plus whether the mesh holds together.
 
@@ -82,7 +83,7 @@ const NODE_RADIO_FIELDS = [
   { key: "sens", label: "RX sensitivity", shared: "sens", unit: "dBm" },
 ] as const;
 const hasOwnRadio = (n: MeshNode) => NODE_RADIO_FIELDS.some((f) => (n[f.key] ?? "").trim() !== "");
-const RADIO_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M5 2l3 4M6 6h7a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="10" r="1.6" fill="currentColor"/></svg>';
+const RADIO_ICON = rfIcon("radio", "node-radio-icon");
 
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
@@ -367,7 +368,7 @@ export const meshCalculator: Calculator = {
             </td>
             <td class="node-actions">
               <button type="button" class="secondary icon-btn node-radio-btn" aria-expanded="false" title="This node's radio" aria-label="Node ${idx + 1} radio">${RADIO_ICON}</button>
-              <button type="button" class="secondary icon-btn" data-remove title="Remove node" aria-label="Remove node ${idx + 1}">✕</button>
+              <button type="button" class="secondary icon-btn" data-remove title="Remove node" aria-label="Remove node ${idx + 1}">${rfIcon("close")}</button>
             </td>`;
           const name = tr.querySelector<HTMLInputElement>(".node-name")!;
           name.value = n.name;
