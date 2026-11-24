@@ -410,8 +410,23 @@ label.check input { width: auto; margin: 0; }
 /* ------------------------------------------------------------ converter */
 .converter { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); align-items: start; }
 .converter .fields { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+/* A side-pane card whose fields are all Advanced hides in Simple mode. */
+.lb-left .card:has(label):not(:has(label:not(.mode-hidden))) { display: none; }
 input.invalid { border-color: var(--critical); }
 @media (max-width: 400px) { .converter { grid-template-columns: minmax(0, 1fr); } }
+/* Tablet: two even columns, two by two. */
+@media (min-width: 700px) { .converter { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Desktop: full width like the other tabs, the four converters side by side
+   as equal columns, each field on its own line and the results under them. */
+main:has(.converter) { max-width: none; }
+@media (min-width: 1100px) {
+  .converter { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; }
+  .converter > .mode-bar { grid-column: 1 / -1; padding: 6px 10px; }
+  .converter > .card { display: flex; flex-direction: column; }
+  .converter .fields { grid-template-columns: minmax(0, 1fr); }
+  .converter .ledger { margin-top: 14px; }
+  .converter .about { margin-top: auto; padding-top: 12px; }
+}
 
 /* ------------------------------------------------------------ coax loss */
 .table-wrap { overflow-x: auto; }
@@ -631,7 +646,7 @@ main .leaflet-container { background: var(--card-2); }
 /* ------------------------------------------------------------ power plan */
 .power-head, .power-item {
   display: grid; gap: 5px; align-items: center;
-  grid-template-columns: minmax(90px, 2fr) 52px 62px 62px 70px 62px 56px minmax(56px, 1fr) 32px 32px;
+  grid-template-columns: minmax(80px, 2fr) 46px 56px 56px 62px 58px 50px minmax(52px, 1fr) 30px 30px;
 }
 .power-plan .note.top { margin: -4px 0 12px; }
 .power-head { font-size: 12px; color: var(--muted); padding: 0 2px 4px; }
@@ -657,11 +672,11 @@ main .leaflet-container { background: var(--card-2); }
 /* Power factor is an Advanced setting; rows are added after the mode bar is set up. */
 .power-plan[data-mode="simple"] .pf-col { display: none; }
 .power-plan[data-mode="simple"] :is(.power-head, .power-item) {
-  grid-template-columns: minmax(90px, 2fr) 52px 62px 62px 70px 62px minmax(56px, 1fr) 32px 32px;
+  grid-template-columns: minmax(80px, 2fr) 46px 56px 56px 62px 58px minmax(52px, 1fr) 30px 30px;
 }
 /* Stack each row when the card, not the screen, is too narrow for one line. */
 .power-equipment { container-type: inline-size; }
-@container (max-width: 620px) {
+@container (max-width: 570px) {
   .power-head { display: none; }
   .power-cap { display: block; }
   .power-items { gap: 10px; }

@@ -2,6 +2,7 @@
 // many of each, and get the total load and the generator size to carry it.
 
 import { enhanceFields } from "./fieldHelp";
+import { PANE_ICONS, fitStage, moveModeBar } from "./mapFirst";
 import { powerGuide } from "./helpText";
 import type { Calculator } from ".";
 import { downloadFile } from "./planBar";
@@ -34,9 +35,23 @@ const BOOKMARK =
   '<svg class="inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>';
 
 const template = `
-  <div class="inputs">
-    <section class="card power-equipment">
-      <div class="card-head"><h2>Equipment</h2><span class="meta" data-out="count"></span></div>
+  <div class="lb-shell stage-page">
+  <div class="lb-left">
+    <section class="card">
+      <div class="card-head"><h2 class="with-icon">${PANE_ICONS.gauge}Planning</h2></div>
+      <div class="fields">
+        <label>Planning load limit
+          <span class="input-unit">
+            <input name="limit" type="number" inputmode="decimal" step="any" min="1" max="100" />
+            <span class="unit">%</span>
+          </span>
+        </label>
+      </div>
+    </section>
+  </div>
+
+  <div class="lb-map lb-stage power-equipment">
+      <div class="card-head"><h2 class="with-icon">${PANE_ICONS.plug}Equipment</h2><span class="meta" data-out="count"></span></div>
       <p class="note top">For each item, enter the watts from its data plate, or its volts and amps. Save gear you use often with ${BOOKMARK} to add it again later.</p>
       <div class="power-head" aria-hidden="true">
         <span>Item</span><span>Qty</span><span>Volts</span><span>Amps</span><span>Watts</span><span>AC/DC</span><span class="pf-col">PF</span><span class="num">Total</span><span></span><span></span>
@@ -51,25 +66,12 @@ const template = `
         </span>
       </div>
       <p class="note" data-out="savedStatus" role="status"></p>
-    </section>
-
-    <section class="card">
-      <div class="card-head"><h2>Planning</h2><span class="meta">Generators are usually rated at 0.8 power factor</span></div>
-      <div class="fields">
-        <label>Planning load limit
-          <span class="input-unit">
-            <input name="limit" type="number" inputmode="decimal" step="any" min="1" max="100" />
-            <span class="unit">%</span>
-          </span>
-        </label>
-      </div>
-    </section>
   </div>
 
-  <aside class="results">
+  <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
-        <h2>Generator</h2>
+        <h2 class="with-icon">${PANE_ICONS.bolt}Generator</h2>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
       <p class="note" data-out="prompt"></p>
@@ -90,6 +92,7 @@ const template = `
       </div>
     </section>
   </aside>
+  </div>
 `;
 
 function loadEquipment(): EquipmentProfile[] {
@@ -121,7 +124,7 @@ export const powerPlanCalculator: Calculator = {
   shortTitle: "Power",
   render() {
     const form = document.createElement("form");
-    form.className = "calculator two-col power-plan";
+    form.className = "calculator power-plan map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -336,6 +339,8 @@ export const powerPlanCalculator: Calculator = {
     renderEquipment();
     update();
     enhanceFields(form, powerGuide, defaults);
+    moveModeBar(form);
+    fitStage(form);
     return form;
   },
 };

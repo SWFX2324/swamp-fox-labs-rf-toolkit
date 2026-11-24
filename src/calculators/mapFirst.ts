@@ -26,6 +26,16 @@ export const PANE_ICONS = {
   // A radiation pattern: two lobes either side of an antenna.
   pattern: svgIcon('<path d="M12 12c-3-5-9-5-9 0s6 5 9 0zM12 12c3-5 9-5 9 0s-6 5-9 0z"/><path d="M12 4v16"/>'),
   budget: svgIcon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+  // A plug, for equipment drawing power.
+  plug: svgIcon('<path d="M9 3v5M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/>'),
+  // A gauge, for a planning limit.
+  gauge: svgIcon('<path d="M4 17a8 8 0 1 1 16 0"/><path d="m12 17 4-5"/><circle cx="12" cy="17" r="1" fill="currentColor"/>'),
+  // A lightning bolt, for power and generators.
+  bolt: svgIcon('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'),
+  // Two arrows meeting and turning back, for reflection (SWR).
+  swr: svgIcon('<path d="M3 8h13M12 4l4 4-4 4"/><path d="M21 16H8M12 12l-4 4 4 4"/>'),
+  // A dB ratio: a rising log curve over an axis.
+  ratio: svgIcon('<path d="M4 20V4M4 20h16"/><path d="M6 18c2-8 6-11 13-12"/>'),
   // A map pin, for a place.
   pin: svgIcon('<path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>'),
   // A satellite: body and two solar panels.

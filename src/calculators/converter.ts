@@ -3,6 +3,7 @@
 // that value and refills the others. Wavelengths live in Antenna Length.
 
 import { enhanceFields } from "./fieldHelp";
+import { PANE_ICONS } from "./mapFirst";
 import { converterGuide } from "./helpText";
 import type { Calculator } from ".";
 import {
@@ -37,7 +38,7 @@ interface Field {
 interface Card {
   id: string;
   title: string;
-  meta: string;
+  icon: keyof typeof PANE_ICONS;
   initial: number;
   fields: Field[];
   outputs?(c: number): [string, string][];
@@ -60,14 +61,14 @@ const cards: Card[] = [
   {
     id: "power",
     title: "Power",
-    meta: "Into 50 Ω",
+    icon: "bolt",
     initial: 30,
     fields: [
       { name: "w", label: "Watts", unit: "W", to: positive(wattsToDbm), from: dbmToWatts },
       { name: "mw", label: "Milliwatts", unit: "mW", to: positive((v) => wattsToDbm(v / 1000)), from: (c) => dbmToWatts(c) * 1000 },
       { name: "dbm", label: "dBm", unit: "dBm", to: (v) => v, from: (c) => c },
       { name: "dbw", label: "dBW", unit: "dBW", to: dbwToDbm, from: dbmToDbw },
-      { name: "uv", label: "Voltage at the receiver", unit: "µV", to: positive(microvoltsToDbm), from: dbmToMicrovolts },
+      { name: "uv", label: "Voltage at the receiver (50 Ω)", unit: "µV", to: positive(microvoltsToDbm), from: dbmToMicrovolts },
     ],
     outputs: (c) => [
       ["S-meter, HF", sMeter(c, "hf")],
@@ -78,7 +79,7 @@ const cards: Card[] = [
   {
     id: "mismatch",
     title: "SWR and return loss",
-    meta: "Mismatch",
+    icon: "swr",
     initial: 1 / 3,
     fields: [
       { name: "swr", label: "SWR", unit: ":1", to: (v) => (v >= 1 ? swrToGamma(v) : undefined), from: gammaToSwr },
@@ -94,7 +95,7 @@ const cards: Card[] = [
   {
     id: "gain",
     title: "Antenna gain",
-    meta: "dBi and dBd",
+    icon: "pattern",
     initial: 2.15,
     fields: [
       { name: "dbi", label: "Over isotropic", unit: "dBi", to: (v) => v, from: (c) => c },
@@ -106,7 +107,7 @@ const cards: Card[] = [
   {
     id: "ratio",
     title: "Decibels",
-    meta: "Ratios",
+    icon: "ratio",
     initial: 3,
     fields: [
       { name: "db", label: "Decibels", unit: "dB", to: (v) => v, from: (c) => c },
@@ -152,7 +153,7 @@ export const converterCalculator: Calculator = {
       section.className = "card";
       section.dataset.card = card.id;
       section.innerHTML = `
-        <div class="card-head"><h2>${card.title}</h2><span class="meta">${card.meta}</span></div>
+        <div class="card-head"><h2 class="with-icon">${PANE_ICONS[card.icon]}${card.title}</h2></div>
         <div class="fields">
           ${card.fields
             .map(
