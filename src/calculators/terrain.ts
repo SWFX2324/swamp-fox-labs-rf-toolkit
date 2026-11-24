@@ -104,7 +104,7 @@ export interface TerrainCard {
 // no red here; red is kept for the budget's "won't close".
 const statusText: Record<ProfileStatus, [string, string]> = {
   clear: ["Clear line of sight", "s-good"],
-  fresnel: ["Fresnel zone partly blocked", "s-marginal"],
+  fresnel: ["Fresnel partly blocked", "s-marginal"],
   blocked: ["No line of sight", "s-marginal"],
 };
 const losNote =
@@ -143,9 +143,9 @@ const template = `
   </div>
   <div class="terrain-part" data-part="relay">
     <div class="relay-actions">
-      <button type="button" class="secondary" data-t="addRelay">Place relay</button>
-      <button type="button" class="secondary" data-t="findRelay">Recommend relay spot</button>
-      <button type="button" class="secondary" data-t="removeRelay" hidden>Remove relay</button>
+      <button type="button" class="secondary" data-t="addRelay">Place</button>
+      <button type="button" class="secondary" data-t="findRelay">Recommend</button>
+      <button type="button" class="secondary" data-t="removeRelay" hidden>Remove</button>
     </div>
     <div class="legend relay-legend" data-t="relayLegend" hidden>
       <span class="key"><span class="sw cov-strong"></span>Relay: strong</span>
@@ -317,7 +317,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     input("relayLoc").value = relay ? formatCoordinates(relay) : "";
     el("relayLocWrap").hidden = !relay;
     el("removeRelay").hidden = !relay;
-    el("addRelay").textContent = placingRelay ? "Cancel" : relay ? "Move relay" : "Place relay";
+    el("addRelay").textContent = placingRelay ? "Cancel" : "Place";
     savePins(tx, rx, relay);
     clearControl?.setVisible(!!(tx || rx || relay));
     if (!map) return;
@@ -484,7 +484,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
         setStatus(navigator.onLine ? `Couldn't run the relay finder: ${(err as Error).message}` : "No connection, and this area's terrain isn't saved yet.", true);
     } finally {
       if (finding === controller) {
-        el("findRelay").textContent = "Recommend relay spot";
+        el("findRelay").textContent = "Recommend";
         el("findRelay").toggleAttribute("disabled", false);
       }
     }
@@ -923,7 +923,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
       const rank: Record<ProfileStatus, number> = { clear: 0, fresnel: 1, blocked: 2 };
       shownStatus = rank[s1.result.status] >= rank[s2.result.status] ? s1.result.status : s2.result.status;
       const which = s1.result.status === s2.result.status ? "both hops" : s1.result.status === shownStatus ? "hop 1" : "hop 2";
-      pill.textContent = shownStatus === "clear" ? "Clear line of sight on both hops" : `${statusText[shownStatus][0]} on ${which}`;
+      pill.textContent = shownStatus === "clear" ? "Clear on both hops" : `${statusText[shownStatus][0]}, ${which}`;
       const worst = s1.result.worst.clearanceRatio <= s2.result.worst.clearanceRatio ? { w: s1.result.worst, from: nameOf("tx"), hop: 1 } : { w: s2.result.worst, from: nameOf("relay"), hop: 2 };
       const [tv, ts] = tight(worst.w);
       const l1 = distanceBetweenM(s1.from, s1.to);

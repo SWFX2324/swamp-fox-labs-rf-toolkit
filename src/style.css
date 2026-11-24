@@ -1112,3 +1112,11 @@ main:has(.map-first) { max-width: none; }
 @media (max-width: 600px) {
   .map-taskbar .taskbar-group, .map-taskbar .taskbar-sep { display: none; }
 }
+
+/* Relay: its three buttons on one row. */
+.pane-slot .relay-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pane-slot .relay-actions button { padding: 6px 4px; font-size: 12.5px; white-space: nowrap; }
+.pane-slot .relay-actions button[hidden] { display: none; }
+/* A long profile tag moves under the title rather than being cut off. */
+.pane-pill .pill { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
+.pane-card > summary .pane-pill { flex: 0 1 auto; min-width: 0; }

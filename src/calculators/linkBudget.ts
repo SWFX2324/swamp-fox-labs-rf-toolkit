@@ -194,7 +194,6 @@ const template = `
     ${pane("relay", "Relay", `
       <div class="pane-slot" data-slot="relay"></div>
       <div class="relay-radio" data-card="relay" hidden>
-      <p class="note" data-out="relayIntro"></p>
       <div class="fields">
         <label>Name
           <input name="relayName" type="text" autocomplete="off" maxlength="40" placeholder="Relay" />
@@ -798,7 +797,6 @@ export const linkBudgetCalculator: Calculator = {
       const profile = terrain.refresh(terrainParams);
       const relayAt = terrain.relay();
       form.querySelector<HTMLElement>('[data-card="relay"]')!.hidden = !relayAt;
-      out("relayIntro").textContent = `Receives from ${siteName("tx")} and retransmits to ${siteName("rx")}. Place or move it on the Terrain profile map.`;
 
       if (problem) {
         out("dirNote").hidden = out("dirWrap").hidden = true;
@@ -978,9 +976,8 @@ export const linkBudgetCalculator: Calculator = {
       out("relayRating").className = `pill s-${overall}`;
       out("relayRating").textContent = ratingWords(overall, weaker);
       const loading = !hops.hop1 || !hops.hop2;
-      out("relayNote").textContent =
-        (loading ? "Terrain for the hops is still loading, so these are free-space figures for now. " : "") +
-        `Each hop counts its weaker direction (Hop 1: ${fmt(h1.out)} dB out, ${fmt(h1.back)} dB back; Hop 2: ${fmt(h2.out)} dB out, ${fmt(h2.back)} dB back). The weakest sets the link: ${fmt(weaker)} dB through the relay, against ${fmt(weakest)} dB direct.`;
+      // Only said while it matters: until the hops' terrain loads, they're free-space figures.
+      out("relayNote").textContent = loading ? "Terrain for the hops is still loading; free-space figures for now." : "";
       terrain.showHops(linkQuality(h1.marginDb, fade), linkQuality(h2.marginDb, fade));
     };
 
