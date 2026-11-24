@@ -19,6 +19,10 @@ export const PANE_ICONS = {
   mapping: svgIcon('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
   terrain: svgIcon('<path d="m3 19 6-9 4 5 3-4 5 8z"/>'),
   share: svgIcon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/>'),
+  // A dish on a short mast: the bowl facing up and right, its feed arm, and the mast.
+  dish: svgIcon('<path d="M4 7a10 10 0 0 0 10 10z"/><path d="M9 12l5-5"/><circle cx="15" cy="6" r="1.2"/><path d="M7 15.5V21M4 21h6"/>'),
+  // A compass rose, for pointing.
+  compass: svgIcon('<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>'),
   budget: svgIcon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
 };
 

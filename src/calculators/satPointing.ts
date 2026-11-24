@@ -8,6 +8,7 @@ import { satPointingGuide } from "./helpText";
 import * as L from "leaflet";
 import { terminalMarker } from "./terminalIcon";
 import { type ClearControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { PANE_ICONS, moveModeBar, pane, setupMapFirst, sideToggles } from "./mapFirst";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type LatLon, destinationPoint } from "../lib/geo";
@@ -23,6 +24,9 @@ import { fromMetres } from "../lib/units";
 import { decimalYear, magneticField, modelIsCurrent } from "../lib/wmm";
 
 const STORAGE_KEY = "rf-toolkit:sat-pointing";
+// The card starts closed; these remember it and which side panes are folded.
+const PANES_KEY = "rf-toolkit:sat-pointing-panes";
+const SIDES_KEY = "rf-toolkit:sat-pointing-sides";
 
 const defaults: Record<string, string> = {
   site: "",
@@ -31,11 +35,12 @@ const defaults: Record<string, string> = {
 };
 
 const template = `
-  <div class="inputs">
-    <section class="card">
-      <div class="card-head"><h2>Site and satellite</h2><span class="meta">Geostationary</span></div>
+  <div class="lb-shell floating">
+  ${sideToggles("pointing results")}
+  <div class="lb-left">
+    ${pane("terminal", "dish", "Terminal", `
       <div class="fields">
-        <label>Your location
+        <label class="wide">Your location
           <span class="input-unit">
             <input name="site" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
             ${locateButton('data-action="locate"')}
@@ -51,16 +56,17 @@ const template = `
           </span>
         </label>
       </div>
-      <p class="note" data-out="status"></p>
-      <div class="map sat-map" data-out="map"></div>
-      <p class="note">Tap the map or drag the pin. The blue line is the true azimuth.</p>
-    </section>
+      <p class="note" data-out="status"></p>`)}
   </div>
 
-  <aside class="results">
+  <div class="lb-map">
+    <div class="map sat-map" data-out="map"></div>
+  </div>
+
+  <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
-        <h2 data-out="title">Pointing</h2>
+        <h2 class="with-icon">${PANE_ICONS.compass}<span data-out="title">Pointing</span></h2>
         <span class="pill" data-out="pill" hidden></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
@@ -76,16 +82,10 @@ const template = `
           <div class="tile" data-out="tiltTile"><span class="label">Reflector tilt</span><span class="value" data-out="tilt"></span><span class="sub" data-out="tiltSub"></span></div>
           <div class="tile"><span class="label">Slant range</span><span class="value" data-out="range"></span><span class="sub" data-out="rangeSub"></span></div>
         </div>
-        <ol class="notes steps">
-          <li>Set the elevation, then aim at the compass azimuth (or follow the line on the map to a landmark).</li>
-          <li>Sweep azimuth slowly a few degrees either side while watching the beacon or signal meter, then peak elevation.</li>
-          <li>Set the feed skew, peak again, and call the satellite controller to fine-tune cross-pol.</li>
-        </ol>
-        <p class="note">Keep the compass away from the vehicle, mount and other steel.</p>
-        <details class="about"><summary>About this calculation</summary><p>Compass azimuth uses the NOAA/BGS World Magnetic Model (WMM2025), built in so it works offline.</p></details>
       </div>
     </section>
   </aside>
+  </div>
 `;
 
 function loadState(): Record<string, string> {
@@ -169,7 +169,7 @@ export const satPointingCalculator: Calculator = {
   shortTitle: "Pointing",
   render() {
     const form = document.createElement("form");
-    form.className = "calculator two-col sat-pointing";
+    form.className = "calculator sat-pointing map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
@@ -330,7 +330,9 @@ export const satPointingCalculator: Calculator = {
         const site = parseCoordinates(field("site").value);
         if (site) m.setView([site.lat, site.lon], Math.max(m.getZoom() || 0, 15));
         else showDefaultView(m);
-      });
+      }, { taskbar: true });
+      // The compass azimuth's source, credited on the map.
+      map.attributionControl.addAttribution("Magnetic model: NOAA/BGS WMM2025");
       map.on("click", (e: L.LeafletMouseEvent) => {
         field("site").value = formatCoordinates({ lat: e.latlng.lat, lon: e.latlng.lng });
         update();
@@ -363,6 +365,8 @@ export const satPointingCalculator: Calculator = {
     form.addEventListener("change", update);
     update();
     enhanceFields(form, satPointingGuide, defaults);
+    moveModeBar(form);
+    setupMapFirst(form, { panesKey: PANES_KEY, sidesKey: SIDES_KEY, rightName: "pointing results" });
     return form;
   },
 };
