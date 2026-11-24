@@ -220,14 +220,6 @@ const template = `
         ${treeHeightFieldHtml()}
         ${numberField("Extra path loss", "extraLoss", "dB", 'min="0" title="Foliage, buildings, rain, partial Fresnel blockage"')}
       </div>
-      <table class="ledger geometry" data-out="geometry">
-        <tbody>
-          <tr><td>Radio horizon for these heights</td><td class="num mono" data-out="horizon"></td></tr>
-          <tr><td>Earth bulge at midpoint</td><td class="num mono" data-out="bulge"></td></tr>
-          <tr><td>Beam height above it</td><td class="num mono" data-out="clearance"></td></tr>
-          <tr><td>Needed (60% first Fresnel zone)</td><td class="num mono" data-out="fresnel"></td></tr>
-        </tbody>
-      </table>
       <p class="callout" data-out="geoWarn" hidden></p>
       <p class="callout" data-out="hfPath" hidden>${hfWarning}</p>`)}
 
@@ -601,35 +593,21 @@ export const linkBudgetCalculator: Calculator = {
     };
 
     // Smooth-earth horizon and midpoint Fresnel clearance, in the Path card.
+    // Without map pins, only a short warning when smooth earth alone gets in the way.
     const showGeometry = (i: LinkInputs, horizonM: number, beyond: boolean, distUnit: DistanceUnit) => {
-      const heightUnit = asDistanceUnit(field("txHeightUnit").value);
-      const height = (m: number) => `${m < 0 ? "−" : ""}${fmt(fromMetres(Math.abs(m), heightUnit), 1)} ${heightUnit}`;
-      out("horizon").textContent = `${formatRange(horizonM, distUnit)} ${distUnit}`;
-
       const warn = out("geoWarn");
       if (beyond) {
-        for (const name of ["bulge", "clearance", "fresnel"]) out(name).textContent = dash;
-        warn.textContent =
-          `This path is past the ${formatRange(horizonM, distUnit)} ${distUnit} radio horizon, so the ` +
-          "earth blocks the direct signal. Raise the antennas or shorten the path.";
+        warn.textContent = `Past the ${formatRange(horizonM, distUnit)} ${distUnit} radio horizon: the earth blocks the signal.`;
         warn.hidden = false;
         return;
       }
       const c = midpointClearance(i.freqHz, i.distanceM, i.txHeightM, i.rxHeightM, i.k);
-      out("bulge").textContent = height(c.bulgeM);
-      out("clearance").textContent = height(c.clearanceM);
-      out("fresnel").textContent = height(c.neededM);
-      // An Environment already charges for this, so don't suggest adding it again.
+      // An Environment already charges for this, so only without one.
       if (c.clearanceM < c.neededM && field("environment").value === "none") {
-        warn.textContent =
-          `The beam is only ${height(c.clearanceM)} above smooth ground at the midpoint, ` +
-          `short of the ${height(c.neededM)} it needs, so the ground eats into the Fresnel ` +
-          "zone. Expect more loss than free space; add it as extra path loss, or raise the " +
-          "antennas. Terrain and trees along the path make this worse.";
+        warn.textContent = "The ground at the midpoint blocks part of the Fresnel zone: expect more loss than shown.";
         warn.hidden = false;
       }
     };
-    const dash = "—";
 
     const siteName = (site: SiteId) => field(`${site}Name`).value.trim() || { tx: "Site A", rx: "Site B", relay: "Relay" }[site];
     const relayHeightM = () => toMetres(num("relayHeight") || 0, asDistanceUnit(field("relayHeightUnit").value));
@@ -776,7 +754,6 @@ export const linkBudgetCalculator: Calculator = {
       const hf = inputs.freqHz > 0 && !freeSpaceApplies(inputs.freqHz);
       out("hfPath").hidden = !hf;
       out("hfResult").hidden = !hf;
-      out("geometry").hidden = hf || !!problem;
       out("geoWarn").hidden = true;
 
       const model = readModel(form);
@@ -801,7 +778,7 @@ export const linkBudgetCalculator: Calculator = {
       if (problem) {
         out("dirNote").hidden = out("dirWrap").hidden = true;
         for (const name of ["eirp", "eirpW", "eirpB", "eirpBW", "fspl", "rsl", "margin", "marginSub", "barRsl", "barMargin"]) {
-          out(name).textContent = dash;
+          out(name).textContent = "—";
         }
         out("rating").hidden = true;
         out("ledger").replaceChildren();
@@ -850,7 +827,7 @@ export const linkBudgetCalculator: Calculator = {
         showGeometry(shown, r.horizonM, r.beyondHorizon, distUnit);
         // The smooth-earth geometry assumes both ends at the same ground level,
         // which a real profile (a hilltop, say) overrules.
-        if (profile) out("geometry").hidden = out("geoWarn").hidden = true;
+        if (profile) out("geoWarn").hidden = true;
       }
       out("barRsl").textContent = `${fmt(r.rslDbm)} dBm`;
       out("barMargin").textContent = `${fmt(r.marginDb)} dB`;
