@@ -1,3 +1,4 @@
+import { PANE_ICONS, moveModeBar, pane, setupMapFirst, sideToggles } from "./mapFirst";
 import { type PlanNode, decodePlan, encodePlan, planFromHash } from "../lib/plans";
 import { enhanceFields } from "./fieldHelp";
 import { linkBudgetGuide } from "./helpText";
@@ -138,30 +139,12 @@ function cableFields(side: "tx" | "rx"): string {
     <p class="note span-all" data-out="${side}CableNote"></p>`;
 }
 
-const svgIcon = (paths: string) => `<svg class="pane-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-const PANE_ICONS = {
-  tx: svgIcon('<path d="M12 12v9M9 21h6"/><circle cx="12" cy="10" r="2"/><path d="M8.5 6.5a5 5 0 0 0 0 7M15.5 6.5a5 5 0 0 1 0 7M5.6 3.6a9 9 0 0 0 0 12.8M18.4 3.6a9 9 0 0 1 0 12.8"/>'),
-  rx: svgIcon('<path d="M4 20h16"/><path d="M6 20 12 6l6 14"/><path d="M8.5 15h7"/><path d="M12 3v3"/>'),
-  relay: svgIcon('<circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><circle cx="12" cy="6" r="2"/><path d="m6.5 15.5 4-7.5M17.5 15.5l-4-7.5"/>'),
-  env: svgIcon('<path d="M12 21v-5"/><path d="m12 3-6 9h3l-3 4h12l-3-4h3z"/>'),
-  terrain: svgIcon('<path d="m3 19 6-9 4 5 3-4 5 8z"/>'),
-  share: svgIcon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/>'),
-  budget: svgIcon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
-};
-
-/** An expandable card in the left pane. */
-const pane = (id: keyof typeof PANE_ICONS, title: string, body: string, extraSummary = "") => `
-    <details class="pane-card" data-pane="${id}">
-      <summary>${PANE_ICONS[id]}<span class="pane-title">${title}</span>${extraSummary}</summary>
-      <div class="pane-body">${body}</div>
-    </details>`;
 
 const template = `
   <div class="lb-shell floating">
-  <button type="button" class="side-toggle" data-side="left" aria-expanded="true" aria-label="Hide the settings pane"></button>
-  <button type="button" class="side-toggle" data-side="right" aria-expanded="true" aria-label="Hide the link budget"></button>
+  ${sideToggles("link budget")}
   <div class="lb-left">
-    ${pane("tx", "Transmitter", `
+    ${pane("tx", "tx", "Transmitter", `
       <div class="fields">
         <label>Name
           <input name="txName" type="text" autocomplete="off" maxlength="40" placeholder="Site A" />
@@ -176,7 +159,7 @@ const template = `
         ${numberField("Sensitivity", "txSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
       </div>`)}
 
-    ${pane("rx", "Receiver", `
+    ${pane("rx", "rx", "Receiver", `
       <div class="fields">
         <label>Name
           <input name="rxName" type="text" autocomplete="off" maxlength="40" placeholder="Site B" />
@@ -191,7 +174,7 @@ const template = `
         ${numberField("Fade margin wanted", "fadeMargin", "dB", 'min="0" title="Used for the max range"')}
       </div>`)}
 
-    ${pane("relay", "Relay", `
+    ${pane("relay", "relay", "Relay", `
       <div class="pane-slot" data-slot="relay"></div>
       <div class="relay-radio" data-card="relay" hidden>
       <div class="fields">
@@ -206,7 +189,7 @@ const template = `
       </div>
       </div>`)}
 
-    ${pane("env", "Environment", `
+    ${pane("env", "env", "Environment", `
       <div class="fields">
         <label class="wide">Environment
           <select name="environment">${environmentOptions()}</select>
@@ -223,9 +206,9 @@ const template = `
       <p class="callout" data-out="geoWarn" hidden></p>
       <p class="callout" data-out="hfPath" hidden>${hfWarning}</p>`)}
 
-    ${pane("terrain", "Terrain profile", `<div class="pane-slot" data-slot="profile"></div>`, '<span class="pane-pill" data-slot="pill"></span>')}
+    ${pane("terrain", "terrain", "Terrain profile", `<div class="pane-slot" data-slot="profile"></div>`, '<span class="pane-pill" data-slot="pill"></span>')}
 
-    ${pane("share", "Share", `<div class="pane-slot" data-slot="share"></div>`)}
+    ${pane("share", "share", "Share", `<div class="pane-slot" data-slot="share"></div>`)}
   </div>
 
   <div class="lb-map" data-slot="map"></div>
@@ -456,98 +439,15 @@ export const linkBudgetCalculator: Calculator = {
     for (const [name, part] of Object.entries(terrain.parts)) form.querySelector(`[data-slot="${name}"]`)!.append(part);
     const profilePill = terrain.parts.profile.querySelector(".pill");
     if (profilePill) form.querySelector('[data-slot="pill"]')!.append(profilePill);
-    // Which cards are open is remembered on this device.
-    const panes = [...form.querySelectorAll<HTMLDetailsElement>("details.pane-card")];
-    const openPanes = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(PANES_KEY) ?? "null") as Record<string, boolean> | null;
-      } catch {
-        return null;
-      }
-    })() ?? {};
-    for (const p of panes) {
-      p.open = !!openPanes[p.dataset.pane!];
-      p.addEventListener("toggle", () => {
-        openPanes[p.dataset.pane!] = p.open;
-        try {
-          localStorage.setItem(PANES_KEY, JSON.stringify(openPanes));
-        } catch {
-          // Storage blocked: the cards open as they started next time.
-        }
-        // The profile is drawn to its card's width, which is zero while closed.
-        if (p.open && p.dataset.pane === "terrain") terrain.redraw();
-      });
-    }
-    // Either side pane folds away to give the map the room; remembered here.
-    const sides = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(SIDES_KEY) ?? "{}") as Record<string, boolean>;
-      } catch {
-        return {};
-      }
-    })();
-    const syncSides = () => {
-      for (const side of ["left", "right"]) {
-        const closed = !!sides[side];
-        form.querySelector(".lb-shell")!.classList.toggle(`${side}-closed`, closed);
-        const b = form.querySelector<HTMLButtonElement>(`.side-toggle[data-side="${side}"]`)!;
-        b.setAttribute("aria-expanded", String(!closed));
-        b.setAttribute("aria-label", `${closed ? "Show" : "Hide"} the ${side === "left" ? "settings pane" : "link budget"}`);
-      }
-    };
-    for (const b of form.querySelectorAll<HTMLButtonElement>(".side-toggle")) {
-      b.addEventListener("click", () => {
-        sides[b.dataset.side!] = !sides[b.dataset.side!];
-        try {
-          localStorage.setItem(SIDES_KEY, JSON.stringify(sides));
-        } catch {
-          // Storage blocked: just for now.
-        }
-        syncSides();
-      });
-    }
-    syncSides();
-    // With the panes floating on the map, its taskbar, key and messages centre
-    // in the gap between them, and the taskbar drops its labels when that gap
-    // is too narrow for them.
-    const floating = window.matchMedia("(min-width: 1100px)");
-    const fitTaskbar = () => {
-      const shellEl = form.querySelector<HTMLElement>(".lb-shell")!;
-      const bar = form.querySelector<HTMLElement>(".map-taskbar");
-      if (!shellEl.isConnected) return;
-      if (!floating.matches) {
-        shellEl.style.removeProperty("--gap-center");
-        bar?.classList.remove("compact");
-        return;
-      }
-      const box = shellEl.getBoundingClientRect();
-      const left = form.querySelector<HTMLElement>(".lb-left")!.getBoundingClientRect();
-      const right = form.querySelector<HTMLElement>(".lb-right")!.getBoundingClientRect();
-      const from = left.width ? left.right - box.left : 0;
-      const to = right.width ? right.left - box.left : box.width;
-      shellEl.style.setProperty("--gap-center", `${(from + to) / 2}px`);
-      if (!bar) return;
-      bar.classList.remove("compact");
-      if (bar.offsetWidth > to - from - 24) bar.classList.add("compact");
-    };
-    new ResizeObserver(fitTaskbar).observe(form.querySelector(".lb-shell")!);
-    for (const p of panes) p.addEventListener("toggle", fitTaskbar);
-    for (const b of form.querySelectorAll(".side-toggle")) b.addEventListener("click", fitTaskbar);
-    // The taskbar arrives with the map, a moment after the page.
-    const waitForBar = () => {
-      if (form.querySelector(".map-taskbar")) fitTaskbar();
-      else if (form.isConnected) setTimeout(waitForBar, 100);
-    };
-    setTimeout(waitForBar, 0);
-    // The page fills the window below the header, so the map gets all the height.
-    const shell = form.querySelector<HTMLElement>(".lb-shell")!;
-    const fitShell = () => {
-      if (!shell.isConnected) return;
-      shell.style.setProperty("--lb-top", `${Math.max(0, shell.getBoundingClientRect().top + window.scrollY)}px`);
-    };
-    new ResizeObserver(fitShell).observe(document.body);
-    window.addEventListener("resize", fitShell);
-    requestAnimationFrame(fitShell);
+    setupMapFirst(form, {
+      panesKey: PANES_KEY,
+      sidesKey: SIDES_KEY,
+      rightName: "link budget",
+      // The profile is drawn to its card's width, which is zero while closed.
+      onPaneToggle: (id, open) => {
+        if (open && id === "terrain") terrain.redraw();
+      },
+    });
 
     // Land cover at the two pins, when Environment is "Auto (satellite map)".
     let cover: { key: string; ends?: [LandCoverPoint, LandCoverPoint]; error?: string } | undefined;
@@ -1000,9 +900,7 @@ export const linkBudgetCalculator: Calculator = {
         update();
       });
     }
-    // The Simple/Advanced switch heads the left pane.
-    const modeBar = form.querySelector(".mode-bar");
-    if (modeBar) form.querySelector(".lb-left")!.prepend(modeBar);
+    moveModeBar(form);
     return form;
   },
 };

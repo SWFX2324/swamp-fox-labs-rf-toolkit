@@ -12,6 +12,9 @@ import type { Scene3D } from "../lib/scene3d";
 import type { View3D } from "./view3d";
 
 const LAYER_KEY = "rf-toolkit:map-layer";
+/** The data behind terrain and clutter predictions, credited on maps that use it. */
+export const DATA_ATTRIBUTION =
+  "Terrain: Mapzen, USGS · Land cover: Impact Observatory, Microsoft, Esri (CC BY 4.0)";
 export const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 export const SENTINEL_ATTRIBUTION = `<a href="https://cloudless.eox.at">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data ${SENTINEL_YEAR})`;

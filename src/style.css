@@ -1120,3 +1120,16 @@ main:has(.map-first) { max-width: none; }
 /* A long profile tag moves under the title rather than being cut off. */
 .pane-pill .pill { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
 .pane-card > summary .pane-pill { flex: 0 1 auto; min-width: 0; }
+/* Coverage's colour key under the taskbar, like the line key on Link Analysis. */
+.lb-map .map-legend .coverage-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 14px; margin: 0; font-size: 11px; }
+.pane-body .run-row { margin-top: 12px; }
+.lb-map .coverage-map { margin-top: 0; }
+
+/* The key and taskbar sit just above the map's credits line (measured: it wraps with long credits). */
+.lb-map .map-legend { bottom: calc(var(--attr-h, 16px) + 6px); }
+.lb-map .map-taskbar { bottom: calc(var(--attr-h, 16px) + 40px); }
+.lb-map .map-legend .coverage-legend { flex-direction: row; align-items: center; }
+@media (max-width: 600px) {
+  /* No key on a phone: the taskbar sits right above the credits. */
+  .lb-map .map-taskbar { bottom: calc(var(--attr-h, 16px) + 10px); }
+}

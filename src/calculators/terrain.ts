@@ -3,12 +3,12 @@
 // and how well the path clears it.
 
 import * as L from "leaflet";
-import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView, DATA_ATTRIBUTION } from "./mapKit";
 import type { EditField, Link3D, Point3D } from "../lib/scene3d";
 import type { RelaySurface } from "../lib/relay";
 import { type RelayFinderInputs, findRelay, surfaceImage } from "./relayFinder";
 import { type ExportPoint, buildKml, buildZip } from "../lib/export";
-import { IMPORT_ACCEPT, NO_POINTS, downloadFile } from "./planBar";
+import { IMPORT_ACCEPT, NO_POINTS, SHARE_ICONS, downloadFile } from "./planBar";
 import { buildDataPackage, importPoints } from "../lib/tak";
 import { drawLinkLine, linkLegend } from "./linkLine";
 import { type LinkQuality, linkLineLabels, linkLineStyle } from "../lib/linkLines";
@@ -114,13 +114,7 @@ const losNote =
 // map in the middle, each site's location in its own card, and so on.
 export type TerrainPart = "map" | "tx" | "rx" | "relay" | "profile" | "share";
 
-const shareIcon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-const SHARE_ICONS = {
-  tak: shareIcon('<path d="M12 21s-7-6.3-7-12a7 7 0 0 1 14 0c0 5.7-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>'),
-  earth: shareIcon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
-  file: shareIcon('<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M12 11v6M9 14l3 3 3-3"/>'),
-  link: shareIcon('<path d="M21 12a8 8 0 0 1-11.6 7.2L4 21l1.8-5.4A8 8 0 1 1 21 12z"/>'),
-};
+
 
 const template = `
   <div class="terrain-part" data-part="map">
@@ -507,6 +501,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
       else if (tx) m.setView([tx.lat, tx.lon], 11);
       else showDefaultView(m);
     }, { taskbar: true });
+    map.attributionControl.addAttribution(DATA_ATTRIBUTION);
     map.on("click", (e: L.LeafletMouseEvent) => {
       const at = { lat: e.latlng.lat, lon: e.latlng.lng };
       if (placingRelay) {

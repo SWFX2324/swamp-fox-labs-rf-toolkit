@@ -6,7 +6,7 @@ import { enhanceFields } from "./fieldHelp";
 import { locateButton, locateMe } from "./locate";
 import { coverageGuide } from "./helpText";
 import * as L from "leaflet";
-import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView } from "./mapKit";
+import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView, DATA_ATTRIBUTION } from "./mapKit";
 import type { Calculator } from ".";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import {
@@ -26,21 +26,22 @@ import {
 } from "../lib/coverage";
 import { type Beam, beam, patterns } from "../lib/pattern";
 import { type PlanNode, sanitizePlan } from "../lib/plans";
-import { AUTO_ENVIRONMENT, LAND_COVER_CREDIT, LandCoverGrid, type LandCoverPoint, describePoint, landCoverNames } from "../lib/landCover";
+import { AUTO_ENVIRONMENT, LandCoverGrid, type LandCoverPoint } from "../lib/landCover";
 import { loadLandCover } from "./landCoverTiles";
-import { createReadingsCard } from "./readingsCard";
 import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM } from "../lib/geo";
 import { EARTH_RADIUS_M } from "../lib/horizon";
 import { compassPoint } from "../lib/satPointing";
 import { ElevationGrid, chooseZoom, tilesCovering } from "../lib/terrainTiles";
 import { type OverlayBounds, buildOverlayKml, buildZip, fileName } from "../lib/export";
 import { type Environment, clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
-import { applySettings, createPlanBar, pngBytes } from "./planBar";
+import { applySettings, createPlanCard, pngBytes } from "./planBar";
+import { PANE_ICONS, moveModeBar, pane, setupMapFirst, sideToggles } from "./mapFirst";
 import { RADIO_FILE, radioIconFile, radioMarker } from "./radioIcon";
-import { bindTreeField, environmentNote, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
-import { globalK, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { bindTreeField, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
+import { globalK, readModel } from "./modelFields";
+import { climates, grounds } from "../lib/propagation";
 import { tabStateToSave, tabValues } from "../lib/appSettings";
-import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
+import { deratedSensitivity, fallbackEnvironment, getSettings, setSettings, sharedFields } from "./settingsStore";
 import { loadTiles } from "./tileElevation";
 import type { EditField } from "../lib/scene3d";
 import { type RadioPreset, type Rung, formatRate, ladder, rateAt } from "../lib/radioPresets";
@@ -59,6 +60,9 @@ import {
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:coverage";
+// Cards start closed; these remember which are open and which side panes are folded.
+const PANES_KEY = "rf-toolkit:coverage-panes";
+const SIDES_KEY = "rf-toolkit:coverage-sides";
 
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
@@ -88,7 +92,6 @@ const legacyDefaults: Record<string, string> = {
   fade: "10",
   environment: "none",
   treeHeight: "",
-  ...modelDefaults,
   radius: "6",
   radiusUnit: "mi",
   detail: "standard",
@@ -111,68 +114,17 @@ function numberField(label: string, name: string, unit: string, attrs = ""): str
 }
 
 const template = `
-  <div class="inputs">
-    <section class="card">
-      <div class="card-head"><h2>Radios</h2><span class="meta">Changes recalculate instantly</span></div>
+  <div class="lb-shell floating">
+  ${sideToggles("coverage results")}
+  <div class="lb-left">
+    ${pane("tx", "tx", "Transmitter", `
       <div class="fields">
-        <label class="wide">Site A
+        <label class="wide">Radio
           <span class="preset-pick">
             <select name="sitePreset"></select>
             <button type="button" class="secondary" data-action="presets">Manage presets</button>
           </span>
         </label>
-        <label class="wide">Site B
-          <select name="rxPreset"></select>
-        </label>
-        <label>Frequency
-          <span class="input-unit">
-            <input name="freq" type="number" inputmode="decimal" step="any" min="0" />
-            <select name="freqUnit">${Object.keys(frequencyUnits).map((u) => `<option>${u}</option>`).join("")}</select>
-          </span>
-        </label>
-        <label>Site A TX power
-          <span class="input-unit">
-            <input name="power" type="number" inputmode="decimal" step="any" />
-            <select name="powerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
-          </span>
-        </label>
-        ${numberField("Site A antenna gain", "txGain", "dBi")}
-        <label>Site A antenna pattern
-          <select name="txPattern">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select>
-        </label>
-        <label data-show="txAim">Site A antenna points
-          <span class="input-unit">
-            <input name="txAzimuth" type="number" inputmode="decimal" step="any" min="0" max="360" />
-            <span class="unit">° true</span>
-          </span>
-        </label>
-        ${numberField("Site A downtilt", "txTilt", "°", 'min="-30" max="30"')}
-        ${numberField("Site A cable loss", "txCable", "dB", 'min="0"')}
-        <label>Site A antenna height
-          <span class="input-unit">
-            <input name="txHeight" type="number" inputmode="decimal" step="any" min="0" />
-            <select name="heightUnit"><option>ft</option><option>m</option></select>
-          </span>
-        </label>
-        ${numberField("Site A RX sensitivity", "siteSens", "dBm")}
-        ${numberField("Site B antenna height", "rxHeight", "", 'min="0" title="About 5 ft for a handheld, 8 ft on a vehicle"')}
-        ${numberField("Site B antenna gain", "rxGain", "dBi")}
-        ${numberField("Site B cable loss", "rxCable", "dB", 'min="0"')}
-        <label>Site B TX power
-          <span class="input-unit">
-            <input name="rxPower" type="number" inputmode="decimal" step="any" />
-            <select name="rxPowerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
-          </span>
-        </label>
-        ${numberField("Site B RX sensitivity", "sens", "dBm")}
-        ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-head"><h2>Sites</h2><span class="meta">Transmitters or repeaters</span></div>
-      <div class="fields">
-        <div class="field-group-head" role="heading" aria-level="3">Site A</div>
         <label>Name
           <input name="siteName" type="text" autocomplete="off" maxlength="40" placeholder="Site A" />
         </label>
@@ -182,65 +134,129 @@ const template = `
             ${locateButton('data-action="locate"')}
           </span>
         </label>
-        <div class="extra-sites" data-out="extraSites"></div>
-        <div class="add-site-row">
-          <button type="button" class="secondary" data-action="addSite">Add site</button>
-          <span class="note" data-out="addNote"></span>
-        </div>
-        <div class="field-group-head" role="heading" aria-level="3">Mapping <span class="meta">For every site</span></div>
+        <label>Frequency
+          <span class="input-unit">
+            <input name="freq" type="number" inputmode="decimal" step="any" min="0" />
+            <select name="freqUnit">${Object.keys(frequencyUnits).map((u) => `<option>${u}</option>`).join("")}</select>
+          </span>
+        </label>
+        <label>TX power
+          <span class="input-unit">
+            <input name="power" type="number" inputmode="decimal" step="any" />
+            <select name="powerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
+          </span>
+        </label>
+        ${numberField("Antenna gain", "txGain", "dBi")}
+        <label>Antenna pattern
+          <select name="txPattern">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select>
+        </label>
+        <label data-show="txAim">Antenna points
+          <span class="input-unit">
+            <input name="txAzimuth" type="number" inputmode="decimal" step="any" min="0" max="360" />
+            <span class="unit">° true</span>
+          </span>
+        </label>
+        ${numberField("Downtilt", "txTilt", "°", 'min="-30" max="30"')}
+        ${numberField("Cable loss", "txCable", "dB", 'min="0"')}
+        <label>Antenna height
+          <span class="input-unit">
+            <input name="txHeight" type="number" inputmode="decimal" step="any" min="0" />
+            <select name="heightUnit"><option>ft</option><option>m</option></select>
+          </span>
+        </label>
+        ${numberField("RX sensitivity", "siteSens", "dBm")}
+      </div>`)}
+
+    ${pane("rx", "rx", "Receiver", `
+      <div class="fields">
+        <label class="wide">Radio
+          <select name="rxPreset"></select>
+        </label>
+        ${numberField("Antenna height", "rxHeight", "", 'min="0" title="About 5 ft for a handheld, 8 ft on a vehicle"')}
+        ${numberField("Antenna gain", "rxGain", "dBi")}
+        ${numberField("Cable loss", "rxCable", "dB", 'min="0"')}
+        <label>TX power
+          <span class="input-unit">
+            <input name="rxPower" type="number" inputmode="decimal" step="any" />
+            <select name="rxPowerUnit">${powerUnits.map((u) => `<option>${u}</option>`).join("")}</select>
+          </span>
+        </label>
+        ${numberField("RX sensitivity", "sens", "dBm")}
+        ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
+      </div>`)}
+
+    ${pane("sites", "sites", "Additional transmitters", `
+      <div class="extra-sites" data-out="extraSites"></div>
+      <div class="add-site-row">
+        <button type="button" class="secondary" data-action="addSite">Add site</button>
+        <span class="note" data-out="addNote"></span>
+      </div>`)}
+
+    ${pane("env", "env", "Environment", `
+      <div class="fields">
+        <label class="wide">Environment
+          <select name="environment">${environmentOptions()}</select>
+        </label>
+        <label>Climate
+          <select name="climate">${climates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select>
+        </label>
+        <label>Ground type
+          <select name="ground">${grounds.map((g) => `<option value="${g.id}">${g.name}</option>`).join("")}</select>
+        </label>
+        ${treeHeightFieldHtml()}
+      </div>`)}
+
+    ${pane("mapping", "mapping", "Mapping", `
+      <div class="fields">
         <label>Radius
           <span class="input-unit">
             <input name="radius" type="number" inputmode="decimal" step="any" min="0.5" max="80" />
             <select name="radiusUnit"><option>mi</option><option>km</option></select>
           </span>
         </label>
-        <label>Environment
-          <select name="environment">${environmentOptions()}</select>
-        </label>
-        ${treeHeightFieldHtml()}
         <label>Detail
           <select name="detail">${Object.entries(detailLevels).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select>
         </label>
-        ${modelFieldsHtml()}
-      </div>
-      <div class="run-row">
-        <button type="button" data-action="run">Map coverage</button>
-        <span class="note" data-out="status"></span>
-      </div>
-      <div class="map coverage-map" data-out="map"></div>
-      <div class="legend coverage-legend">
-        <span class="key"><span class="sw cov-strong"></span>Strong (fade margin +10 dB)</span>
-        <span class="key"><span class="sw cov-solid"></span>Solid (meets fade margin)</span>
-        <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
-      </div>
-      <p class="note">Tap the map to place Site A, then drag a pin to move a site. Add site places another, mapped with the same radius; each point is shaded for its best site. Once mapped, tap anywhere to read the margin there.</p>
-    </section>
+      </div>`)}
+
+    ${pane("share", "share", "Share", `<div class="pane-slot" data-slot="share"></div>`)}
   </div>
 
-  <aside class="results">
+  <div class="lb-map">
+    <div class="map coverage-map" data-out="map"></div>
+    <div class="map-legend">
+      <div class="legend coverage-legend">
+        <span class="key"><span class="sw cov-strong"></span>Strong</span>
+        <span class="key"><span class="sw cov-solid"></span>Solid</span>
+        <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
+      </div>
+    </div>
+  </div>
+
+  <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
-        <h2>Coverage</h2>
+        <h2 class="with-icon">${PANE_ICONS.mapping}Coverage</h2>
         <span class="pill" data-out="pill" hidden></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
-      <p class="note" data-out="empty">Place Site A, set the radius and press Map coverage.</p>
-      <p class="callout" data-out="stale" hidden>A site, the radius or the detail changed. Press Map coverage to update.</p>
+      <div class="run-row">
+        <button type="button" data-action="run">Run coverage analysis</button>
+        <span class="note" data-out="status"></span>
+      </div>
+      <p class="note" data-out="empty">Place Site A, set the radius and run the analysis.</p>
+      <p class="callout" data-out="stale" hidden>A site, the radius or the detail changed. Run the coverage analysis to update.</p>
       <div data-out="results" hidden>
         <div class="tiles">
           <div class="tile"><span class="label">Solid coverage</span><span class="value" data-out="solid"></span><span class="sub" data-out="solidSub"></span></div>
           <div class="tile"><span class="label">Marginal</span><span class="value" data-out="marginal"></span><span class="sub">Connects, under the fade margin</span></div>
-          <div class="tile"><span class="label" data-out="farLabel">Farthest solid point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
+          <div class="tile wide-tile"><span class="label" data-out="farLabel">Farthest solid point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
         </div>
         <p class="note" data-out="dirNote" hidden></p>
-        <p class="note" data-out="envNote" hidden></p>
-        <p class="note" data-out="corrNote" hidden></p>
-        <p class="note" data-out="derateNote" hidden></p>
-        <p class="note" data-out="probe"></p>
       </div>
-      <details class="about"><summary>About this calculation</summary><p>Free-space loss plus terrain loss from the Irregular Terrain Model (Longley-Rice) over bare-earth terrain, sampled along radials from each site, at the reliability and confidence you set. Trees and buildings aren't counted unless you pick an Environment. Elevation: Terrain Tiles (Mapzen, AWS Open Data); US data courtesy of the U.S. Geological Survey. ${LAND_COVER_CREDIT}. Tiles you've loaded work offline.</p></details>
     </section>
   </aside>
+  </div>
 `;
 
 /** The defaults now: the built-in ones, with Settings on top for everything Settings covers. */
@@ -248,7 +264,6 @@ function currentDefaults(): Record<string, string> {
   const s = sharedFields();
   return {
     ...legacyDefaults,
-    ...modelFromSettings(),
     // 50 MHz (low VHF) now; old saves left at the former 915 MHz follow it.
     freq: "50",
     freqUnit: "MHz",
@@ -288,25 +303,6 @@ function cssColor(name: string): [number, number, number] {
 }
 
 
-/** What the land-cover map found at the site and across the circle. */
-function landCoverSummary(lc: { site: LandCoverPoint; points: LandCoverPoint[][] }, siteEnv: Environment, freqHz: number, txH: number): string {
-  // Each point stands for a ring sector whose area grows with distance.
-  const area = new Map<number, number>();
-  let total = 0;
-  for (const row of lc.points) {
-    row.forEach((p, k) => {
-      if (k === 0 || p.cls === 0) return;
-      area.set(p.cls, (area.get(p.cls) ?? 0) + k);
-      total += k;
-    });
-  }
-  const top = [...area.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([cls, a]) => `${Math.round((100 * a) / total)}% ${landCoverNames[cls]?.toLowerCase() ?? "other"}`);
-  const siteLoss = clutterLossDb(siteEnv, freqHz, txH);
-  return `From the land-cover map: the site is in ${describePoint(lc.site)}${siteLoss > 0 ? `, adding ${siteLoss.toFixed(1)} dB` : ""}. Across the circle: ${top.join(", ") || "no data"}. Each point is charged for the clutter where it is, and terrain is checked from the clutter tops, or from the antenna itself under trees.`;
-}
 
 /** A site beyond Site A: where it is, its mast, its antenna and its radio. */
 interface ExtraSite {
@@ -389,7 +385,7 @@ export const coverageCalculator: Calculator = {
   render() {
     const form = document.createElement("form");
     const defaults = currentDefaults();
-    form.className = "calculator two-col coverage";
+    form.className = "calculator coverage map-first";
     form.innerHTML = template;
     bindTreeField(form, "heightUnit");
     form.addEventListener("submit", (e) => e.preventDefault());
@@ -524,7 +520,6 @@ export const coverageCalculator: Calculator = {
     let runs: SiteRun[] = [];
     let sampledFor = "";
     let view3d: Control3D | undefined;
-    let coverError = "";
     let running: AbortController | undefined;
     let lastOverlay: { url: string; bounds: OverlayBounds } | undefined;
     let runWhenReady = false;
@@ -586,39 +581,10 @@ export const coverageCalculator: Calculator = {
       form.querySelector<HTMLElement>('[data-show="txAim"]')!.hidden = field("txPattern").value === "omni";
     };
 
-    // The nearest radial point to p in a run, as [radial, step], or undefined outside its circle.
-    const nearestPoint = (run: SiteRun, p: LatLon): [number, number] | undefined => {
-      const s = run.samples;
-      const k = Math.round(distanceBetweenM(s.site, p) / s.stepM);
-      if (k > s.elevations[0].length - 1) return undefined;
-      const n = s.bearings.length;
-      return [Math.round((((bearingDeg(s.site, p) % 360) + 360) % 360) / (360 / n)) % n, k];
-    };
     const siteMargins = (): SiteMargins[] => runs.map((r) => ({ samples: r.samples, margins: r.margins! }));
 
-    const readingsCard = createReadingsCard({
-      site,
-      predict: (p) => {
-        if (!mapped()) return undefined;
-        const best = bestSite(siteMarginsAt(siteMargins(), p));
-        if (!best) return undefined;
-        // Margins include any correction; predictions are compared without it.
-        // Readings are of the best site, heard at the spot: its outbound margin.
-        return best.margin - runs[best.index].offset - readingsCard.correctionDb() + sensitivity();
-      },
-      coverAt: (p) => {
-        if (mapped()) {
-          for (const run of runs) {
-            const at = run.cover ? nearestPoint(run, p) : undefined;
-            if (at) return run.cover!.points[at[0]][at[1]].environment.name;
-          }
-        }
-        const env = findEnvironment(field("environment").value);
-        return autoCover() || env.id === "none" ? undefined : env.name;
-      },
-      map: () => map,
-      onCorrectionChange: () => recompute(),
-    });
+    // Field readings aren't on this page: nothing taken from the map taps, and no correction.
+    const readingsCard = { correctionDb: () => 0, refresh: () => {}, takeMapTap: (_p: LatLon) => false };
 
     const drawOverlay = () => {
       overlay?.remove();
@@ -681,22 +647,15 @@ export const coverageCalculator: Calculator = {
     const syncDirectionNote = (specs: SiteSpec[]) => {
       const note = out("dirNote");
       const apart = specs.map((s, i) => ({ name: s.name, d: runs[i]?.delta ?? 0 })).filter((x) => Number.isFinite(x.d) && Math.abs(x.d) >= 0.1);
+      // Only when the two ways differ: which way limits, and by how much.
       let text = "";
-      if (specs.length === 1 && apart.length) {
-        const gap = Math.abs(apart[0].d);
-        text = apart[0].d < 0
-          ? `Shaded for the weaker way: Site B reaches Site A ${fmt(gap)} dB less well than Site A reaches it, from Site B's transmit power and Site A's sensitivity.`
-          : `Shaded for the weaker way: Site A reaches Site B ${fmt(gap)} dB less well than Site B reaches it, from Site A's transmit power and Site B's sensitivity.`;
+      if (apart.length === 1 && specs.length === 1) {
+        text = apart[0].d < 0 ? `Shaded for the weaker way, back to Site A: ${fmt(-apart[0].d)} dB less.` : `Shaded for the weaker way, out to Site B: ${fmt(apart[0].d)} dB less.`;
       } else if (apart.length === specs.length && apart.every((x) => Math.abs(x.d - apart[0].d) < 0.05)) {
         // Every site the same: say it once.
-        const gap = Math.abs(apart[0].d);
-        text = apart[0].d < 0
-          ? `Shaded for the weaker way: Site B reaches each site ${fmt(gap)} dB less well than the site reaches it, from Site B's transmit power and the sites' sensitivity.`
-          : `Shaded for the weaker way: each site reaches Site B ${fmt(gap)} dB less well than Site B reaches it, from the sites' transmit power and Site B's sensitivity.`;
+        text = apart[0].d < 0 ? `Shaded for the weaker way, back to the sites: ${fmt(-apart[0].d)} dB less.` : `Shaded for the weaker way, out to Site B: ${fmt(apart[0].d)} dB less.`;
       } else if (apart.length) {
-        text = `Shaded for the weaker way at each site: ${apart
-          .map((x) => (x.d < 0 ? `Site B reaches ${x.name} ${fmt(-x.d)} dB less well than ${x.name} reaches it` : `${x.name} reaches Site B ${fmt(x.d)} dB less well than Site B reaches it`))
-          .join("; ")}.`;
+        text = `Shaded for the weaker way at each site (${apart.map((x) => `${x.name} ${fmt(Math.abs(x.d))} dB`).join(", ")}).`;
       }
       note.textContent = text;
       note.hidden = !text;
@@ -782,19 +741,6 @@ export const coverageCalculator: Calculator = {
       syncDirectionNote(specs);
 
       const first = runs[0];
-      const lc = autoCover() ? first.cover : undefined;
-      out("envNote").hidden = env.id === "none" && !autoCover();
-      out("envNote").textContent = lc
-        ? landCoverSummary(lc, trees(lc.site.environment), freqHz, specs[0].heightM)
-        : autoCover()
-          ? coverError
-            ? `Couldn't read the land-cover map (${coverError}), so ${env.name} is used everywhere instead (the land-cover fallback in Settings). Press Map coverage to try again.`
-            : `The land-cover map isn't loaded for this area yet, so ${env.name} is used everywhere (the land-cover fallback in Settings). Press Map coverage to read it.`
-          : environmentNote(env, freqHz, specs[0].heightM, rxH);
-      out("corrNote").hidden = correction === 0;
-      out("derateNote").textContent = derateNote();
-      out("derateNote").hidden = !derateNote();
-      out("corrNote").textContent = `Corrected by ${correction > 0 ? "+" : ""}${fmt(correction)} dB, the average error of your field readings.`;
 
       const fade = num("fade") || 0;
       const unit: DistanceUnit = field("radiusUnit").value === "mi" ? "mi" : "km";
@@ -871,7 +817,6 @@ export const coverageCalculator: Calculator = {
       }
       if (controller.signal.aborted) return;
       let coverGrid: LandCoverGrid | undefined;
-      coverError = "";
       if (autoCover()) {
         coverGrid = new LandCoverGrid(z);
         try {
@@ -882,7 +827,6 @@ export const coverageCalculator: Calculator = {
         } catch (err) {
           if (controller.signal.aborted) return;
           coverGrid = undefined;
-          coverError = navigator.onLine ? (err as Error).message : "no connection, and this area isn't saved";
         }
       }
       if (controller.signal.aborted) return;
@@ -1019,7 +963,6 @@ export const coverageCalculator: Calculator = {
       sampledFor = "";
       lastOverlay = undefined;
       map?.closePopup();
-      out("probe").textContent = "";
       field("site").value = "";
       extras = [];
       placing = false;
@@ -1040,7 +983,8 @@ export const coverageCalculator: Calculator = {
           m.fitBounds(bounds, { padding: [10, 10] });
         } else if (here) m.setView([here.lat, here.lon], 11);
         else showDefaultView(m);
-      });
+      }, { taskbar: true });
+      map.attributionControl.addAttribution(DATA_ATTRIBUTION);
       clearControl = addClearControl(map, "the sites and coverage", clearCoverage);
       // A field the Radios card shows (not set by a preset, or unused).
       const shown = (name: string) => !field(name).closest("label")!.hidden;
@@ -1143,7 +1087,6 @@ export const coverageCalculator: Calculator = {
           const unit: DistanceUnit = field("radiusUnit").value === "mi" ? "mi" : "km";
           if (!best) {
             L.popup({ className: "coverage-popup" }).setLatLng(e.latlng).setContent("<b>Outside the mapped circles</b>").openOn(map!);
-            out("probe").textContent = "";
             return;
           }
           const bestRun = runs[best.index];
@@ -1178,7 +1121,6 @@ export const coverageCalculator: Calculator = {
             .setLatLng(e.latlng)
             .setContent(`<b>${escapeHtml(lead + text)}</b><br>${escapeHtml(where)}${alsoText ? `<br>${escapeHtml(alsoText)}` : ""}`)
             .openOn(map!);
-          out("probe").textContent = `Tapped point: ${lead}${text}, ${where}.${alsoText ? ` ${alsoText}` : ""}`;
           return;
         }
         // Only an empty Site A is placed by tapping: a stray tap while panning
@@ -1310,8 +1252,8 @@ export const coverageCalculator: Calculator = {
     syncPattern();
 
     recompute();
-    out("map").closest(".card")!.append(
-      createPlanBar({
+    form.querySelector('[data-slot="share"]')!.append(
+      createPlanCard({
         toolId: "coverage",
         settingNames: Object.keys(defaults),
         getPlan: () => {
@@ -1362,7 +1304,7 @@ export const coverageCalculator: Calculator = {
           else runWhenReady = true;
         },
         buildExport: (name) => {
-          if (!mapped() || !lastOverlay) return "Press Map coverage first.";
+          if (!mapped() || !lastOverlay) return "Run the coverage analysis first.";
           const points = siteSpecs().map((s) => ({ name: s.name, lat: s.at.lat, lon: s.at.lon }));
           const kml = buildOverlayKml(`${name} coverage`, "coverage.png", lastOverlay.bounds, points, RADIO_FILE);
           const encoder = new TextEncoder();
@@ -1392,13 +1334,26 @@ export const coverageCalculator: Calculator = {
           placeSites(true);
           const left = points.length - used;
           return used
-            ? `Added ${used} site${used === 1 ? "" : "s"} from the file${left ? `; ${left} more didn't fit (up to ${MAX_EXTRA_SITES + 1} sites)` : ""}. Press Map coverage to map them.`
+            ? `Added ${used} site${used === 1 ? "" : "s"} from the file${left ? `; ${left} more didn't fit (up to ${MAX_EXTRA_SITES + 1} sites)` : ""}. Run the coverage analysis to map them.`
             : `No room for more sites (up to ${MAX_EXTRA_SITES + 1}). Remove one first.`;
         },
       }),
     );
-    form.querySelector(".results")!.append(readingsCard.element);
     enhanceFields(form, coverageGuide, defaults);
+    moveModeBar(form);
+    setupMapFirst(form, { panesKey: PANES_KEY, sidesKey: SIDES_KEY, rightName: "coverage results" });
+    // Climate and ground type are global: shown here, kept in Settings, so a
+    // change here applies on every tab.
+    const climateSel = field("climate") as HTMLSelectElement;
+    const groundSel = field("ground") as HTMLSelectElement;
+    climateSel.value = getSettings().climate;
+    groundSel.value = getSettings().ground;
+    for (const sel of [climateSel, groundSel]) {
+      sel.addEventListener("change", () => {
+        setSettings({ ...getSettings(), climate: climateSel.value, ground: groundSel.value });
+        inputsChanged();
+      });
+    }
     return form;
   },
 };

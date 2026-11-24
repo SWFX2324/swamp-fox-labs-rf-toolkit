@@ -63,6 +63,15 @@ export const exportChoiceHtml = (attr: string) => `
       <p class="note">KMZ opens in Google Earth and TAK as an overlay. A TAK data package imports into ATAK, WinTAK or iTAK in one step, with each site as a marker.</p>
     </div>`;
 
+const shareIcon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+/** Plain icons for the Share card's choices: generic, no product logos. */
+export const SHARE_ICONS = {
+  tak: shareIcon('<path d="M12 21s-7-6.3-7-12a7 7 0 0 1 14 0c0 5.7-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>'),
+  earth: shareIcon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+  file: shareIcon('<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M12 11v6M9 14l3 3 3-3"/>'),
+  link: shareIcon('<path d="M21 12a8 8 0 0 1-11.6 7.2L4 21l1.8-5.4A8 8 0 1 1 21 12z"/>'),
+};
+
 /** What the file picker for Import takes. */
 export const IMPORT_ACCEPT = ".kml,.kmz,.zip,.cot,.xml";
 /** Said when an imported file has no points. */
@@ -245,4 +254,157 @@ export function createPlanBar(o: PlanBarOptions): HTMLElement {
     }
   }
   return bar;
+}
+
+/**
+ * The Share card for a map-first page: export to TAK or Google Earth, send a
+ * link, import from a file, and the saved plans, in the same plain style as
+ * the Link Analysis Share card. Opens a plan arriving by share link, too.
+ */
+export function createPlanCard(o: PlanBarOptions): HTMLElement {
+  const store = createPlanStore(storage, o.toolId, o.settingNames);
+  const card = document.createElement("div");
+  card.className = "plan-card";
+  card.innerHTML = `
+    <h3 class="share-head">Export</h3>
+    <div class="share-grid">
+      <button type="button" class="share-choice" data-p="tak">${SHARE_ICONS.tak}TAK</button>
+      <button type="button" class="share-choice" data-p="kmz">${SHARE_ICONS.earth}Google Earth</button>
+      <button type="button" class="share-choice" data-p="link">${SHARE_ICONS.link}Send link</button>
+    </div>
+    <h3 class="share-head">Import</h3>
+    <div class="share-grid">
+      <button type="button" class="share-choice" data-p="import" title="KML, KMZ, CoT or a TAK data package">${SHARE_ICONS.file}From file</button>
+    </div>
+    <input type="file" data-p="file" accept="${IMPORT_ACCEPT}" hidden />
+    <h3 class="share-head">Saved plans</h3>
+    <ul class="saved-list" data-p="list"></ul>
+    <div class="save-row">
+      <input data-p="name" type="text" placeholder="Name this plan" autocomplete="off" aria-label="Name for the saved plan" />
+      <button type="button" class="secondary" data-p="save">Save</button>
+    </div>
+    <p class="note plan-status" data-p="status" role="status"></p>`;
+  const el = <T extends HTMLElement>(name: string) => card.querySelector<T>(`[data-p="${name}"]`)!;
+  const nameInput = el<HTMLInputElement>("name");
+  const status = (text: string) => {
+    el("status").textContent = text;
+  };
+  // These controls aren't part of the plan, so keep them from recalculating it.
+  for (const type of ["input", "change"]) card.addEventListener(type, (e) => e.stopPropagation());
+
+  const list = () => {
+    const plans = store.list();
+    // Names are user text, so they're set as text.
+    el("list").replaceChildren(
+      ...plans.map((p) => {
+        const li = document.createElement("li");
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "saved-open";
+        open.textContent = p.name;
+        open.addEventListener("click", () => {
+          nameInput.value = p.name;
+          o.applyPlan(p);
+          status(`Opened "${p.name}".`);
+        });
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "secondary icon-btn saved-del";
+        del.textContent = "✕";
+        del.setAttribute("aria-label", `Delete ${p.name}`);
+        del.addEventListener("click", () => {
+          if (!confirm(`Delete the saved plan "${p.name}"?`)) return;
+          store.remove(p.name);
+          list();
+          status(`Deleted "${p.name}".`);
+        });
+        li.append(open, del);
+        return li;
+      }),
+    );
+  };
+  list();
+  const save = () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      status("Give the plan a name first.");
+      nameInput.focus();
+      return;
+    }
+    if (!store.save(name, o.getPlan())) {
+      status("This browser wouldn't save it. Storage may be full or blocked.");
+      return;
+    }
+    list();
+    status(`Saved "${name}".`);
+  };
+  el("save").addEventListener("click", save);
+  nameInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    save();
+  });
+
+  const exportAs = (tak: boolean) => {
+    const name = nameInput.value.trim() || o.toolId;
+    const file = o.buildExport(name);
+    if (typeof file === "string") {
+      status(file);
+      return;
+    }
+    if (tak) {
+      downloadFile(fileName(name, "zip"), buildDataPackage(name, [file], o.markers()) as BlobPart, "application/zip");
+      status("Exported. Import the .zip in ATAK, WinTAK or iTAK.");
+    } else {
+      downloadFile(file.name, file.data as BlobPart, "application/vnd.google-earth.kmz");
+      status("Exported. Open it in Google Earth or TAK.");
+    }
+  };
+  el("tak").addEventListener("click", () => exportAs(true));
+  el("kmz").addEventListener("click", () => exportAs(false));
+  // On a phone the share sheet offers Messages, email and the rest; elsewhere the link is copied.
+  el("link").addEventListener("click", async () => {
+    const url = `${location.origin}${location.pathname}#${o.toolId}?plan=${encodePlan(o.getPlan())}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "RF Toolkit plan", url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      status("Link copied. Anyone you send it to sees these locations.");
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      status("Couldn't copy the link automatically in this browser.");
+    }
+  });
+  const fileInput = el<HTMLInputElement>("file");
+  el("import").addEventListener("click", () => {
+    fileInput.value = "";
+    fileInput.click();
+  });
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    status("Reading…");
+    try {
+      const points = await importPoints(file.name, new Uint8Array(await file.arrayBuffer()));
+      status(points.length ? o.onImport(points) : NO_POINTS);
+    } catch {
+      status("That file couldn't be read.");
+    }
+  });
+
+  // A plan arriving by share link.
+  const encoded = planFromHash(location.hash, o.toolId);
+  if (encoded) {
+    const plan = decodePlan(encoded, o.settingNames);
+    history.replaceState(null, "", `#${o.toolId}`);
+    if (plan) {
+      o.applyPlan(plan);
+      status("Opened a shared plan. Save it to keep it.");
+    } else {
+      status("That share link couldn't be read.");
+    }
+  }
+  return card;
 }
