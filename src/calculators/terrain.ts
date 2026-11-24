@@ -8,7 +8,7 @@ import type { EditField, Link3D, Point3D } from "../lib/scene3d";
 import type { RelaySurface } from "../lib/relay";
 import { type RelayFinderInputs, findRelay, surfaceImage } from "./relayFinder";
 import { type ExportPoint, buildKml, buildZip } from "../lib/export";
-import { ICONS, IMPORT_ACCEPT, NO_POINTS, downloadFile, exportChoiceHtml } from "./planBar";
+import { IMPORT_ACCEPT, NO_POINTS, downloadFile } from "./planBar";
 import { buildDataPackage, importPoints } from "../lib/tak";
 import { drawLinkLine, linkLegend } from "./linkLine";
 import { type LinkQuality, linkLineLabels, linkLineStyle } from "../lib/linkLines";
@@ -21,9 +21,7 @@ import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/co
 import { type LatLon, bearingDeg, distanceBetweenM, formatLatLon, parseLatLon, samplePath } from "../lib/geo";
 import { FRESNEL_CLEAR_RATIO, type ProfilePoint, type ProfileResult, type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
 import { type DistanceUnit, fromMetres } from "../lib/units";
-import { STANDARD_K, kFactors } from "../lib/horizon";
-
-const kLabel = (k: number) => kFactors.find((f) => f.k === k)?.id ?? k.toFixed(2);
+import { STANDARD_K } from "../lib/horizon";
 
 const STORAGE_KEY = "rf-toolkit:terrain";
 
@@ -63,6 +61,8 @@ export interface SiteHooks {
   edit(site: SiteId, values: Record<string, string>): void;
   /** A site's name from an imported file. */
   setName(site: SiteId, name: string): void;
+  /** A link that opens this whole link (settings and pins) on another device. */
+  shareUrl(): string;
   /** Everything the relay finder needs, or why it can't run. */
   finderInputs(): RelayFinderInputs | string;
   fadeMarginDb(): number;
@@ -71,7 +71,14 @@ export interface SiteHooks {
 const siteDefaults: Record<SiteId, string> = { tx: "Site A", rx: "Site B", relay: "Relay" };
 
 export interface TerrainCard {
+  /** Every part, before they're placed. */
   element: HTMLElement;
+  /** Each part, to place where it belongs. */
+  parts: Record<TerrainPart, HTMLElement>;
+  /** Draw the profile again at its current width (after its card opens). */
+  redraw(): void;
+  /** Put the pins down, as from a share link. */
+  setPins(p: { tx?: LatLon; rx?: LatLon; relay?: LatLon }): void;
   /** Length of the pinned path in metres, or undefined without both pins. */
   pathDistanceM(): number | undefined;
   /** Both pins, when both are down. */
@@ -103,73 +110,86 @@ const statusText: Record<ProfileStatus, [string, string]> = {
 const losNote =
   "Line of sight only. The extra loss from this terrain is already counted in the link budget, so go by the budget's verdict: a link can still work over a ridge, by diffraction, if the margin holds.";
 
+// The card's pieces, each placed by the Link Analysis where it belongs: the
+// map in the middle, each site's location in its own card, and so on.
+export type TerrainPart = "map" | "tx" | "rx" | "relay" | "profile" | "share";
+
+const shareIcon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const SHARE_ICONS = {
+  tak: shareIcon('<path d="M12 21s-7-6.3-7-12a7 7 0 0 1 14 0c0 5.7-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>'),
+  earth: shareIcon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+  file: shareIcon('<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M12 11v6M9 14l3 3 3-3"/>'),
+  link: shareIcon('<path d="M21 12a8 8 0 0 1-11.6 7.2L4 21l1.8-5.4A8 8 0 1 1 21 12z"/>'),
+};
+
 const template = `
-  <div class="card-head">
-    <h2>Terrain profile</h2>
-    <span class="pill" data-t="pill" hidden></span>
-    <button type="button" class="secondary" data-t="toggle" aria-expanded="false">Show</button>
+  <div class="terrain-part" data-part="map">
+    <div class="map" data-t="map"></div>
+    <p class="map-status" data-t="status" role="status"></p>
+    <div class="map-legend" data-t="legend"></div>
   </div>
-  <div class="terrain-body" data-t="body" hidden>
-  <p class="note top">Tap the map for Site A, then Site B. Drag a pin to move it. To bridge a weak link, add a relay: place it yourself or let the app find the best spot.</p>
-  <div class="map" data-t="map"></div>
-  <div data-t="legend"></div>
-  <div class="fields coords">
-    <label>Site A location
+  <div class="terrain-part fields" data-part="tx">
+    <label class="wide">Location
       <span class="input-unit">
         <input name="txLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         ${locateButton('data-t="locate"')}
       </span>
     </label>
-    <label>Site B location
+  </div>
+  <div class="terrain-part fields" data-part="rx">
+    <label class="wide">Location
       <input name="rxLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
     </label>
-    <label data-t="relayLocWrap" hidden>Relay location
-      <input name="relayLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-    </label>
   </div>
-  <div class="relay-actions">
-    <button type="button" class="secondary" data-t="addRelay">Place relay</button>
-    <button type="button" class="secondary" data-t="findRelay">Find relay spot</button>
-    <button type="button" class="secondary" data-t="removeRelay" hidden>Remove relay</button>
-  </div>
-  <div class="legend relay-legend" data-t="relayLegend" hidden>
-    <span class="key"><span class="sw cov-strong"></span>Relay: strong</span>
-    <span class="key"><span class="sw cov-solid"></span>Solid</span>
-    <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
-    <span class="relay-legend-note">Where a relay would close both hops</span>
-  </div>
-  <p class="note" data-t="status"></p>
-  <div class="dir-switch profile-view" data-t="viewWrap" hidden>
-    <span class="note">Profile</span>
-    <div class="seg" role="group" aria-label="Profile shown">
-      <button type="button" data-view="relay">Via relay</button>
-      <button type="button" data-view="direct">Direct</button>
+  <div class="terrain-part" data-part="relay">
+    <div class="relay-actions">
+      <button type="button" class="secondary" data-t="addRelay">Place relay</button>
+      <button type="button" class="secondary" data-t="findRelay">Recommend relay spot</button>
+      <button type="button" class="secondary" data-t="removeRelay" hidden>Remove relay</button>
+    </div>
+    <div class="legend relay-legend" data-t="relayLegend" hidden>
+      <span class="key"><span class="sw cov-strong"></span>Relay: strong</span>
+      <span class="key"><span class="sw cov-solid"></span>Solid</span>
+      <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
+      <span class="relay-legend-note">Where a relay would close both hops</span>
+    </div>
+    <div class="fields" data-t="relayLocWrap" hidden>
+      <label class="wide">Location
+        <input name="relayLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+      </label>
     </div>
   </div>
-  <div class="profile-chart" data-t="chart" hidden></div>
-  <p class="note" data-t="losNote" hidden></p>
-  <table class="ledger geometry" data-t="facts" hidden><tbody></tbody></table>
-  <div class="plan-actions terrain-plan">
-    <button type="button" class="plan-btn" data-t="export" aria-expanded="false">${ICONS.export}Export</button>
-    <button type="button" class="plan-btn" data-t="import">${ICONS.import}Import</button>
+  <div class="terrain-part" data-part="profile">
+    <span class="pill" data-t="pill" hidden></span>
+    <p class="note" data-t="hint">Tap the map for Site A, then Site B, to see the ground between them. Drag a pin to move it.</p>
+    <div class="dir-switch profile-view" data-t="viewWrap" hidden>
+      <span class="note">Profile</span>
+      <div class="seg" role="group" aria-label="Profile shown">
+        <button type="button" data-view="relay">Via relay</button>
+        <button type="button" data-view="direct">Direct</button>
+      </div>
+    </div>
+    <div class="profile-chart" data-t="chart" hidden></div>
+    <div class="profile-stats" data-t="facts" hidden></div>
+  </div>
+  <div class="terrain-part" data-part="share">
+    <h3 class="share-head">Export</h3>
+    <div class="share-grid">
+      <button type="button" class="share-choice" data-t="exportTak">${SHARE_ICONS.tak}TAK</button>
+      <button type="button" class="share-choice" data-t="exportKmz">${SHARE_ICONS.earth}Google Earth</button>
+      <button type="button" class="share-choice" data-t="sendLink">${SHARE_ICONS.link}Send link</button>
+    </div>
+    <h3 class="share-head">Import</h3>
+    <div class="share-grid">
+      <button type="button" class="share-choice" data-t="import" title="KML, KMZ, CoT or a TAK data package">${SHARE_ICONS.file}From file</button>
+    </div>
     <input type="file" data-t="file" accept="${IMPORT_ACCEPT}" hidden />
-  </div>
-  ${exportChoiceHtml("data-t")}
-  <div class="fields saved-paths">
-    <label>Saved paths
-      <span class="input-unit">
-        <select data-t="savedList"></select>
-        <button type="button" class="secondary unit-btn" data-t="delete">Delete</button>
-      </span>
-    </label>
-    <label>Save this path as
-      <span class="input-unit">
-        <input data-t="saveName" type="text" placeholder="Ridge to base camp" autocomplete="off" />
-        <button type="button" class="secondary unit-btn" data-t="save">Save</button>
-      </span>
-    </label>
-  </div>
-  <details class="about"><summary>About this calculation</summary><p>Terrain loss uses the Irregular Terrain Model (Longley-Rice), ported from NTIA's reference code: it covers line of sight, diffraction over terrain and troposcatter beyond the horizon, from 20 MHz to 20 GHz. Above 20 GHz it falls back to the Bullington method of ITU-R P.526-16. Elevation: Terrain Tiles (Mapzen, AWS Open Data), bare earth at up to about 30 m; US data courtesy of the U.S. Geological Survey. Saved and recent paths work offline, as do areas you've viewed before.</p></details>
+    <h3 class="share-head">Saved paths</h3>
+    <ul class="saved-list" data-t="savedItems"></ul>
+    <div class="save-row">
+      <input data-t="saveName" type="text" placeholder="Name this path" autocomplete="off" aria-label="Name for the saved path" />
+      <button type="button" class="secondary" data-t="save">Save</button>
+    </div>
   </div>
 `;
 
@@ -194,12 +214,18 @@ const fmt = (value: number, digits: number) =>
   value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
 export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): TerrainCard {
-  const card = document.createElement("section");
-  card.className = "card terrain";
+  const card = document.createElement("div");
+  card.className = "terrain";
   card.innerHTML = template;
-  card.querySelector('[data-t="legend"]')!.replaceWith(linkLegend());
-  const el = (name: string) => card.querySelector<HTMLElement>(`[data-t="${name}"]`)!;
-  const input = (name: string) => card.querySelector<HTMLInputElement>(`input[name="${name}"]`)!;
+  card.querySelector('[data-t="legend"]')!.append(linkLegend());
+  // Looked up once: the parts move into different places on the page.
+  const byT = new Map<string, HTMLElement>();
+  for (const e of card.querySelectorAll<HTMLElement>("[data-t]")) byT.set(e.dataset.t!, e);
+  const inputs = new Map<string, HTMLInputElement>();
+  for (const e of card.querySelectorAll<HTMLInputElement>("input[name]")) inputs.set(e.name, e);
+  const el = (name: string) => byT.get(name)!;
+  const input = (name: string) => inputs.get(name)!;
+  const parts = Object.fromEntries([...card.querySelectorAll<HTMLElement>("[data-part]")].map((p) => [p.dataset.part, p])) as Record<TerrainPart, HTMLElement>;
   input("txLoc").placeholder = input("rxLoc").placeholder = input("relayLoc").placeholder = coordPlaceholder();
   const nameOf = (site: SiteId) => hooks.names()[site].trim() || siteDefaults[site];
 
@@ -270,9 +296,18 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     return tag;
   };
 
+  // Messages float on the map. Plain news fades after a few seconds; warnings
+  // and work in progress (ending in "…") stay until replaced.
+  let statusTimer: ReturnType<typeof setTimeout> | undefined;
   const setStatus = (text: string, warn = false) => {
     el("status").textContent = text;
     el("status").classList.toggle("warn", warn);
+    clearTimeout(statusTimer);
+    if (text && !warn && !text.endsWith("…")) {
+      statusTimer = setTimeout(() => {
+        if (el("status").textContent === text) el("status").textContent = "";
+      }, 6000);
+    }
   };
 
   // Keep markers, inputs, the line and storage in step with tx and rx.
@@ -449,7 +484,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
         setStatus(navigator.onLine ? `Couldn't run the relay finder: ${(err as Error).message}` : "No connection, and this area's terrain isn't saved yet.", true);
     } finally {
       if (finding === controller) {
-        el("findRelay").textContent = "Find relay spot";
+        el("findRelay").textContent = "Recommend relay spot";
         el("findRelay").toggleAttribute("disabled", false);
       }
     }
@@ -466,12 +501,12 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
   };
 
   const initMap = () => {
-    if (map || !card.isConnected || el("body").hidden) return;
+    if (map || !el("map").isConnected) return;
     map = createMap(el("map"), (m) => {
       if (tx && rx) m.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
       else if (tx) m.setView([tx.lat, tx.lon], 11);
       else showDefaultView(m);
-    });
+    }, { taskbar: true });
     map.on("click", (e: L.LeafletMouseEvent) => {
       const at = { lat: e.latlng.lat, lon: e.latlng.lng };
       if (placingRelay) {
@@ -540,7 +575,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
   };
   // Leaflet needs the container in the page before it starts. A timer rather
   // than requestAnimationFrame, which doesn't run while the tab is hidden.
-  const waitForPage = () => (card.isConnected ? initMap() : setTimeout(waitForPage, 50));
+  const waitForPage = () => (el("map").isConnected ? initMap() : setTimeout(waitForPage, 50));
   setTimeout(waitForPage, 0);
 
   input("relayLoc").addEventListener("change", (e) => {
@@ -604,41 +639,57 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     onPathChange();
   };
 
-  // Saved paths. These controls sit inside the link budget form, so keep their
-  // events from re-running the budget on every key press.
-  const savedList = el("savedList") as HTMLSelectElement;
+  // Saved paths: a list to open or delete, and a name box to save the
+  // current one. These sit inside the link budget form, so their typing
+  // mustn't re-run the budget.
   const saveName = el("saveName") as HTMLInputElement;
-  for (const control of [savedList, saveName]) {
-    control.addEventListener("input", (e) => e.stopPropagation());
-    control.addEventListener("change", (e) => e.stopPropagation());
-  }
-  const listSaved = (selected = "") => {
-    const paths = store.saved();
-    savedList.innerHTML =
-      `<option value="">${paths.length ? "Choose a saved path…" : "No saved paths yet"}</option>` +
-      paths.map((p) => `<option${p.name === selected ? " selected" : ""}></option>`).join("");
-    // Names are user text, so set them as text rather than markup.
-    paths.forEach((p, idx) => {
-      const option = savedList.options[idx + 1];
-      option.value = option.textContent = p.name;
-    });
-    el("delete").toggleAttribute("disabled", !selected);
-  };
-  savedList.addEventListener("change", () => {
-    const path = store.saved().find((p) => p.name === savedList.value);
-    el("delete").toggleAttribute("disabled", !path);
+  for (const type of ["input", "change"]) saveName.addEventListener(type, (e) => e.stopPropagation());
+  const openSaved = (name: string) => {
+    const path = store.saved().find((p) => p.name === name);
     if (!path) return;
     loading?.abort();
     tx = path.tx;
     rx = path.rx;
     elevations = path.elevationsM;
     saveName.value = path.name;
-    setStatus("");
+    setStatus(`Opened "${path.name}".`);
     syncPins();
     if (map) map.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
     onPathChange();
-  });
-  el("save").addEventListener("click", () => {
+  };
+  const listSaved = () => {
+    const paths = store.saved();
+    const list = el("savedItems");
+    if (!paths.length) {
+      list.replaceChildren();
+      return;
+    }
+    // Names are user text, so they're set as text.
+    list.replaceChildren(
+      ...paths.map((p) => {
+        const li = document.createElement("li");
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "saved-open";
+        open.textContent = p.name;
+        open.addEventListener("click", () => openSaved(p.name));
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "secondary icon-btn saved-del";
+        del.textContent = "✕";
+        del.setAttribute("aria-label", `Delete ${p.name}`);
+        del.addEventListener("click", () => {
+          if (!confirm(`Delete the saved path "${p.name}"?`)) return;
+          store.remove(p.name);
+          listSaved();
+          setStatus(`Deleted "${p.name}".`);
+        });
+        li.append(open, del);
+        return li;
+      }),
+    );
+  };
+  const saveCurrent = () => {
     const name = saveName.value.trim();
     if (!tx || !rx || !elevations) {
       setStatus("Drop both pins and let the terrain load before saving.", true);
@@ -653,15 +704,14 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
       setStatus("This browser wouldn't save the path. Storage may be full or blocked.", true);
       return;
     }
-    listSaved(name);
-    setStatus(`Saved "${name}". It will work offline.`);
-  });
-  el("delete").addEventListener("click", () => {
-    if (!savedList.value) return;
-    const name = savedList.value;
-    store.remove(name);
     listSaved();
-    setStatus(`Deleted "${name}".`);
+    setStatus(`Saved "${name}". It will work offline.`);
+  };
+  el("save").addEventListener("click", saveCurrent);
+  saveName.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    saveCurrent();
   });
   listSaved();
 
@@ -737,11 +787,6 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     const kmz = buildZip([{ name: "doc.kml", data: new TextEncoder().encode(kml) }, radioIconFile()]);
     return { kmz: new Uint8Array(kmz), places };
   };
-  const showExport = (open: boolean) => {
-    el("exportRow").hidden = !open;
-    el("export").setAttribute("aria-expanded", String(open));
-  };
-  el("export").addEventListener("click", () => showExport(el("exportRow").hidden !== false));
   const exportAs = (tak: boolean) => {
     const out = pathExport();
     if (!out) {
@@ -757,10 +802,29 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
       downloadFile("rf-toolkit-path.kmz", out.kmz as BlobPart, "application/vnd.google-earth.kmz");
       setStatus("Exported. Import the file in ATAK, WinTAK or Google Earth.");
     }
-    showExport(false);
   };
   el("exportKmz").addEventListener("click", () => exportAs(false));
   el("exportTak").addEventListener("click", () => exportAs(true));
+  // On a phone the share sheet offers Messages, email and the rest; elsewhere
+  // the link is copied.
+  el("sendLink").addEventListener("click", async () => {
+    if (!tx || !rx) {
+      setStatus("Drop both pins before sending the link.", true);
+      return;
+    }
+    const url = hooks.shareUrl();
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${nameOf("tx")} to ${nameOf("rx")}`, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setStatus("Link copied. Anyone you send it to sees these locations.");
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setStatus("Couldn't copy the link automatically in this browser.", true);
+    }
+  });
 
   const listWords = (w: string[]) => (w.length < 2 ? w.join("") : `${w.slice(0, -1).join(", ")} and ${w[w.length - 1]}`);
   // Import: points fill Site A, Site B, then the relay. With both sites
@@ -808,7 +872,8 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     const facts = el("facts");
     lineOfSight = undefined;
     if (!tx || !rx || !elevations || !params.applies || !(params.freqHz > 0)) {
-      pill.hidden = chart.hidden = facts.hidden = el("losNote").hidden = el("viewWrap").hidden = true;
+      pill.hidden = chart.hidden = facts.hidden = el("viewWrap").hidden = true;
+      el("hint").hidden = false;
       lastPoints = undefined;
       if (!params.applies && tx && rx) setStatus(hfNote);
       else if (el("status").textContent === hfNote) setStatus("");
@@ -846,85 +911,75 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
 
     const h = (m: number) => `${fmt(fromMetres(m, params.heightUnit), 0)} ${params.heightUnit}`;
     const d = (m: number) => `${fmt(fromMetres(m, params.distUnit), 2)} ${params.distUnit}`;
-    const tightest = (w: ProfilePoint) =>
-      w.clearanceM < 0
-        ? `${h(-w.clearanceM)} above the line of sight`
-        : `${h(w.clearanceM)} clear, ${fmt(Math.max(0, w.clearanceRatio) * 100, 0)}% of the Fresnel zone`;
-    const lossLabel = (l: TerrainLoss, prefix = "") => `${prefix}Terrain loss (${l.model === "itm" ? "Longley-Rice" : "Bullington"})`;
-    const kNote = (t: string) => (params.k === STANDARD_K ? t : `${t} at k = ${kLabel(params.k)}`);
-    const [A, B, R] = [escapeXml(nameOf("tx")), escapeXml(nameOf("rx")), escapeXml(nameOf("relay"))];
+    // The tightest point: how far the ground rises into the line, or clears it.
+    const tight = (w: ProfilePoint): [string, string] =>
+      w.clearanceM < 0 ? [`${h(-w.clearanceM)} blocked`, "Ground above the line of sight"] : [`${h(w.clearanceM)} clear`, `${fmt(Math.max(0, w.clearanceRatio) * 100, 0)}% of the Fresnel zone`];
 
     let shownStatus: ProfileStatus;
-    let rows: string[][];
-    let totalRows: number[];
+    /** Three figures under the chart: label, value, a line of context. */
+    let stats: [string, string, string][];
     if (viaRelay && hopSegments) {
       const [s1, s2] = hopSegments;
       const rank: Record<ProfileStatus, number> = { clear: 0, fresnel: 1, blocked: 2 };
       shownStatus = rank[s1.result.status] >= rank[s2.result.status] ? s1.result.status : s2.result.status;
       const which = s1.result.status === s2.result.status ? "both hops" : s1.result.status === shownStatus ? "hop 1" : "hop 2";
-      pill.textContent = kNote(shownStatus === "clear" ? "Clear line of sight on both hops" : `${statusText[shownStatus][0]} on ${which}`);
-      const hopRows = (s: (typeof hopSegments)[number], n: number, fromName: string) => [
-        [lossLabel(s.loss, `Hop ${n} `), `${fmt(s.loss.lossDb, 1)} dB beyond free space`],
-        [`Hop ${n} tightest point`, `${d(s.result.worst.distanceM)} from ${fromName}: ${tightest(s.result.worst)}`],
-        [`Hop ${n} length, bearing`, `${d(distanceBetweenM(s.from, s.to))}, ${fmt(bearingDeg(s.from, s.to), 1)}° (back ${fmt(bearingDeg(s.to, s.from), 1)}°)`],
+      pill.textContent = shownStatus === "clear" ? "Clear line of sight on both hops" : `${statusText[shownStatus][0]} on ${which}`;
+      const worst = s1.result.worst.clearanceRatio <= s2.result.worst.clearanceRatio ? { w: s1.result.worst, from: nameOf("tx"), hop: 1 } : { w: s2.result.worst, from: nameOf("relay"), hop: 2 };
+      const [tv, ts] = tight(worst.w);
+      const l1 = distanceBetweenM(s1.from, s1.to);
+      const l2 = distanceBetweenM(s2.from, s2.to);
+      stats = [
+        ["Terrain loss", `${fmt(s1.loss.lossDb, 1)} + ${fmt(s2.loss.lossDb, 1)} dB`, "Hop 1 + hop 2, beyond free space"],
+        ["Tightest point", tv, `Hop ${worst.hop}, ${d(worst.w.distanceM)} from ${worst.from}. ${ts}`],
+        ["Distance", d(l1 + l2), `${d(l1)} + ${d(l2)}`],
       ];
-      rows = [
-        ...hopRows(s1, 1, A),
-        ...hopRows(s2, 2, R),
-        [`Ground at ${A} / ${R} / ${B}`, `${h(s1.result.txGroundM)} / ${h(s1.result.rxGroundM)} / ${h(s2.result.rxGroundM)}`],
-      ];
-      totalRows = [0, 3];
       // One chart: hop 2's points carry on from where hop 1 ends.
       const offset = s1.result.points[s1.result.points.length - 1].distanceM;
       lastPoints = [...s1.result.points, ...s2.result.points.map((q) => ({ ...q, distanceM: q.distanceM + offset }))];
       lastAntennas = new Set([0, s1.result.points.length - 1, s1.result.points.length, lastPoints.length - 1]);
     } else {
       shownStatus = result.status;
-      pill.textContent = kNote(statusText[result.status][0]);
+      pill.textContent = statusText[result.status][0];
       const w = result.worst;
-      rows = [
-        [lossLabel(loss), `${fmt(loss.lossDb, 1)} dB beyond free space`],
-        ["Tightest point", `${d(w.distanceM)} from ${A}`],
-        [w.clearanceM < 0 ? "Terrain there is" : "Clearance there", tightest(w)],
-        [`Ground at ${A} / ${B}`, `${h(result.txGroundM)} / ${h(result.rxGroundM)}`],
-        [`Bearing ${A} → ${B}`, `${fmt(bearingDeg(tx, rx), 1)}° (back ${fmt(bearingDeg(rx, tx), 1)}°)`],
+      const [tv, ts] = tight(w);
+      stats = [
+        ["Terrain loss", `${fmt(loss.lossDb, 1)} dB`, `Beyond free space (${loss.model === "itm" ? "Longley-Rice" : "Bullington"})`],
+        ["Tightest point", tv, `${d(w.distanceM)} from ${nameOf("tx")}. ${ts}`],
+        ["Distance", d(path.distanceM), `Bearing ${fmt(bearingDeg(tx, rx), 0)}°, back ${fmt(bearingDeg(rx, tx), 0)}°`],
       ];
-      totalRows = [0];
       lastPoints = result.points;
       lastAntennas = new Set([0, result.points.length - 1]);
     }
     pill.hidden = false;
     pill.className = `pill ${statusText[shownStatus][1]}`;
     pill.title = losNote;
-    el("losNote").textContent = losNote;
-    el("losNote").hidden = shownStatus === "clear";
 
     chart.hidden = false;
+    el("hint").hidden = true;
     // Draw at the real width so the axis text stays its CSS size on phones.
     const segments = viaRelay && hopSegments ? hopSegments.map((s) => s.result) : [result];
     const names = viaRelay ? [nameOf("tx"), nameOf("relay"), nameOf("rx")] : [nameOf("tx"), nameOf("rx")];
     chart.innerHTML = drawProfile(segments, params, chart.clientWidth || 640, names);
     lastParams = params;
 
+    // Built as text: site names are user input.
     facts.hidden = false;
-    facts.querySelector("tbody")!.innerHTML = rows
-      .map(([k, v], idx) => `<tr${totalRows.includes(idx) ? ' class="total"' : ""}><td>${k}</td><td class="num mono">${v}</td></tr>`)
-      .join("");
+    facts.replaceChildren(
+      ...stats.map(([label, value, sub]) => {
+        const t = document.createElement("div");
+        t.className = "tile";
+        for (const [cls, text] of [["label", label], ["value", value], ["sub", sub]]) {
+          const span = document.createElement("span");
+          span.className = cls;
+          span.textContent = text;
+          t.append(span);
+        }
+        return t;
+      }),
+    );
     return { ...result, loss };
   };
 
-  // Open on desktop, where there's room beside the results. On a phone it stays
-  // closed until wanted, so it doesn't push the results down, unless pins exist.
-  const setOpen = (open: boolean) => {
-    el("body").hidden = !open;
-    el("toggle").textContent = open ? "Hide" : "Show";
-    el("toggle").setAttribute("aria-expanded", String(open));
-    if (open) initMap();
-  };
-  el("toggle").addEventListener("click", () => setOpen(el("body").hidden !== false));
-  if (tx || rx || window.matchMedia("(min-width: 601px)").matches) el("body").hidden = false;
-  el("toggle").textContent = el("body").hidden ? "Show" : "Hide";
-  el("toggle").setAttribute("aria-expanded", String(!el("body").hidden));
 
   syncPins();
   // After the page finishes building: a cached path calls onPathChange straight away.
@@ -935,6 +990,17 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
 
   return {
     element: card,
+    parts,
+    setPins(next) {
+      tx = next.tx;
+      rx = next.rx;
+      relay = next.relay;
+      placingRelay = false;
+      pinsChanged();
+    },
+    redraw() {
+      if (lastParams) refresh(lastParams);
+    },
     pathDistanceM: () => (tx && rx ? distanceBetweenM(tx, rx) : undefined),
     pins: () => (tx && rx ? { tx, rx } : undefined),
     relay: () => relay,
@@ -977,7 +1043,8 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
  */
 function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number, names: string[]): string {
   const W = Math.max(300, Math.round(width));
-  const H = W < 500 ? 200 : 220;
+  // The graph is the point of the card: tall enough to read the ground.
+  const H = Math.round(Math.min(320, Math.max(220, W * 0.48)));
   const pad = { l: 58, r: 12, t: 14, b: 26 };
   // Each segment's points, moved along by the length of those before it.
   let run = 0;
@@ -1010,7 +1077,11 @@ function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number,
     })
     .join("");
   const zone60 = segs.map((sp) => path(sp.map((q): [number, number] => [x(q.distanceM), y(q.losM - FRESNEL_CLEAR_RATIO * q.fresnelM)]))).join("");
-  const los = segs.map((sp) => path([[x(sp[0].distanceM), y(sp[0].losM)], [x(sp[sp.length - 1].distanceM), y(sp[sp.length - 1].losM)]])).join("");
+  // The line of sight per segment: green while it clears the ground, red where it doesn't.
+  const losLines = segs
+    .map((sp, i) => `<path class="los ${segments[i].status === "blocked" ? "los-blocked" : "los-clear"}" d="${path([[x(sp[0].distanceM), y(sp[0].losM)], [x(sp[sp.length - 1].distanceM), y(sp[sp.length - 1].losM)]])}"/>`)
+    .join("");
+  const anyBlocked = segments.some((r) => r.status === "blocked");
 
   const hits = segs
     .flatMap((sp) => sp.slice(1, -1))
@@ -1044,7 +1115,7 @@ function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number,
       <path class="zone" d="${zone}"/>
       <path class="zone60" d="${zone60}"/>
       <path class="terrain-fill" d="${terrain}"/>
-      <path class="los" d="${los}"/>
+      ${losLines}
       ${antennas.map(mast).join("")}
       ${hits}
       ${xTicks.map((d, i) => `<text class="axis" x="${x(d)}" y="${H - 8}" text-anchor="${["start", "middle", "end"][i]}">${dLabel(d)}${i === 2 ? ` ${p.distUnit}` : ""}</text>`).join("")}
@@ -1055,7 +1126,7 @@ function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number,
     </svg>
     <p class="note chart-readout">Tap the chart to read any point.</p>
     <div class="legend">
-      <span class="key"><span class="ln los-key"></span>Line of sight</span>
+      <span class="key"><span class="ln los-key ${anyBlocked ? "los-blocked" : "los-clear"}"></span>Line of sight${anyBlocked ? " (blocked)" : ""}</span>
       <span class="key"><span class="sw zone-key"></span>First Fresnel zone</span>
       <span class="key"><span class="ln dash zone60-key"></span>60% line</span>
       <span class="key"><span class="sw terrain-key"></span>Terrain + earth curve</span>

@@ -510,7 +510,7 @@ export const meshCalculator: Calculator = {
       });
     };
 
-    // Land cover at every node, when Environment is "From land-cover map".
+    // Land cover at every node, when Environment is "Auto (satellite map)".
     let cover: { key: string; points?: LandCoverPoint[]; error?: string } | undefined;
     const nodeCover = (): { points?: LandCoverPoint[]; note: string } => {
       const key = JSON.stringify(nodes.map((n) => [n.lat, n.lon]));

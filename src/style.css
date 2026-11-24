@@ -348,8 +348,9 @@ label.check input { width: auto; margin: 0; }
 .link-good-obstructed.link-casing { stroke-width: 7; stroke-dasharray: 12 10; }
 .link-marginal.link-line { stroke: var(--warning); stroke-width: 4; stroke-dasharray: 3 9; }
 .link-marginal.link-casing { stroke-width: 7; stroke-dasharray: 3 9; }
-.link-fail { opacity: .7; }
-.link-fail.link-line { stroke: var(--critical); stroke-width: 3; stroke-dasharray: 0.1 8; }
+.link-fail { opacity: 1; }
+/* A vivid red, so a failed link stands out on satellite and dark maps alike. */
+.link-fail.link-line { stroke: #ff2b2b; stroke-width: 3.5; stroke-dasharray: 0.1 8; }
 .link-fail.link-casing { stroke-width: 5.5; stroke-dasharray: 0.1 8; }
 /* An even grid: two columns on a phone, all four in a row when there's room. */
 .link-legend {
@@ -502,8 +503,9 @@ main .leaflet-container { background: var(--card-2); }
 .profile-chart .end-label { fill: var(--text-2); font-size: 11px; font-weight: 600; }
 .profile-chart .terrain-fill { fill: color-mix(in srgb, var(--muted) 45%, var(--card-2)); stroke: var(--muted); stroke-width: 1; }
 .profile-chart .zone { fill: color-mix(in srgb, var(--accent) 14%, transparent); }
-.profile-chart .zone60 { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; opacity: .7; }
-.profile-chart .los { fill: none; stroke: var(--accent); stroke-width: 2; }
+.profile-chart .zone60 { fill: none; stroke: var(--serious); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.profile-chart .los { fill: none; stroke: var(--good); stroke-width: 2; }
+.profile-chart .los.los-blocked { stroke: var(--critical); }
 .profile-chart .mast { stroke: var(--text-2); stroke-width: 2; }
 .profile-chart .hit-fresnel { fill: var(--serious); }
 .profile-chart .hit-block { fill: var(--critical); }
@@ -512,7 +514,9 @@ main .leaflet-container { background: var(--card-2); }
 .legend .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .legend .ln { width: 16px; height: 0; border-top: 2px solid; display: inline-block; }
 .legend .ln.dash { border-top-style: dashed; border-top-width: 1px; }
-.legend .los-key, .legend .zone60-key { border-color: var(--accent); }
+.legend .los-key { border-color: var(--good); }
+.legend .los-key.los-blocked { border-color: var(--critical); }
+.legend .zone60-key { border-color: var(--serious); }
 .legend .zone-key { background: color-mix(in srgb, var(--accent) 25%, transparent); }
 .legend .terrain-key { background: color-mix(in srgb, var(--muted) 45%, var(--card-2)); }
 
@@ -850,4 +854,261 @@ details.routes .note { margin-top: 6px; }
   .preset-order .icon-btn { min-height: 34px; width: 36px; padding: 0; font-size: 11px; }
   .preset-row-actions { flex-direction: column; gap: 4px; }
   .preset-row-actions button { min-height: 34px; padding: 0 14px; font-size: 14px; }
+}
+
+/* ------------------------------------------------------------ map-first page (Link Analysis) */
+/* The map is the page: settings in expandable cards on the left, the link
+   budget on the right, and the map's tools in a bar floating on the map. */
+main:has(.map-first) { max-width: none; }
+.calculator.map-first { display: block; }
+.lb-shell { display: grid; gap: 14px; }
+.lb-left, .lb-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.lb-left .mode-bar { padding: 6px 10px; }
+.lb-map { position: relative; min-width: 0; min-height: 360px; }
+.lb-map .terrain-part, .lb-map .map { height: 100%; }
+.lb-map .map {
+  border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border);
+  background: var(--card-2); z-index: 0;
+}
+/* Left-pane cards: a summary row that opens the card. */
+.pane-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); min-width: 0; }
+.pane-card > summary {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; list-style: none;
+  font-weight: 600; font-size: 14px; min-height: 48px; box-sizing: border-box;
+}
+.pane-card > summary::-webkit-details-marker { display: none; }
+.pane-card > summary::after {
+  content: ""; width: 8px; height: 8px; margin-left: 4px; flex: none;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translateY(-2px);
+  transition: transform .15s;
+}
+.pane-card[open] > summary::after { transform: rotate(225deg) translateY(-2px); }
+.pane-card > summary .meta { margin-left: auto; font-weight: 400; text-align: right; }
+.pane-card > summary::after { margin-left: auto !important; }
+.pane-card > summary .pane-pill { margin-left: 2px; }
+.pane-card > summary:hover .pane-title { color: var(--accent); }
+.pane-icon { width: 20px; height: 20px; flex: none; color: var(--accent); }
+.pane-body { padding: 0 14px 14px; }
+.pane-body > .fields:first-child, .pane-body > .pane-slot:first-child { margin-top: 2px; }
+.pane-title { white-space: nowrap; }
+.pane-pill { min-width: 0; display: flex; }
+.pane-pill .pill { margin: 0; font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-pill:empty, .pane-pill:has(> .pill[hidden]) { display: none; }
+.fields > .pane-slot { grid-column: 1 / -1; }
+.pane-slot .fields { margin: 0; }
+.pane-slot .relay-actions { margin-top: 8px; }
+.relay-radio { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--grid-line); }
+.relay-radio .note:first-child { margin-top: 0; }
+.with-icon { display: flex; align-items: center; gap: 8px; }
+.lb-right .card-head h2 { margin-right: auto; }
+.pane-slot .saved-paths { margin-top: 12px; }
+/* Map status and the link-line key float on the map. */
+.map-status {
+  position: absolute; z-index: 800; top: 10px; left: 50%; transform: translateX(-50%);
+  max-width: min(460px, calc(100% - 120px)); margin: 0; padding: 6px 12px; border-radius: 8px;
+  background: var(--card); border: 1px solid var(--border); box-shadow: 0 1px 4px rgb(0 0 0 / .25);
+  color: var(--text); font-size: 12.5px; text-align: center;
+}
+.map-status:empty { display: none; }
+.map-status.warn { color: var(--serious); }
+.map-legend {
+  position: absolute; z-index: 800; top: 10px; right: 10px; max-width: 180px;
+  padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--card) 92%, transparent);
+  border: 1px solid var(--border); box-shadow: 0 1px 4px rgb(0 0 0 / .25);
+}
+.map-legend .legend { margin: 0; flex-direction: column; align-items: flex-start; gap: 3px; font-size: 11px; }
+/* The taskbar: labelled map tools, bottom centre. */
+.map-taskbar {
+  position: absolute; z-index: 900; left: 50%; bottom: 22px; transform: translateX(-50%);
+  display: flex; gap: 4px; padding: 5px; border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 94%, transparent); backdrop-filter: blur(8px);
+  border: 1px solid var(--border); box-shadow: 0 4px 16px rgb(0 0 0 / .3);
+}
+.map-taskbar > span { position: relative; display: flex; }
+.map-taskbar > span:empty { display: none; }
+.taskbar-btn {
+  display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 12px; border-radius: 10px;
+  border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.taskbar-btn:hover:not(:disabled), .taskbar-btn[aria-expanded="true"] { background: var(--card-2); color: var(--accent); }
+.taskbar-btn svg { width: 18px; height: 18px; flex: none; }
+.taskbar-btn:disabled { opacity: .4; }
+.map-layers-menu {
+  position: absolute; bottom: calc(100% + 10px); left: 0; display: grid; gap: 2px; min-width: 150px; padding: 5px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 4px 16px rgb(0 0 0 / .3);
+}
+.map-layers-menu[hidden] { display: none; }
+.map-layers-menu button {
+  text-align: left; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 13px;
+}
+.map-layers-menu button:hover { background: var(--card-2); }
+.map-layers-menu button[aria-checked="true"] { color: var(--accent); font-weight: 600; }
+.map-layers-menu button[aria-checked="true"]::before { content: "✓ "; }
+/* Leaflet's attribution sits under the taskbar; keep it readable beside it. */
+.lb-map .leaflet-control-attribution { font-size: 10px; }
+
+/* Wide screens: three columns, filling the window below the header. */
+@media (min-width: 1100px) {
+  .lb-shell {
+    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr) minmax(320px, 380px);
+    height: calc(100dvh - var(--lb-top, 140px) - 16px); min-height: 560px;
+  }
+  .lb-left, .lb-right { overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; scrollbar-width: thin; }
+  .lb-map { min-height: 0; }
+  .lb-right .card { flex: none; }
+  .lb-right { position: static; }
+}
+/* Floating version: the map fills the screen edge to edge, and the two panes
+   float on it. Gaps between the cards are the map, so it still takes taps. */
+@media (min-width: 1100px) {
+  main:has(.lb-shell.floating) { padding: 0; }
+  /* The map page fits the window exactly, so nothing scrolls under the tab bar. */
+  body:has(.lb-shell.floating) .foot { display: none; }
+  body:has(.lb-shell.floating) { overflow: hidden; }
+  .lb-shell.floating { display: block; position: relative; height: calc(100dvh - var(--lb-top, 120px)); min-height: 560px; }
+  .lb-shell.floating .lb-map { position: absolute; inset: 0; }
+  .lb-shell.floating .lb-map .map { border-radius: 0; border: 0; border-top: 1px solid var(--border); }
+  .lb-shell.floating .lb-left, .lb-shell.floating .lb-right {
+    position: absolute; z-index: 1000; top: 14px; bottom: 14px; overflow-y: auto; overscroll-behavior: contain;
+    pointer-events: none; scrollbar-width: thin; padding: 0 4px 4px 0;
+  }
+  .lb-shell.floating .lb-left { left: 14px; width: 360px; }
+  .lb-shell.floating .lb-right { right: 14px; width: 380px; }
+  .lb-shell.floating .lb-left > *, .lb-shell.floating .lb-right > * { pointer-events: auto; flex: none; }
+  .lb-shell.floating .pane-card, .lb-shell.floating .lb-right .card, .lb-shell.floating .mode-bar {
+    box-shadow: 0 6px 24px rgb(0 0 0 / .35);
+  }
+  .lb-shell.floating .map-status { top: 14px; }
+  .lb-shell.floating .leaflet-bottom.leaflet-right { right: 404px; }
+  /* Slightly see-through, so the map shows behind the panes. */
+  .lb-shell.floating .pane-card, .lb-shell.floating .lb-right .card, .lb-shell.floating .mode-bar {
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  /* The terrain profile gets room to draw: the pane widens while it's open. */
+  .lb-shell.floating .lb-left:has(details[data-pane="terrain"][open]) { width: 560px; }
+  /* Fold-away tabs on each pane's outer edge. */
+  .lb-shell.floating .side-toggle {
+    display: grid; place-items: center; position: absolute; z-index: 1001; top: 20px; width: 22px; height: 44px; padding: 0;
+    border: 1px solid var(--border); background: color-mix(in srgb, var(--card) 90%, transparent); color: var(--text);
+    box-shadow: 0 2px 10px rgb(0 0 0 / .3);
+  }
+  .lb-shell.floating .side-toggle::before {
+    content: ""; width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  }
+  .lb-shell.floating .side-toggle[data-side="left"] { left: 378px; border-radius: 0 8px 8px 0; }
+  .lb-shell.floating .side-toggle[data-side="left"]::before { transform: translateX(2px) rotate(45deg); }
+  .lb-shell.floating .side-toggle[data-side="right"] { right: 398px; border-radius: 8px 0 0 8px; }
+  .lb-shell.floating .side-toggle[data-side="right"]::before { transform: translateX(-2px) rotate(-135deg); }
+  .lb-shell.floating:has(.lb-left details[data-pane="terrain"][open]) .side-toggle[data-side="left"] { left: 578px; }
+  .lb-shell.floating.left-closed .lb-left, .lb-shell.floating.right-closed .lb-right { display: none; }
+  .lb-shell.floating.left-closed .side-toggle[data-side="left"] { left: 0 !important; }
+  .lb-shell.floating.left-closed .side-toggle[data-side="left"]::before { transform: translateX(-2px) rotate(-135deg); }
+  .lb-shell.floating.right-closed .side-toggle[data-side="right"] { right: 0; }
+  .lb-shell.floating.right-closed .side-toggle[data-side="right"]::before { transform: translateX(2px) rotate(45deg); }
+  .lb-shell.floating.right-closed .leaflet-bottom.leaflet-right { right: 0; }
+}
+.side-toggle { display: none; }
+/* Narrower: the map first, then the cards, then the budget. */
+@media (max-width: 1099px) {
+  .lb-shell { grid-template-columns: minmax(0, 1fr); }
+  .lb-map { order: -1; height: min(60vh, 560px); }
+  .lb-right { position: static; }
+}
+@media (max-width: 600px) {
+  .lb-map { height: 58vh; min-height: 320px; }
+  /* Icons over short labels so all four tools fit. */
+  .map-taskbar { bottom: 26px; gap: 2px; padding: 4px; }
+  .taskbar-btn { flex-direction: column; gap: 2px; padding: 5px 8px; font-size: 10.5px; min-height: 48px; }
+  .map-legend { display: none; }
+  .map-status { max-width: calc(100% - 90px); top: 8px; }
+  .pane-card > summary .meta { display: none; }
+  .pane-card > summary::after { margin-left: auto; }
+}
+
+/* Map-first page, round two: zoom and recenter in the taskbar, the key under it,
+   and the reworked cards. */
+.taskbar-sep { width: 1px; align-self: stretch; margin: 6px 2px; background: var(--border); }
+.taskbar-group { gap: 2px; }
+.taskbar-btn.icon-only { padding: 6px 9px; }
+.taskbar-btn span:empty { display: none; }
+/* Clear of the map's credits line along the bottom edge. */
+.lb-map .map-taskbar { bottom: 56px; }
+.lb-map .map-legend {
+  top: auto; right: auto; bottom: 22px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 20px);
+  padding: 3px 10px; border-radius: 8px;
+}
+.lb-map .map-legend .link-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 14px; margin: 0; padding: 0; font-size: 11px; }
+.lb-map .map-legend .link-legend svg { width: 26px; }
+.lb-map .map-legend .link-legend li { gap: 5px; }
+/* Link budget: four tiles and free-space loss across the bottom. */
+.lb-right .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lb-right .tiles .wide-tile { grid-column: 1 / -1; }
+.budget-details { margin-top: 12px; font-size: 13px; }
+.budget-details > summary { cursor: pointer; color: var(--muted); min-height: 32px; display: flex; align-items: center; }
+.budget-details[open] > summary { margin-bottom: 6px; }
+/* Full budget: a short, even list of the key steps. */
+.budget-flow { display: grid; gap: 2px; }
+/* Distance as a tile: typed, or read from the pins (then read-only). */
+.tile-field label { gap: 6px; font-size: 12px; color: var(--muted); }
+.tile-field .input-unit { justify-content: flex-start; }
+.tile-field .input-unit .unit { background: none; border: 0; color: var(--text-2); font-size: 13px; padding: 0 0 0 6px; min-width: 0; flex: none; }
+.tile-field .input-unit:has(> [data-out="distValue"]:not([hidden])) { border: 0; background: none; align-items: baseline; }
+.tile-field [data-out="distValue"] { color: var(--text); }
+.tile-field input[readonly] { border-color: transparent; background: transparent; padding-left: 0; font-family: var(--mono); font-size: 18px; color: var(--text); }
+.fields > .env-explain { grid-column: 1 / -1; margin-top: -4px; }
+.flow-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 2px; border-bottom: 1px solid var(--grid-line); }
+.flow-row:last-child { border-bottom: 0; }
+.flow-k { color: var(--text-2); display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.flow-k small { color: var(--muted); font-size: 11px; }
+.flow-v { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); }
+.flow-row.total .flow-k, .flow-row.total .flow-v { color: var(--text); font-weight: 600; }
+.flow-row.total.s-good .flow-v, .flow-row.accent-good .flow-v { color: var(--good); }
+.flow-row.total.s-marginal .flow-v { color: var(--warning); }
+.flow-row.total.s-fail .flow-v { color: var(--critical); }
+/* Terrain profile: the graph leads, three figures support it. */
+.profile-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.profile-stats[hidden] { display: none; }
+.profile-stats .tile { padding: 8px 10px; }
+.profile-stats .value { font-size: 15px; }
+.profile-stats .sub { font-size: 11px; }
+/* Share: export choices, then import. */
+.share-head { margin: 4px 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: .02em; }
+.share-head ~ .share-head { margin-top: 16px; }
+.share-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+/* Export choices: just an icon and its name, no button fill. */
+.share-choice {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.share-choice svg { width: 30px; height: 30px; color: var(--accent); }
+.share-choice:hover, .share-choice:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* Saved paths: a plain list, each name opens it. */
+.saved-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.saved-list li { display: flex; align-items: center; gap: 6px; }
+.saved-open {
+  flex: 1; min-width: 0; text-align: left; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--card-2); color: var(--text); font: inherit; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.saved-open:hover { border-color: var(--accent); }
+.saved-del { flex: none; }
+.saved-list:empty { display: none; }
+.save-row { display: flex; gap: 6px; margin-top: 8px; }
+.save-row input { flex: 1; min-width: 0; }
+@media (max-width: 600px) {
+  .lb-map .map-taskbar { bottom: 30px; }
+  .taskbar-sep { display: none; }
+  .taskbar-btn.icon-only { padding: 5px 6px; }
+  .profile-stats { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Floating panes: centre the map's own bits in the visible gap. */
+@media (min-width: 1100px) {
+  .lb-shell.floating .map-taskbar, .lb-shell.floating .map-legend, .lb-shell.floating .map-status { left: var(--gap-center, 50%); }
+}
+.map-taskbar.compact .taskbar-btn span { display: none; }
+.map-taskbar.compact .taskbar-btn { padding: 6px 9px; }
+/* Phones pinch to zoom: the zoom buttons step aside so the rest fit. */
+@media (max-width: 600px) {
+  .map-taskbar .taskbar-group, .map-taskbar .taskbar-sep { display: none; }
 }

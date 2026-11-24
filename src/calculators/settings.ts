@@ -53,7 +53,7 @@ const template = `
         <label>Environment
           <select name="environment">
             <option value="${noEnv.id}">${noEnv.name}</option>
-            <option value="auto">From land-cover map</option>
+            <option value="auto">Auto (satellite map)</option>
             ${options(envs)}
           </select>
         </label>

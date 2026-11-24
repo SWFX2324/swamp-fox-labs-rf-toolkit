@@ -38,8 +38,8 @@ export const linkLineLabels: Record<LinkLineStyle, string> = {
 
 /** Short names for the key under a map, where the line itself shows the colour. */
 export const linkLineShortLabels: Record<LinkLineStyle, string> = {
-  "good-clear": "Good, clear LOS",
-  "good-obstructed": "Good, obstructed",
+  "good-clear": "Clear LOS",
+  "good-obstructed": "Obstructed LOS",
   marginal: "Marginal",
   fail: "Won't connect",
 };

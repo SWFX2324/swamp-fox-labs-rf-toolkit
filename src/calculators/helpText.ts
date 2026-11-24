@@ -23,7 +23,7 @@ const shared = {
   extraLoss:
     "Any known loss you want to add on top, such as being inside a vehicle or building (roughly 10–20 dB). If you've picked an Environment, it already covers the general surroundings, so don't count those again.",
   environment:
-    "A rough estimate of the loss from what surrounds your antennas, applied at both ends: open water, fields or desert (low antennas lose signal to ground reflections), light vegetation or suburbs, cities, or dense forest and jungle. It grows with frequency and fades away once an antenna clears the clutter. It can't see that a path runs through forest then open field, and it's less reliable under about 800 ft. Based on ITU-R P.2108; Open Water, Open Fields and Desert use the same ITU category, as do Light Vegetation and Suburban. Dense Vegetation instead follows ITU-R P.833's measurements in woodland: an antenna below the canopy (see Tree height) is worked from its real height, not the treetops, and loses about 6 dB more at 50 MHz, 10 dB at 150 MHz and 15 dB at 400 MHz. From land-cover map reads a 10 m satellite land-cover map (Impact Observatory, Microsoft and Esri) and picks the profile at each end separately: trees count as Dense Vegetation, crops and grassland as Open Fields, built-up areas as Suburban or Urban by how built-up the area is. It needs a connection the first time for each area, or an area saved for offline.",
+    "A rough estimate of the loss from what surrounds your antennas, applied at both ends: open water, fields or desert (low antennas lose signal to ground reflections), light vegetation or suburbs, cities, or dense forest and jungle. It grows with frequency and fades away once an antenna clears the clutter. It can't see that a path runs through forest then open field, and it's less reliable under about 800 ft. Based on ITU-R P.2108; Open Water, Open Fields and Desert use the same ITU category, as do Light Vegetation and Suburban. Dense Vegetation instead follows ITU-R P.833's measurements in woodland: an antenna below the canopy (see Tree height) is worked from its real height, not the treetops, and loses about 6 dB more at 50 MHz, 10 dB at 150 MHz and 15 dB at 400 MHz. Auto (satellite map) reads a 10 m satellite land-cover map (Impact Observatory, Microsoft and Esri) and picks the profile at each end separately: trees count as Dense Vegetation, crops and grassland as Open Fields, built-up areas as Suburban or Urban by how built-up the area is. It needs a connection the first time for each area, or an area saved for offline.",
   treeHeight:
     "Average height of the tree canopy around your antennas. Mature pine in the southeastern US often stands 70–90 ft. An antenna below it counts as inside the woods: it loses the ITU-R P.833 woodland loss and its path is worked from its real height. An antenna above it loses nothing to the trees. Leave it blank for the 20 m (66 ft) default.",
   sensitivity:
@@ -64,7 +64,6 @@ export const linkBudgetGuide: FieldGuide = {
     txOther: shared.otherLoss,
     txGain: shared.gain,
     txHeight: `${shared.height} Used for the radio horizon and the terrain check.`,
-    dist: `${shared.distance} Dropping both map pins in Terrain profile fills this in.`,
     environment: shared.environment,
     treeHeight: shared.treeHeight,
     extraLoss: shared.extraLoss,
@@ -77,8 +76,8 @@ export const linkBudgetGuide: FieldGuide = {
     fadeMargin: `${shared.fade} It sets the max range and the margin rating.`,
     txLoc: shared.location,
     rxLoc: shared.location,
-    reliability: modelHelp.reliability,
-    confidence: modelHelp.confidence,
+    climate: `${modelHelp.climate} Kept in Settings: a change here applies on every tab.`,
+    ground: `${modelHelp.ground} Kept in Settings: a change here applies on every tab.`,
   },
   advanced: [
     "txCable",
@@ -93,7 +92,6 @@ export const linkBudgetGuide: FieldGuide = {
     '[data-out="rxCableNote"]',
     "rxOther",
     "fadeMargin",
-    ...modelAdvanced,
   ],
 };
 

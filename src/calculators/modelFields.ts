@@ -46,8 +46,8 @@ export function readModel(form: HTMLFormElement): ModelSettings {
     climate: s.climate,
     ground,
     polarization: s.polarization,
-    reliability: value("reliability"),
-    confidence: value("confidence"),
+    reliability: value("reliability") ?? String(s.reliability),
+    confidence: value("confidence") ?? String(s.confidence),
   });
 }
 

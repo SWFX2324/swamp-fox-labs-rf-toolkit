@@ -63,9 +63,22 @@ async function storedText(): Promise<string> {
 // used any more, and browsers count each as several MB.
 const OLD_STREET_CACHE = "osm-tiles";
 
-export function addOfflineControl(map: L.Map): void {
+/**
+ * The "save this view for offline" button and its panel: a corner button, or
+ * a taskbar button made by makeButton and placed in slot.
+ */
+export function addOfflineControl(map: L.Map, slot?: HTMLElement, makeButton?: () => HTMLElement): void {
   if (typeof caches === "undefined") return;
   void caches.delete(OLD_STREET_CACHE);
+
+  if (slot && makeButton) {
+    const button = makeButton();
+    button.setAttribute("aria-label", "Save this view for offline");
+    button.setAttribute("aria-expanded", "false");
+    slot.append(button);
+    offlinePanel(map, button);
+    return;
+  }
 
   const Control = L.Control.extend({
     onAdd() {
@@ -79,102 +92,106 @@ export function addOfflineControl(map: L.Map): void {
       button.setAttribute("aria-expanded", "false");
       button.innerHTML =
         '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>';
-
-      // On the map itself, not in the control, so it can use the map's full height.
-      const panel = L.DomUtil.create("div", "offline-panel", map.getContainer());
-      panel.hidden = true;
-      panel.innerHTML = `<strong>Save this view for offline</strong>
-        <p data-role="text"></p>
-        <p data-role="status" role="status"></p>
-        <div class="offline-actions">
-          <button type="button" data-role="save">Download</button>
-          <button type="button" class="secondary" data-role="cancel" hidden>Stop</button>
-          <button type="button" class="secondary" data-role="close">Close</button>
-        </div>
-        <p class="offline-stored"><span data-role="stored"></span> <button type="button" class="link" data-role="clear">Clear saved tiles</button></p>`;
-      const part = <T extends HTMLElement>(role: string) => panel.querySelector<T>(`[data-role="${role}"]`)!;
-      const text = part("text");
-      const status = part("status");
-      const save = part<HTMLButtonElement>("save");
-      const cancel = part<HTMLButtonElement>("cancel");
-      const stored = part("stored");
-
-      let running: AbortController | null = null;
-      let plan: OfflinePlan | null = null;
-
-      const describe = () => {
-        if (running) return;
-        const b = map.getBounds();
-        plan = planOfflineArea({ north: b.getNorth(), south: b.getSouth(), west: b.getWest(), east: b.getEast() });
-        save.disabled = plan.tooBig;
-        text.textContent = plan.tooBig
-          ? "This view is too big to save. Zoom in until it shows about 200 km across or less."
-          : `Downloads about ${formatMb(plan.estimatedBytes)} of terrain, land cover and satellite imagery for everything on screen. OpenStreetMap doesn't allow saving street maps.`;
-      };
-
-      const refreshStored = async () => {
-        stored.textContent = await storedText();
-      };
-
-      const open = (show: boolean) => {
-        panel.hidden = !show;
-        button.setAttribute("aria-expanded", String(show));
-        if (!show) return;
-        status.textContent = "";
-        describe();
-        void refreshStored();
-      };
-
-      const finish = () => {
-        running = null;
-        save.hidden = false;
-        cancel.hidden = true;
-        describe();
-        void refreshStored();
-      };
-
-      const start = async () => {
-        if (!plan || plan.tooBig) return;
-        const { tiles, imageryMaxZoom } = plan;
-        const closer = imageryMaxZoom - Math.round(map.getZoom());
-        const controller = new AbortController();
-        running = controller;
-        save.hidden = true;
-        cancel.hidden = false;
-        // Ask the browser not to clear these under storage pressure. It may say no.
-        void navigator.storage?.persist?.().catch(() => false);
-        status.textContent = `Saving 0 of ${tiles.length}…`;
-        const failed = await saveTiles(tiles, controller.signal, (done) => {
-          status.textContent = `Saving ${done} of ${tiles.length}…`;
-        });
-        if (controller.signal.aborted) status.textContent = "Stopped. Anything already saved stays saved.";
-        else if (failed) status.textContent = `${failed} of ${tiles.length} tiles couldn't be saved. Download again with a better connection to fill the gaps.`;
-        else status.textContent = `Saved. Offline, switch to the Satellite map. ${imageryReach(closer)} Terrain calculations work anywhere inside this view.`;
-        finish();
-      };
-
-      for (const element of [root, panel]) {
-        L.DomEvent.disableClickPropagation(element);
-        L.DomEvent.disableScrollPropagation(element);
-      }
-      L.DomEvent.on(button, "click", (e) => {
-        L.DomEvent.preventDefault(e);
-        open(panel.hidden !== false);
-      });
-      save.addEventListener("click", () => void start());
-      cancel.addEventListener("click", () => running?.abort());
-      part("close").addEventListener("click", () => open(false));
-      part("clear").addEventListener("click", async () => {
-        if (!confirm("Remove all saved and viewed terrain, land-cover and satellite tiles from this device?")) return;
-        await Promise.all([caches.delete(TERRAIN_CACHE), caches.delete(LAND_COVER_CACHE), caches.delete(IMAGERY_CACHE)]);
-        status.textContent = "Saved tiles cleared.";
-        void refreshStored();
-      });
-      map.on("moveend", () => {
-        if (!panel.hidden) describe();
-      });
+      L.DomEvent.disableClickPropagation(root);
+      L.DomEvent.disableScrollPropagation(root);
+      offlinePanel(map, button);
       return root;
     },
   });
   new Control({ position: "topleft" }).addTo(map);
+}
+
+/** The offline panel on the map, opened and closed by button. */
+function offlinePanel(map: L.Map, button: HTMLElement): void {
+  // On the map itself, not in the control, so it can use the map's full height.
+  const panel = L.DomUtil.create("div", "offline-panel", map.getContainer());
+  panel.hidden = true;
+  panel.innerHTML = `<strong>Save this view for offline</strong>
+    <p data-role="text"></p>
+    <p data-role="status" role="status"></p>
+    <div class="offline-actions">
+      <button type="button" data-role="save">Download</button>
+      <button type="button" class="secondary" data-role="cancel" hidden>Stop</button>
+      <button type="button" class="secondary" data-role="close">Close</button>
+    </div>
+    <p class="offline-stored"><span data-role="stored"></span> <button type="button" class="link" data-role="clear">Clear saved tiles</button></p>`;
+  const part = <T extends HTMLElement>(role: string) => panel.querySelector<T>(`[data-role="${role}"]`)!;
+  const text = part("text");
+  const status = part("status");
+  const save = part<HTMLButtonElement>("save");
+  const cancel = part<HTMLButtonElement>("cancel");
+  const stored = part("stored");
+
+  let running: AbortController | null = null;
+  let plan: OfflinePlan | null = null;
+
+  const describe = () => {
+    if (running) return;
+    const b = map.getBounds();
+    plan = planOfflineArea({ north: b.getNorth(), south: b.getSouth(), west: b.getWest(), east: b.getEast() });
+    save.disabled = plan.tooBig;
+    text.textContent = plan.tooBig
+      ? "This view is too big to save. Zoom in until it shows about 200 km across or less."
+      : `Downloads about ${formatMb(plan.estimatedBytes)} of terrain, land cover and satellite imagery for everything on screen. OpenStreetMap doesn't allow saving street maps.`;
+  };
+
+  const refreshStored = async () => {
+    stored.textContent = await storedText();
+  };
+
+  const open = (show: boolean) => {
+    panel.hidden = !show;
+    button.setAttribute("aria-expanded", String(show));
+    if (!show) return;
+    status.textContent = "";
+    describe();
+    void refreshStored();
+  };
+
+  const finish = () => {
+    running = null;
+    save.hidden = false;
+    cancel.hidden = true;
+    describe();
+    void refreshStored();
+  };
+
+  const start = async () => {
+    if (!plan || plan.tooBig) return;
+    const { tiles, imageryMaxZoom } = plan;
+    const closer = imageryMaxZoom - Math.round(map.getZoom());
+    const controller = new AbortController();
+    running = controller;
+    save.hidden = true;
+    cancel.hidden = false;
+    // Ask the browser not to clear these under storage pressure. It may say no.
+    void navigator.storage?.persist?.().catch(() => false);
+    status.textContent = `Saving 0 of ${tiles.length}…`;
+    const failed = await saveTiles(tiles, controller.signal, (done) => {
+      status.textContent = `Saving ${done} of ${tiles.length}…`;
+    });
+    if (controller.signal.aborted) status.textContent = "Stopped. Anything already saved stays saved.";
+    else if (failed) status.textContent = `${failed} of ${tiles.length} tiles couldn't be saved. Download again with a better connection to fill the gaps.`;
+    else status.textContent = `Saved. Offline, switch to the Satellite map. ${imageryReach(closer)} Terrain calculations work anywhere inside this view.`;
+    finish();
+  };
+
+  L.DomEvent.disableClickPropagation(panel);
+  L.DomEvent.disableScrollPropagation(panel);
+  L.DomEvent.on(button, "click", (e) => {
+    L.DomEvent.preventDefault(e);
+    open(panel.hidden !== false);
+  });
+  save.addEventListener("click", () => void start());
+  cancel.addEventListener("click", () => running?.abort());
+  part("close").addEventListener("click", () => open(false));
+  part("clear").addEventListener("click", async () => {
+    if (!confirm("Remove all saved and viewed terrain, land-cover and satellite tiles from this device?")) return;
+    await Promise.all([caches.delete(TERRAIN_CACHE), caches.delete(LAND_COVER_CACHE), caches.delete(IMAGERY_CACHE)]);
+    status.textContent = "Saved tiles cleared.";
+    void refreshStored();
+  });
+  map.on("moveend", () => {
+    if (!panel.hidden) describe();
+  });
 }

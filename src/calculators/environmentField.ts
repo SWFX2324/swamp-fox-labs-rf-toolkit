@@ -9,7 +9,7 @@ export function environmentOptions(): string {
   const [none, ...rest] = environments;
   return [
     `<option value="${none.id}">${none.name}</option>`,
-    `<option value="${AUTO_ENVIRONMENT}">From land-cover map</option>`,
+    `<option value="${AUTO_ENVIRONMENT}">Auto (satellite map)</option>`,
     ...rest.map((e) => `<option value="${e.id}">${e.name}</option>`),
   ].join("");
 }
@@ -59,6 +59,8 @@ export function bindTreeField(form: HTMLElement, unitName: string): void {
   form.addEventListener("input", sync);
   form.addEventListener("change", sync);
   sync();
+  // Again once the page has filled in its saved values, which set fields without events.
+  queueMicrotask(sync);
 }
 
 const roughNote = (freqHz: number) =>

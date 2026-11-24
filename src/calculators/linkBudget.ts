@@ -1,16 +1,18 @@
+import { type PlanNode, decodePlan, encodePlan, planFromHash } from "../lib/plans";
 import { enhanceFields } from "./fieldHelp";
 import { linkBudgetGuide } from "./helpText";
 import type { Calculator } from ".";
 import { beyondCableRange, cableLossDb, cables, findCable, lossPer100Ft } from "../lib/coax";
 import { type Environment, clutterLossDb, effectiveHeightM, findEnvironment } from "../lib/environment";
-import { bindTreeField, environmentNote, environmentOptions, landCoverNote, treeHeightFieldHtml, withFormTrees } from "./environmentField";
+import { bindTreeField, environmentOptions, treeHeightFieldHtml, withFormTrees } from "./environmentField";
 import { AUTO_ENVIRONMENT, type LandCoverPoint } from "../lib/landCover";
 import { landCoverAt } from "./landCoverTiles";
-import { globalK, modelDefaults, modelFieldsHtml, readModel } from "./modelFields";
+import { globalK, readModel } from "./modelFields";
+import { climates, grounds } from "../lib/propagation";
 import { tabStateToSave, tabValues } from "../lib/appSettings";
 import type { EditField } from "../lib/scene3d";
 import type { RelayFinderInputs } from "./relayFinder";
-import { deratedSensitivity, derateNote, fallbackEnvironment, modelFromSettings, sharedFields } from "./settingsStore";
+import { deratedSensitivity, derateNote, fallbackEnvironment, getSettings, setSettings, sharedFields } from "./settingsStore";
 import { type ModelSettings, timeAvailable } from "../lib/propagation";
 import { STANDARD_K, midpointClearance } from "../lib/horizon";
 import { type SiteId, createTerrainCard } from "./terrain";
@@ -20,7 +22,6 @@ import { linkQuality } from "../lib/linkLines";
 import {
   type DistanceUnit,
   dbmToWatts,
-  distanceUnits,
   frequencyUnits,
   fromMetres,
   powerUnits,
@@ -33,6 +34,9 @@ import {
 } from "../lib/units";
 
 const STORAGE_KEY = "rf-toolkit:link-budget";
+// Cards start closed; this remembers which ones you open.
+const PANES_KEY = "rf-toolkit:link-panes";
+const SIDES_KEY = "rf-toolkit:link-sides";
 
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
@@ -62,7 +66,6 @@ const legacyDefaults: Record<string, string> = {
   txHeight: "30",
   txHeightUnit: "ft",
   dist: "3",
-  distUnit: "mi",
   environment: "none",
   treeHeight: "",
   extraLoss: "0",
@@ -75,7 +78,7 @@ const legacyDefaults: Record<string, string> = {
   rxOther: "0.5",
   rxSens: "-100",
   fadeMargin: "10",
-  ...modelDefaults,
+
 };
 
 const hfWarning =
@@ -84,11 +87,15 @@ const hfWarning =
   "propagation tool such as VOACAP for these bands.";
 
 const ratingText: Record<MarginRating, string> = {
-  good: "Solid",
-  fair: "Workable",
-  marginal: "Marginal",
-  fail: "Won't close",
+  good: "Good link",
+  fair: "Workable link",
+  marginal: "Marginal link",
+  fail: "Bad link",
 };
+/** Margin at or above which a good link reads "Superior link", dB. */
+const SUPERIOR_DB = 30;
+/** The words for a margin: five steps, from the four ratings plus one above good. */
+const ratingWords = (rating: MarginRating, marginDb: number) => (rating === "good" && marginDb >= SUPERIOR_DB ? "Superior link" : ratingText[rating]);
 
 function options(values: readonly string[], selected: string): string {
   return values.map((v) => `<option${v === selected ? " selected" : ""}>${v}</option>`).join("");
@@ -131,14 +138,35 @@ function cableFields(side: "tx" | "rx"): string {
     <p class="note span-all" data-out="${side}CableNote"></p>`;
 }
 
+const svgIcon = (paths: string) => `<svg class="pane-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const PANE_ICONS = {
+  tx: svgIcon('<path d="M12 12v9M9 21h6"/><circle cx="12" cy="10" r="2"/><path d="M8.5 6.5a5 5 0 0 0 0 7M15.5 6.5a5 5 0 0 1 0 7M5.6 3.6a9 9 0 0 0 0 12.8M18.4 3.6a9 9 0 0 1 0 12.8"/>'),
+  rx: svgIcon('<path d="M4 20h16"/><path d="M6 20 12 6l6 14"/><path d="M8.5 15h7"/><path d="M12 3v3"/>'),
+  relay: svgIcon('<circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><circle cx="12" cy="6" r="2"/><path d="m6.5 15.5 4-7.5M17.5 15.5l-4-7.5"/>'),
+  env: svgIcon('<path d="M12 21v-5"/><path d="m12 3-6 9h3l-3 4h12l-3-4h3z"/>'),
+  terrain: svgIcon('<path d="m3 19 6-9 4 5 3-4 5 8z"/>'),
+  share: svgIcon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/>'),
+  budget: svgIcon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+};
+
+/** An expandable card in the left pane. */
+const pane = (id: keyof typeof PANE_ICONS, title: string, body: string, extraSummary = "") => `
+    <details class="pane-card" data-pane="${id}">
+      <summary>${PANE_ICONS[id]}<span class="pane-title">${title}</span>${extraSummary}</summary>
+      <div class="pane-body">${body}</div>
+    </details>`;
+
 const template = `
-  <div class="inputs">
-    <section class="card">
-      <div class="card-head"><h2>Site A</h2><span class="meta">One end of the link</span></div>
+  <div class="lb-shell floating">
+  <button type="button" class="side-toggle" data-side="left" aria-expanded="true" aria-label="Hide the settings pane"></button>
+  <button type="button" class="side-toggle" data-side="right" aria-expanded="true" aria-label="Hide the link budget"></button>
+  <div class="lb-left">
+    ${pane("tx", "Transmitter", `
       <div class="fields">
         <label>Name
           <input name="txName" type="text" autocomplete="off" maxlength="40" placeholder="Site A" />
         </label>
+        <div class="pane-slot" data-slot="tx"></div>
         ${unitField("Frequency", "freq", Object.keys(frequencyUnits), "freqUnit")}
         ${unitField("TX power", "txPower", powerUnits, "txPowerUnit")}
         ${cableFields("tx")}
@@ -146,20 +174,14 @@ const template = `
         ${numberField("Antenna gain", "txGain", "dBi")}
         ${unitField("Antenna height", "txHeight", ["ft", "m"], "txHeightUnit")}
         ${numberField("Sensitivity", "txSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
-      </div>
-      <div class="tile subtotal">
-        <span class="label">EIRP</span>
-        <span class="value" data-out="eirp"></span>
-        <span class="sub" data-out="eirpW"></span>
-      </div>
-    </section>
+      </div>`)}
 
-    <section class="card">
-      <div class="card-head"><h2>Site B</h2><span class="meta">The other end</span></div>
+    ${pane("rx", "Receiver", `
       <div class="fields">
         <label>Name
           <input name="rxName" type="text" autocomplete="off" maxlength="40" placeholder="Site B" />
         </label>
+        <div class="pane-slot" data-slot="rx"></div>
         ${unitField("TX power", "rxPower", powerUnits, "rxPowerUnit")}
         ${numberField("Antenna gain", "rxGain", "dBi")}
         ${unitField("Antenna height", "rxHeight", ["ft", "m"], "rxHeightUnit")}
@@ -167,17 +189,12 @@ const template = `
         ${numberField("Other losses", "rxOther", "dB", 'min="0"')}
         ${numberField("Sensitivity", "rxSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
         ${numberField("Fade margin wanted", "fadeMargin", "dB", 'min="0" title="Used for the max range"')}
-      </div>
-      <div class="tile subtotal">
-        <span class="label">EIRP</span>
-        <span class="value" data-out="eirpB"></span>
-        <span class="sub" data-out="eirpBW"></span>
-      </div>
-    </section>
+      </div>`)}
 
-    <section class="card" data-card="relay" hidden>
-      <div class="card-head"><h2>Relay</h2><span class="meta">Retransmits between the two</span></div>
-      <p class="note top" data-out="relayIntro"></p>
+    ${pane("relay", "Relay", `
+      <div class="pane-slot" data-slot="relay"></div>
+      <div class="relay-radio" data-card="relay" hidden>
+      <p class="note" data-out="relayIntro"></p>
       <div class="fields">
         <label>Name
           <input name="relayName" type="text" autocomplete="off" maxlength="40" placeholder="Relay" />
@@ -188,28 +205,21 @@ const template = `
         ${unitField("Antenna height", "relayHeight", ["ft", "m"], "relayHeightUnit")}
         ${numberField("Sensitivity", "relaySens", "dBm")}
       </div>
-    </section>
+      </div>`)}
 
-    <section class="card" data-card="path">
-      <div class="card-head"><h2>Path</h2><span class="meta">Line of sight</span></div>
+    ${pane("env", "Environment", `
       <div class="fields">
-        ${unitField("Distance", "dist", Object.keys(distanceUnits), "distUnit")}
-        <label>Environment
+        <label class="wide">Environment
           <select name="environment">${environmentOptions()}</select>
+        </label>
+        <label>Climate
+          <select name="climate">${climates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select>
+        </label>
+        <label>Ground type
+          <select name="ground">${grounds.map((g) => `<option value="${g.id}">${g.name}</option>`).join("")}</select>
         </label>
         ${treeHeightFieldHtml()}
         ${numberField("Extra path loss", "extraLoss", "dB", 'min="0" title="Foliage, buildings, rain, partial Fresnel blockage"')}
-        ${modelFieldsHtml()}
-      </div>
-      <p class="note" data-out="envNote" hidden></p>
-      <p class="note" data-out="derateNote" hidden></p>
-      <p class="note" data-out="distNote" hidden>
-        Distance comes from the map pins in Terrain profile. Clear the pins to type one.
-      </p>
-      <div class="tile subtotal">
-        <span class="label">Free-space path loss</span>
-        <span class="value" data-out="fspl"></span>
-        <span class="sub" data-out="rxIso"></span>
       </div>
       <table class="ledger geometry" data-out="geometry">
         <tbody>
@@ -220,14 +230,19 @@ const template = `
         </tbody>
       </table>
       <p class="callout" data-out="geoWarn" hidden></p>
-      <p class="callout" data-out="hfPath" hidden>${hfWarning}</p>
-    </section>
+      <p class="callout" data-out="hfPath" hidden>${hfWarning}</p>`)}
+
+    ${pane("terrain", "Terrain profile", `<div class="pane-slot" data-slot="profile"></div>`, '<span class="pane-pill" data-slot="pill"></span>')}
+
+    ${pane("share", "Share", `<div class="pane-slot" data-slot="share"></div>`)}
   </div>
 
-  <aside class="results">
+  <div class="lb-map" data-slot="map"></div>
+
+  <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
-        <h2>Link budget</h2>
+        <h2 class="with-icon">${PANE_ICONS.budget}Link budget</h2>
         <span class="pill" data-out="rating"></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
@@ -243,13 +258,33 @@ const template = `
           <span class="sub" data-out="marginSub"></span>
         </div>
         <div class="tile">
-          <span class="label">Max range</span>
-          <span class="value" data-out="range"></span>
-          <span class="sub" data-out="rangeSub"></span>
+          <span class="label">TX EIRP</span>
+          <span class="value" data-out="eirp"></span>
+          <span class="sub" data-out="eirpW"></span>
+        </div>
+        <div class="tile">
+          <span class="label">RX EIRP</span>
+          <span class="value" data-out="eirpB"></span>
+          <span class="sub" data-out="eirpBW"></span>
+        </div>
+        <div class="tile wide-tile">
+          <span class="label">Free-space path loss</span>
+          <span class="value" data-out="fspl"></span>
+        </div>
+        <div class="tile wide-tile tile-field">
+          <label>Distance
+            <span class="input-unit">
+              <span class="value" data-out="distValue" hidden></span>
+              <input name="dist" type="number" inputmode="decimal" step="any" min="0" />
+              <span class="unit" data-out="distUnitLabel"></span>
+            </span>
+          </label>
         </div>
       </div>
-      <p class="note" data-out="dirNote" hidden></p>
       <p class="error" data-out="error" hidden></p>
+      <details class="budget-details">
+      <summary>Full budget</summary>
+      <p class="note" data-out="dirNote" hidden></p>
       <div class="dir-switch" data-out="dirWrap" hidden>
         <span class="note">Details for</span>
         <div class="seg" role="group" aria-label="Direction shown">
@@ -257,10 +292,8 @@ const template = `
           <button type="button" data-dir="ba"></button>
         </div>
       </div>
-      <table class="ledger">
-        <thead><tr><th>Stage</th><th class="num">Change</th><th class="num">Level</th></tr></thead>
-        <tbody data-out="ledger"></tbody>
-      </table>
+      <div class="budget-flow" data-out="ledger"></div>
+      </details>
       <div class="relay-results" data-out="relayResults" hidden>
         <div class="card-head"><h3>Through the relay</h3><span class="pill" data-out="relayRating"></span></div>
         <table class="ledger">
@@ -269,9 +302,9 @@ const template = `
         </table>
         <p class="note" data-out="relayNote"></p>
       </div>
-      <details class="about"><summary>About this calculation</summary><p>Margin guide: 20 dB or more is solid, 10–20 workable, 0–10 marginal. Without map pins, free-space loss is the best case with a clear line of sight. With pins, the Irregular Terrain Model (Longley-Rice) adds the terrain along the path, at the reliability and confidence you set; the margin then shows how much of the time the link holds. Cable loss assumes a well-matched antenna; high SWR adds more.</p></details>
     </section>
   </aside>
+  </div>
 
   <div class="summary-bar">
     <span aria-hidden="true"><span class="k">Signal</span> <b data-out="barRsl"></b></span>
@@ -284,7 +317,7 @@ function currentDefaults(): Record<string, string> {
   const s = sharedFields();
   return {
     ...legacyDefaults,
-    ...modelFromSettings(),
+
     // 50 MHz (low VHF) now; old saves left at the former 915 MHz follow it.
     freq: "50",
     freqUnit: "MHz",
@@ -304,7 +337,6 @@ function currentDefaults(): Record<string, string> {
     rxHeight: s.height,
     txHeightUnit: s.heightUnit,
     rxHeightUnit: s.heightUnit,
-    distUnit: s.distanceUnit,
     environment: s.environment,
     treeHeight: s.treeHeight,
   };
@@ -328,17 +360,8 @@ function saveState(state: Record<string, string>): void {
 
 const fmt = (value: number, digits = 2) =>
   value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
-const signed = (db: number) => (db === 0 ? fmt(0) : `${db > 0 ? "+" : "−"}${fmt(Math.abs(db))}`);
 const dbm = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dBm</span>`;
 const db = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dB</span>`;
-
-/** A value with a small unit after it, built as text nodes rather than HTML. */
-function setValueWithUnit(el: HTMLElement, value: string, unit: string): void {
-  const span = document.createElement("span");
-  span.className = "unit";
-  span.textContent = unit;
-  el.replaceChildren(value, span);
-}
 
 function formatWatts(watts: number): string {
   if (watts >= 1) return `${fmt(watts, watts >= 100 ? 0 : 2)} W`;
@@ -367,7 +390,7 @@ export const linkBudgetCalculator: Calculator = {
   render() {
     const form = document.createElement("form");
     const defaults = currentDefaults();
-    form.className = "calculator link-budget";
+    form.className = "calculator link-budget map-first";
     form.innerHTML = template;
     bindTreeField(form, "txHeightUnit");
     form.addEventListener("submit", (e) => e.preventDefault());
@@ -416,6 +439,20 @@ export const linkBudgetCalculator: Calculator = {
       names: () => ({ tx: field("txName").value, rx: field("rxName").value, relay: field("relayName").value }),
       fields: siteFields,
       edit: editSite,
+      shareUrl: () => {
+        const settings: Record<string, string> = {};
+        for (const name of Object.keys(defaults)) settings[name] = field(name).value;
+        const pins = terrain.pins();
+        const relay = terrain.relay();
+        const nodes: PlanNode[] = pins
+          ? [
+              { name: field("txName").value, lat: pins.tx.lat, lon: pins.tx.lon, height: "" },
+              { name: field("rxName").value, lat: pins.rx.lat, lon: pins.rx.lon, height: "" },
+              ...(relay ? [{ name: field("relayName").value, lat: relay.lat, lon: relay.lon, height: "" }] : []),
+            ]
+          : [];
+        return `${location.origin}${location.pathname}#link?plan=${encodePlan({ settings, nodes })}`;
+      },
       setName: (site, name) => {
         field(`${site}Name`).value = name;
         field(`${site}Name`).dispatchEvent(new Event("input", { bubbles: true }));
@@ -424,9 +461,104 @@ export const linkBudgetCalculator: Calculator = {
       fadeMarginDb: () => num("fadeMargin") || 0,
     });
     for (const name of ["txName", "rxName", "relayName"]) field(name).addEventListener("input", () => terrain.namesChanged());
-    form.querySelector('[data-card="path"]')!.after(terrain.element);
+    // The terrain card's parts go where they belong in this layout.
+    for (const [name, part] of Object.entries(terrain.parts)) form.querySelector(`[data-slot="${name}"]`)!.append(part);
+    const profilePill = terrain.parts.profile.querySelector(".pill");
+    if (profilePill) form.querySelector('[data-slot="pill"]')!.append(profilePill);
+    // Which cards are open is remembered on this device.
+    const panes = [...form.querySelectorAll<HTMLDetailsElement>("details.pane-card")];
+    const openPanes = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(PANES_KEY) ?? "null") as Record<string, boolean> | null;
+      } catch {
+        return null;
+      }
+    })() ?? {};
+    for (const p of panes) {
+      p.open = !!openPanes[p.dataset.pane!];
+      p.addEventListener("toggle", () => {
+        openPanes[p.dataset.pane!] = p.open;
+        try {
+          localStorage.setItem(PANES_KEY, JSON.stringify(openPanes));
+        } catch {
+          // Storage blocked: the cards open as they started next time.
+        }
+        // The profile is drawn to its card's width, which is zero while closed.
+        if (p.open && p.dataset.pane === "terrain") terrain.redraw();
+      });
+    }
+    // Either side pane folds away to give the map the room; remembered here.
+    const sides = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(SIDES_KEY) ?? "{}") as Record<string, boolean>;
+      } catch {
+        return {};
+      }
+    })();
+    const syncSides = () => {
+      for (const side of ["left", "right"]) {
+        const closed = !!sides[side];
+        form.querySelector(".lb-shell")!.classList.toggle(`${side}-closed`, closed);
+        const b = form.querySelector<HTMLButtonElement>(`.side-toggle[data-side="${side}"]`)!;
+        b.setAttribute("aria-expanded", String(!closed));
+        b.setAttribute("aria-label", `${closed ? "Show" : "Hide"} the ${side === "left" ? "settings pane" : "link budget"}`);
+      }
+    };
+    for (const b of form.querySelectorAll<HTMLButtonElement>(".side-toggle")) {
+      b.addEventListener("click", () => {
+        sides[b.dataset.side!] = !sides[b.dataset.side!];
+        try {
+          localStorage.setItem(SIDES_KEY, JSON.stringify(sides));
+        } catch {
+          // Storage blocked: just for now.
+        }
+        syncSides();
+      });
+    }
+    syncSides();
+    // With the panes floating on the map, its taskbar, key and messages centre
+    // in the gap between them, and the taskbar drops its labels when that gap
+    // is too narrow for them.
+    const floating = window.matchMedia("(min-width: 1100px)");
+    const fitTaskbar = () => {
+      const shellEl = form.querySelector<HTMLElement>(".lb-shell")!;
+      const bar = form.querySelector<HTMLElement>(".map-taskbar");
+      if (!shellEl.isConnected) return;
+      if (!floating.matches) {
+        shellEl.style.removeProperty("--gap-center");
+        bar?.classList.remove("compact");
+        return;
+      }
+      const box = shellEl.getBoundingClientRect();
+      const left = form.querySelector<HTMLElement>(".lb-left")!.getBoundingClientRect();
+      const right = form.querySelector<HTMLElement>(".lb-right")!.getBoundingClientRect();
+      const from = left.width ? left.right - box.left : 0;
+      const to = right.width ? right.left - box.left : box.width;
+      shellEl.style.setProperty("--gap-center", `${(from + to) / 2}px`);
+      if (!bar) return;
+      bar.classList.remove("compact");
+      if (bar.offsetWidth > to - from - 24) bar.classList.add("compact");
+    };
+    new ResizeObserver(fitTaskbar).observe(form.querySelector(".lb-shell")!);
+    for (const p of panes) p.addEventListener("toggle", fitTaskbar);
+    for (const b of form.querySelectorAll(".side-toggle")) b.addEventListener("click", fitTaskbar);
+    // The taskbar arrives with the map, a moment after the page.
+    const waitForBar = () => {
+      if (form.querySelector(".map-taskbar")) fitTaskbar();
+      else if (form.isConnected) setTimeout(waitForBar, 100);
+    };
+    setTimeout(waitForBar, 0);
+    // The page fills the window below the header, so the map gets all the height.
+    const shell = form.querySelector<HTMLElement>(".lb-shell")!;
+    const fitShell = () => {
+      if (!shell.isConnected) return;
+      shell.style.setProperty("--lb-top", `${Math.max(0, shell.getBoundingClientRect().top + window.scrollY)}px`);
+    };
+    new ResizeObserver(fitShell).observe(document.body);
+    window.addEventListener("resize", fitShell);
+    requestAnimationFrame(fitShell);
 
-    // Land cover at the two pins, when Environment is "From land-cover map".
+    // Land cover at the two pins, when Environment is "Auto (satellite map)".
     let cover: { key: string; ends?: [LandCoverPoint, LandCoverPoint]; error?: string } | undefined;
     const landCover = (): { ends?: [LandCoverPoint, LandCoverPoint]; note: string } => {
       const pins = terrain.pins();
@@ -578,19 +710,24 @@ export const linkBudgetCalculator: Calculator = {
     };
 
     const update = () => {
-      const distUnit = asDistanceUnit(field("distUnit").value);
+      // Distances in the unit chosen in Settings.
+      const distUnit = asDistanceUnit(getSettings().distanceUnit);
+      out("distUnitLabel").textContent = distUnit === "km" ? "Kilometers" : "Miles";
       // With both pins down, the map sets the distance.
       const pinned = terrain.pathDistanceM();
       const distInput = field("dist") as HTMLInputElement;
       distInput.readOnly = pinned !== undefined;
-      out("distNote").hidden = pinned === undefined;
-      if (pinned !== undefined) distInput.value = String(Number(fromMetres(pinned, distUnit).toFixed(3)));
+      if (pinned !== undefined) distInput.value = fromMetres(pinned, distUnit).toFixed(2);
+      // From the pins it reads like the other tiles; without them it's a field to type in.
+      distInput.hidden = pinned !== undefined;
+      out("distValue").hidden = pinned === undefined;
+      out("distValue").textContent = pinned !== undefined ? distInput.value : "";
 
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
       saveState(tabStateToSave(state, defaults));
 
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
-      const { auto, ends, env, txEnv, rxEnv, relayEnv } = siteEnvironments();
+      const { txEnv, rxEnv, relayEnv } = siteEnvironments();
       const txHeightM = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
       const rxHeightM = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
       const inputs: LinkInputs = {
@@ -665,7 +802,7 @@ export const linkBudgetCalculator: Calculator = {
 
       if (problem) {
         out("dirNote").hidden = out("dirWrap").hidden = true;
-        for (const name of ["eirp", "eirpW", "eirpB", "eirpBW", "fspl", "rxIso", "rsl", "margin", "marginSub", "range", "rangeSub", "barRsl", "barMargin"]) {
+        for (const name of ["eirp", "eirpW", "eirpB", "eirpBW", "fspl", "rsl", "margin", "marginSub", "barRsl", "barMargin"]) {
           out(name).textContent = dash;
         }
         out("rating").hidden = true;
@@ -676,14 +813,6 @@ export const linkBudgetCalculator: Calculator = {
         return;
       }
 
-      out("envNote").hidden = env.id === "none" && !auto;
-      out("envNote").textContent = ends
-        ? ends.ends
-          ? landCoverNote([{ ...ends.ends[0], environment: txEnv }, { ...ends.ends[1], environment: rxEnv }], [siteName("tx"), siteName("rx")], freqHz, txHeightM, rxHeightM)
-          : ends.note
-        : environmentNote(env, freqHz, txHeightM, rxHeightM);
-      out("derateNote").textContent = derateNote();
-      out("derateNote").hidden = !derateNote();
       inputs.terrainLossDb = reverse.terrainLossDb = profile?.loss.lossDb ?? 0;
       const forward = linkBudget(inputs);
       const backward = linkBudget(reverse);
@@ -706,38 +835,24 @@ export const linkBudgetCalculator: Calculator = {
       const ba = `${siteName("rx")} → ${siteName("tx")}`;
       const same = Math.abs(forward.marginDb - backward.marginDb) < 0.05;
       out("dirNote").hidden = hf;
-      out("dirNote").textContent = same
-        ? `Both directions match: ${fmt(forward.marginDb)} dB each way.`
-        : `${ab}: ${fmt(forward.marginDb)} dB. ${ba}: ${fmt(backward.marginDb)} dB. The weaker direction (${weakerDir === "ab" ? ab : ba}) sets the link.`;
+      // Only worth saying when the two ways differ.
+      out("dirNote").hidden = hf || same;
+      out("dirNote").textContent = `The weaker way, ${weakerDir === "ab" ? ab : ba}, sets the link.`;
       out("dirWrap").hidden = hf || same;
       for (const b of form.querySelectorAll<HTMLButtonElement>("[data-dir]")) {
         b.textContent = b.dataset.dir === "ab" ? ab : ba;
         b.setAttribute("aria-pressed", String(b.dataset.dir === dir));
       }
       out("fspl").innerHTML = db(forward.fsplDb);
-      out("rxIso").textContent = `Arrives at ${fmt(forward.rxIsotropicDbm)} dBm at ${siteName("rx")} before its antenna gain`;
       out("rsl").innerHTML = dbm(r.rslDbm);
       out("margin").innerHTML = db(r.marginDb);
       out("marginSub").textContent = profile?.loss.itm && !hf ? availabilityText(timeAvailable(profile.loss.itm, model, r.marginDb), model) : "";
       out("margin").title = `${fromName} → ${toName}`;
-      if (hf) {
-        out("range").textContent = dash;
-        out("rangeSub").textContent = "Not meaningful on HF";
-      } else if (profile) {
-        // The smooth-earth horizon assumes both ends at the same ground level,
+      if (!hf) {
+        showGeometry(shown, r.horizonM, r.beyondHorizon, distUnit);
+        // The smooth-earth geometry assumes both ends at the same ground level,
         // which a real profile (a hilltop, say) overrules.
-        setValueWithUnit(out("range"), formatRange(r.budgetRangeM, distUnit), distUnit);
-        out("rangeSub").textContent =
-          `What the budget allows with ${fmt(inputs.fadeMarginDb, 0)} dB of fade margin. Terrain decides the rest.`;
-        showGeometry(shown, r.horizonM, r.beyondHorizon, distUnit);
-        out("geometry").hidden = out("geoWarn").hidden = true;
-      } else {
-        setValueWithUnit(out("range"), formatRange(r.maxRangeM, distUnit), distUnit);
-        out("rangeSub").textContent =
-          r.rangeLimit === "horizon"
-            ? "Limited by the radio horizon at these antenna heights"
-            : `Limited by the budget, keeping ${fmt(inputs.fadeMarginDb, 0)} dB of fade margin`;
-        showGeometry(shown, r.horizonM, r.beyondHorizon, distUnit);
+        if (profile) out("geometry").hidden = out("geoWarn").hidden = true;
       }
       out("barRsl").textContent = `${fmt(r.rslDbm)} dBm`;
       out("barMargin").textContent = `${fmt(r.marginDb)} dB`;
@@ -750,39 +865,37 @@ export const linkBudgetCalculator: Calculator = {
         pill.textContent = "Beyond horizon";
       } else {
         pill.className = `pill s-${rating}`;
-        pill.textContent = ratingText[rating];
+        pill.textContent = ratingWords(rating, weakest);
       }
 
-      let level = shown.txPowerDbm;
+      // The budget in a few steps: what's sent, what's gained and lost on the
+      // way, what arrives against what's needed.
       const from = escapeHtml(fromName);
       const to = escapeHtml(toName);
-      const rows: string[] = [];
-      const step = (stage: string, change: number | null, total = false) => {
-        if (change !== null) level += change;
-        rows.push(
-          `<tr${total ? ' class="total"' : ""}><td>${stage}</td>` +
-            `<td class="num mono">${change === null ? "" : signed(change)}</td>` +
-            `<td class="num mono">${fmt(level)}</td></tr>`,
-        );
-      };
-      step(`${from} TX power`, null);
-      if (shown.txCableLossDb) step(`${from} coax`, -shown.txCableLossDb);
-      if (shown.txOtherLossDb) step(`${from} other losses`, -shown.txOtherLossDb);
-      step(`${from} antenna`, shown.txGainDbi);
-      step("EIRP", null, true);
-      step("Free-space loss", -r.fsplDb);
-      if (inputs.extraPathLossDb) step("Extra path loss", -inputs.extraPathLossDb);
-      if (inputs.clutterLossDb) step(auto ? "Clutter (land cover)" : env.name, -inputs.clutterLossDb);
-      if (profile) step(profile.loss.model === "itm" ? "Terrain (Longley-Rice)" : "Terrain diffraction", -inputs.terrainLossDb);
-      step(`${to} antenna`, shown.rxGainDbi);
-      if (shown.rxCableLossDb) step(`${to} coax`, -shown.rxCableLossDb);
-      if (shown.rxOtherLossDb) step(`${to} other losses`, -shown.rxOtherLossDb);
-      step(`Received at ${to}`, null, true);
-      rows.push(
-        `<tr><td>${to} sensitivity${derateNote() ? " (derated)" : ""}</td><td></td><td class="num mono">${fmt(shown.rxSensitivityDbm)}</td></tr>` +
-          `<tr class="total"><td>Link margin</td><td></td><td class="num mono">${fmt(r.marginDb)} dB</td></tr>`,
-      );
-      out("ledger").innerHTML = rows.join("");
+      const step1 = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmt(Math.abs(v), 1)}`;
+      const lineLoss = shown.txCableLossDb + shown.txOtherLossDb + shown.rxCableLossDb + shown.rxOtherLossDb;
+      const pathParts: [string, number][] = [
+        ["free space", r.fsplDb],
+        ["terrain", profile ? (inputs.terrainLossDb ?? 0) : 0],
+        ["clutter", inputs.clutterLossDb ?? 0],
+        ["extra", inputs.extraPathLossDb ?? 0],
+      ];
+      const pathLoss = pathParts.reduce((sum, [, v]) => sum + v, 0);
+      const parts = pathParts.filter(([, v]) => v > 0).map(([k, v]) => `${k} ${fmt(v, 1)}`).join(" · ");
+      const antennas = shown.txGainDbi + shown.rxGainDbi;
+      const flow: [string, string, string?, string?][] = [
+        [`Transmitter (${from})`, `${fmt(shown.txPowerDbm, 1)} dBm`, undefined, "total accent-good"],
+        ["Cable losses", `${step1(-lineLoss)} dB`],
+        // Named for what they do here: high-gain antennas add, poor ones take away.
+        [antennas >= 0 ? "Antenna gain" : "Antenna losses", `${step1(antennas)} dB`],
+        ["Path loss", `${step1(-pathLoss)} dB`, parts],
+        [`Receiver (${to})`, `${fmt(r.rslDbm, 1)} dBm`, undefined, `total s-${rating}`],
+        ["Receiver requirement", `${fmt(shown.rxSensitivityDbm, 1)} dBm`, derateNote() ? "Sensitivity, derated" : "Sensitivity"],
+        ["Overall link margin", `${fmt(r.marginDb, 1)} dB`, undefined, `total s-${rating}`],
+      ];
+      out("ledger").innerHTML = flow
+        .map(([k, v, sub, cls]) => `<div class="flow-row${cls ? ` ${cls}` : ""}"><span class="flow-k">${k}${sub ? `<small>${sub}</small>` : ""}</span><span class="flow-v mono">${v.replace("-", "−")}</span></div>`)
+        .join("");
 
       // Through the relay: each hop as its own budget; the weaker one sets the link.
       out("relayResults").hidden = !relayAt || hf;
@@ -854,7 +967,7 @@ export const linkBudgetCalculator: Calculator = {
         const margin = document.createElement("td");
         margin.className = "num";
         const rating = rateMargin(h.marginDb);
-        margin.innerHTML = `<span class="mono">${fmt(h.marginDb)} dB</span> <span class="pill s-${rating}">${ratingText[rating]}</span>`;
+        margin.innerHTML = `<span class="mono">${fmt(h.marginDb)} dB</span> <span class="pill s-${rating}">${ratingWords(rating, h.marginDb)}</span>`;
         margin.title = `${fmt(h.out)} dB one way, ${fmt(h.back)} dB back`;
         tr.append(name, dist, margin);
         tbody.append(tr);
@@ -863,7 +976,7 @@ export const linkBudgetCalculator: Calculator = {
       const overall = rateMargin(weaker);
       out("relayRating").hidden = false;
       out("relayRating").className = `pill s-${overall}`;
-      out("relayRating").textContent = ratingText[overall];
+      out("relayRating").textContent = ratingWords(overall, weaker);
       const loading = !hops.hop1 || !hops.hop2;
       out("relayNote").textContent =
         (loading ? "Terrain for the hops is still loading, so these are free-space figures for now. " : "") +
@@ -888,6 +1001,34 @@ export const linkBudgetCalculator: Calculator = {
     });
     update();
     enhanceFields(form, linkBudgetGuide, defaults);
+    // A link arriving by share link: its settings, then its pins.
+    const shared = planFromHash(location.hash, "link");
+    if (shared) {
+      history.replaceState(null, "", "#link");
+      const plan = decodePlan(shared, Object.keys(defaults));
+      if (plan) {
+        fill(plan.settings);
+        const [a, b, r] = plan.nodes ?? [];
+        for (const [site, n] of [["tx", a], ["rx", b], ["relay", r]] as const) if (n) field(`${site}Name`).value = n.name;
+        if (a && b) terrain.setPins({ tx: a, rx: b, relay: r });
+        update();
+      }
+    }
+    // Climate and ground type are global: shown here, kept in Settings, so a
+    // change here applies on every tab.
+    const climateSel = field("climate") as HTMLSelectElement;
+    const groundSel = field("ground") as HTMLSelectElement;
+    climateSel.value = getSettings().climate;
+    groundSel.value = getSettings().ground;
+    for (const sel of [climateSel, groundSel]) {
+      sel.addEventListener("change", () => {
+        setSettings({ ...getSettings(), climate: climateSel.value, ground: groundSel.value });
+        update();
+      });
+    }
+    // The Simple/Advanced switch heads the left pane.
+    const modeBar = form.querySelector(".mode-bar");
+    if (modeBar) form.querySelector(".lb-left")!.prepend(modeBar);
     return form;
   },
 };
