@@ -109,6 +109,19 @@ button, select, input { font: inherit; color: inherit; }
   .tool-nav { order: 3; width: 100%; padding-left: 0; border-left: 0; }
 }
 
+/* ------------------------------------------------------------ about */
+/* Plain-English notes on the models and data: two columns of cards on desktop. */
+.about-page { max-width: 1160px; margin: 0 auto; columns: 2 460px; column-gap: 14px; }
+.about-section { break-inside: avoid; margin: 0 0 14px; }
+.about-intro { margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.about-list { margin: 0; display: grid; gap: 12px; }
+.about-item { padding-top: 12px; border-top: 1px solid var(--grid-line); }
+.about-item:first-child { padding-top: 0; border-top: 0; }
+.about-item dt { font-weight: 600; font-size: 14px; }
+.about-item dd { margin: 0; }
+.about-source { font-size: 12px; color: var(--muted); margin-top: 2px !important; }
+.about-how { font-size: 13px; line-height: 1.5; color: var(--text-2); margin-top: 6px !important; }
+
 /* ------------------------------------------------------------ home */
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .home { max-width: 1160px; margin: 0 auto; padding: 8px 0 12px; }

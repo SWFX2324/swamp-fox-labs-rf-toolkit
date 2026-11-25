@@ -24,6 +24,7 @@ The app opens on a home page with a card for each tool and a line on what it is 
 | Power Requirements Planning Tool | Available | List your gear with data plate watts, or volts and amps (AC or DC), and how many of each. Totals every line and the whole load, and recommends the smallest generator, from 5 to 60 kW, that carries it inside a planning limit, 80% by default. Save gear you use often to your equipment list and add it again with just a new quantity. Exports a CSV for Excel with every line and the total load. The planning limit sits on the left, the equipment list takes the middle of the page and the generator results sit on the right. |
 | Unit of Measure Conversion Tool | Available | Linked converters for watts, dBm, dBW, microvolts and S-meter readings; SWR, return loss, reflection coefficient and mismatch loss; dBi and dBd; and decibel ratios. On desktop the four converters sit side by side across the page. |
 | Settings | Available | Opened from the gear in the top right. The starting values for the VHF/UHF Link Analysis, MANET Mesh Planner and VHF/UHF Coverage Analysis (prediction standard, equipment, environment, units), and the propagation settings every tab uses: Earth curvature, radio climate, ground and polarization. See [Settings](#settings) below. |
+| About | Available | Opened beside Settings. In plain English: each RF model the app uses, where the map layers and elevation data come from, and how each works, with sources and limits. |
 
 ## How the modeling works
 

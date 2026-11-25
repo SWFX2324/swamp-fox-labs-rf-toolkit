@@ -1,3 +1,4 @@
+import { aboutCalculator } from "./about";
 import { antennaLengthCalculator } from "./antennaLength";
 import { coaxLossCalculator } from "./coaxLoss";
 import { converterCalculator } from "./converter";
@@ -33,4 +34,5 @@ export const calculators: Calculator[] = [
   powerPlanCalculator,
   converterCalculator,
   settingsCalculator,
+  aboutCalculator,
 ];

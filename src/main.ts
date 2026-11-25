@@ -22,6 +22,7 @@ function show(): void {
   toolNav.hidden = !calc;
   toolName.textContent = calc?.title ?? "";
   document.querySelector("#settingsLink")?.toggleAttribute("aria-current", calc?.id === "settings");
+  document.querySelector("#aboutLink")?.toggleAttribute("aria-current", calc?.id === "about");
   app.replaceChildren(calc ? calc.render() : renderHome());
   document.title = calc ? `${calc.title} · RF Toolkit` : "RF Toolkit";
   if (!calc) window.scrollTo(0, 0);
