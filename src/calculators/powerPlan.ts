@@ -121,7 +121,7 @@ const inputValue = (v: number | undefined) => (v === undefined ? "" : String(v))
 
 export const powerPlanCalculator: Calculator = {
   id: "power",
-  title: "Power Plan",
+  title: "Power Requirements Planning Tool",
   shortTitle: "Power",
   render() {
     const form = document.createElement("form");

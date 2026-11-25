@@ -381,7 +381,7 @@ interface SiteRun {
 
 export const coverageCalculator: Calculator = {
   id: "coverage",
-  title: "Coverage Analysis",
+  title: "VHF/UHF Coverage Analysis",
   shortTitle: "Coverage",
   render() {
     const form = document.createElement("form");
@@ -1027,7 +1027,7 @@ export const coverageCalculator: Calculator = {
         const r = radiusM();
         const specs = siteSpecs();
         return {
-          title: "Coverage Analysis",
+          title: "VHF/UHF Coverage Analysis",
           points: specs.map((s, i) => ({ ...s.at, label: s.name, heightM: s.heightM, fields: i === 0 ? siteFields(s.at) : extraFields(i - 1) })),
           links: [],
           // Only shading that matches the current settings, as on this map.

@@ -165,7 +165,7 @@ function drawPointing(azTrue: number, declination: number, elevation: number): s
 
 export const satPointingCalculator: Calculator = {
   id: "sat",
-  title: "Satellite Pointing",
+  title: "Terminal Pointing Tool",
   shortTitle: "Pointing",
   render() {
     const form = document.createElement("form");

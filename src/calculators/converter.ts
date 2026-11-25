@@ -140,7 +140,7 @@ const SIGNED = new Set(["dbm", "dbw", "dbi", "dbd", "db"]);
 
 export const converterCalculator: Calculator = {
   id: "convert",
-  title: "Unit Converter",
+  title: "Unit of Measure Conversion Tool",
   shortTitle: "Convert",
   render() {
     const root = document.createElement("form");

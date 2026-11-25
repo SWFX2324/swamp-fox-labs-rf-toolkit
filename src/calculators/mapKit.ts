@@ -1,12 +1,12 @@
 import { rfIcon } from "../ui/rfIcons";
-// Shared Leaflet setup: a Streets, Dark or Satellite base map and a recenter
+// Shared Leaflet setup: a Light (streets), Dark, ESRI Satellite or USGS Satellite base map and a recenter
 // button that frames whatever the page cares about. The base map starts as Dark
 // in dark mode and Streets in light mode; a choice is remembered for that theme
 // across every map in the app.
 
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { OVERLAY_MAX_ZOOM, OVERLAY_URL, SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL, tileInUsgsArea } from "../lib/offlineArea";
+import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
 import { addOfflineControl } from "./offlineControl";
 import { THEME_EVENT, isDarkTheme } from "./theme";
 import type { Scene3D } from "../lib/scene3d";
@@ -23,10 +23,23 @@ export const OVERLAY_ATTRIBUTION =
   'Labels: data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, rendering &copy; <a href="https://maps.eox.at">EOX::Maps</a> and <a href="https://github.com/mapserver/basemaps">MapServer</a>';
 export const USGS_ATTRIBUTION = '<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map">USGS The National Map</a>';
 
-type LayerName = "Streets" | "Dark" | "Satellite";
+// Esri's World Imagery (Clarity): sharper, recent imagery worldwide. Online only:
+// Esri doesn't allow its tiles to be saved for offline use, so they're kept out of
+// "save this view" and out of the service worker's tile caches (vite.config.ts).
+const CLARITY_URL = "https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const CLARITY_ATTRIBUTION = "Imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community";
+
+// The stored names stay as they were, so saved choices still work; the menu shows these.
+type LayerName = "Streets" | "Dark" | "Satellite" | "Clarity";
+const LAYER_LABELS: Record<LayerName, string> = {
+  Streets: "Light",
+  Dark: "Dark",
+  Satellite: "USGS Satellite",
+  Clarity: "ESRI Satellite",
+};
 
 const themeKey = (dark: boolean) => `${LAYER_KEY}:${dark ? "dark" : "light"}`;
-const isLayerName = (v: string | null): v is LayerName => v === "Streets" || v === "Dark" || v === "Satellite";
+const isLayerName = (v: string | null): v is LayerName => v === "Streets" || v === "Dark" || v === "Satellite" || v === "Clarity";
 
 function readLayer(dark: boolean): LayerName {
   try {
@@ -133,15 +146,6 @@ export function addClearControl(map: L.Map, what: string, onClear: () => void): 
   };
 }
 
-const BLANK_TILE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-
-/** EOX's labels, left blank over the US, where the USGS hybrid already prints names. */
-const LabelsOutsideUs = L.TileLayer.extend({
-  getTileUrl(this: L.TileLayer, coords: L.Coords) {
-    return tileInUsgsArea(coords) ? BLANK_TILE : L.TileLayer.prototype.getTileUrl.call(this, coords);
-  },
-}) as unknown as new (url: string, options?: L.TileLayerOptions) => L.TileLayer;
-
 /** Default view when a page has nothing to show yet: the contiguous US. */
 export function showDefaultView(map: L.Map): void {
   map.setView([37.5, -96], 4);
@@ -186,14 +190,10 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
         crossOrigin: true,
         attribution: USGS_ATTRIBUTION,
       }),
-      // Place and road names on top elsewhere, so it reads as a hybrid map.
-      new LabelsOutsideUs(OVERLAY_URL, {
-        maxZoom: 19,
-        maxNativeZoom: OVERLAY_MAX_ZOOM,
-        crossOrigin: true,
-        attribution: OVERLAY_ATTRIBUTION,
-      }),
+      // No EOX label overlay on the satellite maps: its names come with orange
+      // border and coast lines that can't be separated from them.
     ]),
+    Clarity: L.tileLayer(CLARITY_URL, { maxZoom: 19, crossOrigin: true, attribution: CLARITY_ATTRIBUTION }),
   };
   let current = readLayer(isDarkTheme());
   layers[current].addTo(map);
@@ -208,8 +208,8 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     menu.className = "map-layers-menu";
     menu.hidden = true;
     menu.setAttribute("role", "menu");
-    const names: LayerName[] = ["Streets", "Dark", "Satellite"];
-    menu.innerHTML = names.map((n) => `<button type="button" role="menuitemradio" data-layer="${n}">${n}</button>`).join("");
+    const names: LayerName[] = ["Streets", "Dark", "Clarity", "Satellite"];
+    menu.innerHTML = names.map((n) => `<button type="button" role="menuitemradio" data-layer="${n}">${LAYER_LABELS[n]}</button>`).join("");
     const open = (show: boolean) => {
       menu.hidden = !show;
       button.setAttribute("aria-expanded", String(show));
@@ -237,14 +237,16 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     layerSlot.append(button, menu);
     syncLayerMenu();
   } else {
-    L.control.layers(layers, undefined, { position: "topright" }).addTo(map);
+    const labelled = Object.fromEntries((Object.keys(layers) as LayerName[]).map((n) => [LAYER_LABELS[n], layers[n]]));
+    L.control.layers(labelled, undefined, { position: "topright" }).addTo(map);
   }
   // The layer control also fires this when the code adds a layer: the first one
   // once the map has a view, and theme swaps. Only a different layer is a choice.
   map.on("baselayerchange", (e: L.LayersControlEvent) => {
-    if (!isLayerName(e.name) || e.name === current) return;
-    current = e.name;
-    saveLayer(e.name);
+    const name = (Object.keys(LAYER_LABELS) as LayerName[]).find((n) => LAYER_LABELS[n] === e.name);
+    if (!name || name === current) return;
+    current = name;
+    saveLayer(name);
   });
   // Switch to the new theme's map when the theme changes.
   const onTheme = () => {

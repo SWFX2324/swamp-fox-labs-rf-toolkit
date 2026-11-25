@@ -162,7 +162,7 @@ function rating(fraction: number): { text: string; cls: string } {
 
 export const coaxLossCalculator: Calculator = {
   id: "coax",
-  title: "Coax Loss",
+  title: "Coaxial Attenuation Planning Tool",
   shortTitle: "Coax",
   render() {
     const form = document.createElement("form");

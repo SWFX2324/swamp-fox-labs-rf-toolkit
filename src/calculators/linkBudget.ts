@@ -359,7 +359,7 @@ function formatRange(metres: number, unit: DistanceUnit): string {
 export const linkBudgetCalculator: Calculator = {
   id: "link",
   aliases: ["fspl"],
-  title: "Link Analysis",
+  title: "VHF/UHF Link Analysis",
   shortTitle: "Link",
   render() {
     const form = document.createElement("form");

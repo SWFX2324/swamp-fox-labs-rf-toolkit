@@ -546,7 +546,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
         pinsChanged();
       };
       return {
-        title: "Link Analysis",
+        title: "VHF/UHF Link Analysis",
         points,
         links,
         k: lastParams?.k ?? STANDARD_K,

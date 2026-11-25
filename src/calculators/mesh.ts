@@ -265,7 +265,7 @@ const fmt = (v: number, digits = 1) =>
 
 export const meshCalculator: Calculator = {
   id: "mesh",
-  title: "Mesh Analysis",
+  title: "MANET Mesh Planner",
   shortTitle: "Mesh",
   render() {
     const form = document.createElement("form");
@@ -852,7 +852,7 @@ export const meshCalculator: Calculator = {
         { key: "location", label: "Location", value: formatCoordinates(n), type: "text" },
       ];
       view3d = add3DControl(map, () => ({
-        title: "Mesh Analysis",
+        title: "MANET Mesh Planner",
         points: nodes.map((n, i) => ({ lat: n.lat, lon: n.lon, label: nodeLabel(i), heightM: heightM(n), fields: nodeFields(n) })),
         links: lastLinks
           .filter((r) => r.a < nodes.length && r.b < nodes.length)

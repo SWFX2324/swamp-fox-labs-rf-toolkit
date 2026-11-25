@@ -12,7 +12,7 @@ import { downloadFile } from "./planBar";
 export type PresetScope = "mesh" | "coverage";
 // The mesh list keeps the original key, so presets made before the split stay there.
 const STORAGE_KEYS: Record<PresetScope, string> = { mesh: "rf-toolkit:radio-presets", coverage: "rf-toolkit:coverage-presets" };
-const SCOPE_NAMES: Record<PresetScope, string> = { mesh: "Mesh Analysis", coverage: "Coverage Analysis" };
+const SCOPE_NAMES: Record<PresetScope, string> = { mesh: "MANET Mesh Planner", coverage: "VHF/UHF Coverage Analysis" };
 /** Fired on window when presets change (detail: the scope), so an open tab can refresh its list. */
 export const PRESETS_EVENT = "rf-toolkit:presets";
 

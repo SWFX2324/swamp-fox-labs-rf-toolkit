@@ -173,7 +173,7 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
     });
     if (controller.signal.aborted) status.textContent = "Stopped. Anything already saved stays saved.";
     else if (failed) status.textContent = `${failed} of ${tiles.length} tiles couldn't be saved. Download again with a better connection to fill the gaps.`;
-    else status.textContent = `Saved. Offline, switch to the Satellite map. ${imageryReach(closer)} Terrain calculations work anywhere inside this view.`;
+    else status.textContent = `Saved. Offline, switch to the USGS Satellite map. ${imageryReach(closer)} Terrain calculations work anywhere inside this view.`;
     finish();
   };
 

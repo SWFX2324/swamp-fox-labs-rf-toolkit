@@ -121,11 +121,8 @@ button, select, input { font: inherit; color: inherit; }
   color: var(--text); text-decoration: none; transition: border-color .15s, transform .15s;
 }
 .tool-card:hover, .tool-card:focus-visible { border-color: var(--accent); transform: translateY(-1px); }
-.tool-icon {
-  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
-}
-.tool-icon svg { width: 24px; height: 24px; }
+/* Each tool's picture, on the card itself: no tile behind it. */
+.tool-art { display: block; width: 64px; height: 64px; object-fit: contain; }
 .tool-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .tool-title { font-size: 15px; font-weight: 600; }
 .tool-blurb { font-size: 13px; line-height: 1.4; color: var(--text-2); }

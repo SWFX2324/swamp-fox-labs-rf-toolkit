@@ -110,7 +110,7 @@ const metric = (m: number) =>
 
 export const antennaLengthCalculator: Calculator = {
   id: "antenna",
-  title: "Antenna Length",
+  title: "Antenna Planning Tool",
   shortTitle: "Antenna",
   render() {
     const form = document.createElement("form");

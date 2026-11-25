@@ -190,7 +190,7 @@ function rateMargin(db: number): { text: string; cls: string } {
 
 export const satLinkCalculator: Calculator = {
   id: "satlink",
-  title: "Satellite Link",
+  title: "Satellite Link Analysis",
   shortTitle: "Sat Link",
   render() {
     const form = document.createElement("form");

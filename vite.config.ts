@@ -27,11 +27,13 @@ export default defineConfig({
       workbox: {
         // App shell plus the bundled SVGs (the topographic page background) and the
         // 3D view with its MapLibre worker (.mjs), so it all works offline.
-        globPatterns: ["**/*.{js,mjs,css,html,svg}"],
+        globPatterns: ["**/*.{js,mjs,css,html,svg,webp}"],
         // Keep map tiles the user has looked at, so the map background still
         // shows offline. Stale-while-revalidate refreshes them when online.
         // OpenStreetMap tiles are never downloaded in bulk (per its tile usage
         // policy); "save this view" stores only the imagery, terrain and land cover below.
+        // Esri Clarity imagery (clarity.maptiles.arcgis.com) is left out on purpose:
+        // Esri doesn't allow its tiles to be stored for offline use.
         runtimeCaching: [
           {
             // OpenStreetMap tiles, used by both the Streets and Dark maps. Fetched
