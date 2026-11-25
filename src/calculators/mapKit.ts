@@ -1,7 +1,7 @@
 import { rfIcon } from "../ui/rfIcons";
 // Shared Leaflet setup: a Light (streets), Dark, ESRI Satellite or USGS Satellite base map and a recenter
-// button that frames whatever the page cares about. The base map starts as Dark
-// in dark mode and Streets in light mode; a choice is remembered for that theme
+// button that frames whatever the page cares about. The base map starts as ESRI
+// Satellite; a choice is remembered for that theme
 // across every map in the app.
 
 import * as L from "leaflet";
@@ -49,9 +49,10 @@ function readLayer(dark: boolean): LayerName {
     // over Satellite, so the Streets and Dark defaults follow the theme.
     if (localStorage.getItem(LAYER_KEY) === "Satellite") return "Satellite";
   } catch {
-    // Storage blocked: use the theme's default.
+    // Storage blocked: use the default.
   }
-  return dark ? "Dark" : "Streets";
+  // Until the user picks one, every map starts on ESRI Satellite.
+  return "Clarity";
 }
 
 function saveLayer(name: string): void {
