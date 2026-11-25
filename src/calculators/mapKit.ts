@@ -1,7 +1,7 @@
 import { rfIcon } from "../ui/rfIcons";
 // Shared Leaflet setup: a Light (streets), Dark, ESRI Satellite or USGS Satellite base map and a recenter
 // button that frames whatever the page cares about. The base map starts as ESRI
-// Satellite; a choice is remembered for that theme
+// Satellite (USGS Satellite when offline); a choice is remembered for that theme
 // across every map in the app.
 
 import * as L from "leaflet";
@@ -51,8 +51,9 @@ function readLayer(dark: boolean): LayerName {
   } catch {
     // Storage blocked: use the default.
   }
-  // Until the user picks one, every map starts on ESRI Satellite.
-  return "Clarity";
+  // Until the user picks one, every map starts on ESRI Satellite, or on USGS
+  // Satellite with no connection, since ESRI tiles can't be saved for offline use.
+  return navigator.onLine === false ? "Satellite" : "Clarity";
 }
 
 function saveLayer(name: string): void {
@@ -250,9 +251,13 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     saveLayer(name);
   });
   // Switch to the new theme's map when the theme changes.
+  // Also run when the connection drops or returns, so a map left on the default
+  // moves between ESRI and USGS Satellite. A layer the user picked stays put.
   const onTheme = () => {
     if (!container.isConnected) {
       window.removeEventListener(THEME_EVENT, onTheme);
+      window.removeEventListener("online", onTheme);
+      window.removeEventListener("offline", onTheme);
       return;
     }
     const next = readLayer(isDarkTheme());
@@ -264,6 +269,8 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     syncLayerMenu();
   };
   window.addEventListener(THEME_EVENT, onTheme);
+  window.addEventListener("online", onTheme);
+  window.addEventListener("offline", onTheme);
 
   const Recenter = L.Control.extend({
     onAdd() {

@@ -171,7 +171,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
 .foot a { color: inherit; }
 /* The logo's lettering is light, so it sits on the app's dark card colour in
    both themes: a quiet badge in light mode, a card-like tile in dark mode. */
-.foot-logo { display: block; width: 120px; height: auto; margin: 2px auto 8px; border-radius: 7px; opacity: .85; background: #1a1a19; }
 
 /* ------------------------------------------------------------ fields */
 .fields {
