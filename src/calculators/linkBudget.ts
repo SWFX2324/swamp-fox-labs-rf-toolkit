@@ -16,9 +16,9 @@ import type { RelayFinderInputs } from "./relayFinder";
 import { deratedSensitivity, derateNote, fallbackEnvironment, getSettings, setSettings, sharedFields } from "./settingsStore";
 import { type ModelSettings, timeAvailable } from "../lib/propagation";
 import { STANDARD_K, midpointClearance } from "../lib/horizon";
-import { type SiteId, createTerrainCard } from "./terrain";
+import { type HopAnalysis, type SiteId, createTerrainCard } from "./terrain";
 import { type LatLon, distanceBetweenM } from "../lib/geo";
-import { type LinkInputs, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
+import { type LinkInputs, type LinkResult, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
 import { linkQuality } from "../lib/linkLines";
 import {
   type DistanceUnit,
@@ -220,6 +220,13 @@ const template = `
         <span class="pill" data-out="rating"></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
+      <div class="path-view" data-out="pathView" hidden>
+        <div class="seg" role="group" aria-label="Path shown">
+          <button type="button" data-path-view="relay">Via relay</button>
+          <button type="button" data-path-view="direct">Direct</button>
+        </div>
+        <p class="note" data-out="pathNote"></p>
+      </div>
       <p class="callout" data-out="hfResult" hidden>${hfWarning}</p>
       <div class="tiles">
         <div class="tile">
@@ -232,12 +239,12 @@ const template = `
           <span class="sub" data-out="marginSub"></span>
         </div>
         <div class="tile">
-          <span class="label">TX EIRP</span>
+          <span class="label" data-out="eirpLabel">TX EIRP</span>
           <span class="value" data-out="eirp"></span>
           <span class="sub" data-out="eirpW"></span>
         </div>
         <div class="tile">
-          <span class="label">RX EIRP</span>
+          <span class="label" data-out="eirpBLabel">RX EIRP</span>
           <span class="value" data-out="eirpB"></span>
           <span class="sub" data-out="eirpBW"></span>
         </div>
@@ -246,7 +253,7 @@ const template = `
           <span class="value" data-out="fspl"></span>
         </div>
         <div class="tile wide-tile tile-field">
-          <label>Distance
+          <label><span data-out="distLabel">Distance</span>
             <span class="input-unit">
               <span class="value" data-out="distValue" hidden></span>
               <input name="dist" type="number" inputmode="decimal" step="any" min="0" />
@@ -269,7 +276,7 @@ const template = `
       <div class="budget-flow" data-out="ledger"></div>
       </details>
       <div class="relay-results" data-out="relayResults" hidden>
-        <div class="card-head"><h3>Through the relay</h3><span class="pill" data-out="relayRating"></span></div>
+        <div class="card-head"><h3>Hops</h3></div>
         <table class="ledger">
           <thead><tr><th>Hop</th><th class="num">Distance</th><th class="num">Margin</th></tr></thead>
           <tbody data-out="relayHops"></tbody>
@@ -691,40 +698,75 @@ export const linkBudgetCalculator: Calculator = {
       inputs.terrainLossDb = reverse.terrainLossDb = profile?.loss.lossDb ?? 0;
       const forward = linkBudget(inputs);
       const backward = linkBudget(reverse);
-      // The weaker direction rates the link; the details follow the switch, or the weaker one.
-      const weakerDir: "ab" | "ba" = backward.marginDb < forward.marginDb ? "ba" : "ab";
-      const weakest = Math.min(forward.marginDb, backward.marginDb);
-      const dir = ledgerDir ?? weakerDir;
-      const r = dir === "ab" ? forward : backward;
-      const shown = dir === "ab" ? inputs : reverse;
-      const [fromName, toName] = dir === "ab" ? [siteName("tx"), siteName("rx")] : [siteName("rx"), siteName("tx")];
-      const rating = rateMargin(weakest);
-      // The map line follows the same rule as the Mesh Analysis: good once the fade margin is covered.
-      terrain.showLink(hf ? undefined : linkQuality(weakest, inputs.fadeMarginDb));
 
-      out("eirp").innerHTML = dbm(forward.eirpDbm);
-      out("eirpW").textContent = formatWatts(dbmToWatts(forward.eirpDbm));
-      out("eirpB").innerHTML = dbm(backward.eirpDbm);
-      out("eirpBW").textContent = formatWatts(dbmToWatts(backward.eirpDbm));
-      const ab = `${siteName("tx")} → ${siteName("rx")}`;
-      const ba = `${siteName("rx")} → ${siteName("tx")}`;
-      const same = Math.abs(forward.marginDb - backward.marginDb) < 0.05;
-      out("dirNote").hidden = hf;
+      // One way along a path: its inputs, result and end names.
+      type Way = { inputs: LinkInputs; result: LinkResult; from: string; to: string };
+
+      // A placed relay: each hop worked out as its own two-way budget, with
+      // the relay's own radio. The weaker hop sets the route.
+      const pins = terrain.pins();
+      const route = relayAt && pins && !hf ? relayRoute(pins, relayAt) : undefined;
+      const viaRelay = !!route && terrain.view() === "relay";
+      out("pathView").hidden = !route;
+      for (const b of form.querySelectorAll<HTMLButtonElement>("[data-path-view]")) {
+        b.setAttribute("aria-pressed", String((b.dataset.pathView === "relay") === viaRelay));
+      }
+
+      // Everything below describes one path: the direct one, or the weaker hop.
+      const ab: Way = viaRelay ? route!.weaker.ab : { inputs, result: forward, from: siteName("tx"), to: siteName("rx") };
+      const ba: Way = viaRelay ? route!.weaker.ba : { inputs: reverse, result: backward, from: siteName("rx"), to: siteName("tx") };
+      const itm = viaRelay ? route!.weaker.itm : profile?.loss.itm;
+      if (route) {
+        out("pathNote").textContent = viaRelay
+          ? `${siteName("tx")} to ${siteName("rx")} through ${siteName("relay")}. Figures are for hop ${route.weaker.n}, the weaker hop, which sets the link.`
+          : `${siteName("tx")} straight to ${siteName("rx")}, without the relay.`;
+      }
+
+      // The weaker direction rates the link; the details follow the switch, or the weaker one.
+      const weakerDir: "ab" | "ba" = ba.result.marginDb < ab.result.marginDb ? "ba" : "ab";
+      const weakest = Math.min(ab.result.marginDb, ba.result.marginDb);
+      const directWeakest = Math.min(forward.marginDb, backward.marginDb);
+      const dir = ledgerDir ?? weakerDir;
+      const way = dir === "ab" ? ab : ba;
+      const r = way.result;
+      const shown = way.inputs;
+      const fromName = way.from;
+      const toName = way.to;
+      const rating = rateMargin(weakest);
+      // The map line is always the direct path; the hop lines are drawn below.
+      // It follows the same rule as the Mesh Analysis: good once the fade margin is covered.
+      terrain.showLink(hf ? undefined : linkQuality(directWeakest, inputs.fadeMarginDb));
+
+      out("eirpLabel").textContent = viaRelay ? `${ab.from} EIRP` : "TX EIRP";
+      out("eirpBLabel").textContent = viaRelay ? `${ab.to} EIRP` : "RX EIRP";
+      out("eirp").innerHTML = dbm(ab.result.eirpDbm);
+      out("eirpW").textContent = formatWatts(dbmToWatts(ab.result.eirpDbm));
+      out("eirpB").innerHTML = dbm(ba.result.eirpDbm);
+      out("eirpBW").textContent = formatWatts(dbmToWatts(ba.result.eirpDbm));
+      const abText = `${ab.from} → ${ab.to}`;
+      const baText = `${ba.from} → ${ba.to}`;
+      const same = Math.abs(ab.result.marginDb - ba.result.marginDb) < 0.05;
       // Only worth saying when the two ways differ.
       out("dirNote").hidden = hf || same;
-      out("dirNote").textContent = `The weaker way, ${weakerDir === "ab" ? ab : ba}, sets the link.`;
+      out("dirNote").textContent = `The weaker way, ${weakerDir === "ab" ? abText : baText}, sets the link.`;
       out("dirWrap").hidden = hf || same;
       for (const b of form.querySelectorAll<HTMLButtonElement>("[data-dir]")) {
-        b.textContent = b.dataset.dir === "ab" ? ab : ba;
+        b.textContent = b.dataset.dir === "ab" ? abText : baText;
         b.setAttribute("aria-pressed", String(b.dataset.dir === dir));
       }
-      out("fspl").innerHTML = db(forward.fsplDb);
+      out("fspl").innerHTML = db(r.fsplDb);
       out("rsl").innerHTML = dbm(r.rslDbm);
       out("margin").innerHTML = db(r.marginDb);
-      out("marginSub").textContent = profile?.loss.itm && !hf ? availabilityText(timeAvailable(profile.loss.itm, model, r.marginDb), model) : "";
+      out("marginSub").textContent = itm && !hf ? availabilityText(timeAvailable(itm, model, r.marginDb), model) : "";
       out("margin").title = `${fromName} → ${toName}`;
+      out("distLabel").textContent = viaRelay ? "Distance via relay" : "Distance";
+      if (viaRelay) {
+        const total = route!.hops[0].distanceM + route!.hops[1].distanceM;
+        out("distValue").textContent = fmt(fromMetres(total, distUnit));
+      }
       if (!hf) {
-        showGeometry(shown, r.horizonM, r.beyondHorizon, distUnit);
+        // Horizon and geometry stay on the direct path.
+        showGeometry(inputs, forward.horizonM, forward.beyondHorizon, distUnit);
         // The smooth-earth geometry assumes both ends at the same ground level,
         // which a real profile (a hilltop, say) overrules.
         if (profile) out("geoWarn").hidden = true;
@@ -735,7 +777,7 @@ export const linkBudgetCalculator: Calculator = {
       pill.hidden = hf;
       // With a profile, terrain loss is in the margin, so the margin rating
       // already says whether the path works.
-      if (!profile && r.beyondHorizon) {
+      if (!viaRelay && !profile && r.beyondHorizon) {
         pill.className = "pill s-fail";
         pill.textContent = "Beyond horizon";
       } else {
@@ -751,9 +793,9 @@ export const linkBudgetCalculator: Calculator = {
       const lineLoss = shown.txCableLossDb + shown.txOtherLossDb + shown.rxCableLossDb + shown.rxOtherLossDb;
       const pathParts: [string, number][] = [
         ["free space", r.fsplDb],
-        ["terrain", profile ? (inputs.terrainLossDb ?? 0) : 0],
-        ["clutter", inputs.clutterLossDb ?? 0],
-        ["extra", inputs.extraPathLossDb ?? 0],
+        ["terrain", viaRelay || profile ? (shown.terrainLossDb ?? 0) : 0],
+        ["clutter", shown.clutterLossDb ?? 0],
+        ["extra", shown.extraPathLossDb ?? 0],
       ];
       const pathLoss = pathParts.reduce((sum, [, v]) => sum + v, 0);
       const parts = pathParts.filter(([, v]) => v > 0).map(([k, v]) => `${k} ${fmt(v, 1)}`).join(" · ");
@@ -772,94 +814,96 @@ export const linkBudgetCalculator: Calculator = {
         .map(([k, v, sub, cls]) => `<div class="flow-row${cls ? ` ${cls}` : ""}"><span class="flow-k">${k}${sub ? `<small>${sub}</small>` : ""}</span><span class="flow-v mono">${v.replace("-", "−")}</span></div>`)
         .join("");
 
-      // Through the relay: each hop as its own budget; the weaker one sets the link.
-      out("relayResults").hidden = !relayAt || hf;
+      // The hops, listed under the relay view; the map shows their lines either way.
+      out("relayResults").hidden = !relayAt || hf || (!!route && !viaRelay);
       if (!relayAt || hf) {
         terrain.showHops(undefined, undefined);
         return;
       }
-      const pins = terrain.pins();
-      const hops = terrain.hops(terrainParams);
-      const relayH = relayHeightM();
-      const relayGain = num("relayGain") || 0;
-      const relayCable = num("relayCable") || 0;
-      // Each site's radio for the hops: losses, gain, height and surroundings.
-      const radio = (site: SiteId) =>
-        site === "tx"
-          ? { loss: inputs.txCableLossDb + inputs.txOtherLossDb, gain: inputs.txGainDbi, h: txHeightM, env: txEnv }
-          : site === "rx"
-            ? { loss: inputs.rxCableLossDb + inputs.rxOtherLossDb, gain: inputs.rxGainDbi, h: rxHeightM, env: rxEnv }
-            : { loss: relayCable, gain: relayGain, h: relayH, env: relayEnv };
-      const oneWay = (a: SiteId, b: SiteId, distanceM: number, terrainLossDb: number | undefined) => {
-        const A = radio(a);
-        const B = radio(b);
-        return linkBudget({
-          ...inputs,
-          distanceM,
-          terrainLossDb: terrainLossDb ?? 0,
-          txPowerDbm: sitePower(a),
-          txCableLossDb: A.loss,
-          txOtherLossDb: 0,
-          txGainDbi: A.gain,
-          txHeightM: A.h,
-          rxGainDbi: B.gain,
-          rxCableLossDb: B.loss,
-          rxOtherLossDb: 0,
-          rxSensitivityDbm: siteSens(b),
-          rxHeightM: B.h,
-          clutterLossDb: clutterLossDb(A.env, freqHz, A.h) + clutterLossDb(B.env, freqHz, B.h),
-        }).marginDb;
-      };
-      /** A hop's margin each way; the weaker one limits it. */
-      const hopBudget = (a: SiteId, b: SiteId, pa: LatLon, pb: LatLon, terrainLossDb: number | undefined) => {
-        const d = distanceBetweenM(pa, pb);
-        const out1 = oneWay(a, b, d, terrainLossDb);
-        const back = oneWay(b, a, d, terrainLossDb);
-        return { marginDb: Math.min(out1, back), out: out1, back, distanceM: d };
-      };
       const tbody = out("relayHops");
       tbody.replaceChildren();
-      if (!pins) {
-        out("relayRating").hidden = true;
+      if (!route) {
         out("relayNote").textContent = `Drop both ${siteName("tx")} and ${siteName("rx")} to see the two hops.`;
         terrain.showHops(undefined, undefined);
         return;
       }
-      const h1 = hopBudget("tx", "relay", pins.tx, relayAt, hops.hop1?.loss.lossDb);
-      const h2 = hopBudget("relay", "rx", relayAt, pins.rx, hops.hop2?.loss.lossDb);
-      const fade = inputs.fadeMarginDb;
-      const rows2: [string, typeof h1][] = [
-        [`1 · ${siteName("tx")} ↔ ${siteName("relay")}`, h1],
-        [`2 · ${siteName("relay")} ↔ ${siteName("rx")}`, h2],
-      ];
-      for (const [label, h] of rows2) {
+      for (const h of route.hops) {
         const tr = document.createElement("tr");
+        if (h === route.weaker) tr.className = "weaker-hop";
         const name = document.createElement("td");
-        name.textContent = label; // names are user text
+        name.textContent = `${h.n} · ${h.ab.from} ↔ ${h.ab.to}`; // names are user text
         const dist = document.createElement("td");
         dist.className = "num mono";
         dist.textContent = `${fmt(fromMetres(h.distanceM, distUnit))} ${distUnit}`;
         const margin = document.createElement("td");
         margin.className = "num";
-        const rating = rateMargin(h.marginDb);
-        margin.innerHTML = `<span class="mono">${fmt(h.marginDb)} dB</span> <span class="pill s-${rating}">${ratingWords(rating, h.marginDb)}</span>`;
-        margin.title = `${fmt(h.out)} dB one way, ${fmt(h.back)} dB back`;
+        const hr = rateMargin(h.marginDb);
+        margin.innerHTML = `<span class="mono">${fmt(h.marginDb)} dB</span> <span class="pill s-${hr}">${ratingWords(hr, h.marginDb)}</span>`;
+        margin.title = `${fmt(h.ab.result.marginDb)} dB one way, ${fmt(h.ba.result.marginDb)} dB back`;
         tr.append(name, dist, margin);
         tbody.append(tr);
       }
-      const weaker = Math.min(h1.marginDb, h2.marginDb);
-      const overall = rateMargin(weaker);
-      out("relayRating").hidden = false;
-      out("relayRating").className = `pill s-${overall}`;
-      out("relayRating").textContent = ratingWords(overall, weaker);
-      const loading = !hops.hop1 || !hops.hop2;
       // Only said while it matters: until the hops' terrain loads, they're free-space figures.
-      out("relayNote").textContent = loading ? "Terrain for the hops is still loading; free-space figures for now." : "";
-      terrain.showHops(linkQuality(h1.marginDb, fade), linkQuality(h2.marginDb, fade));
+      out("relayNote").textContent = route.loading ? "Terrain for the hops is still loading; free-space figures for now." : "";
+      const fade = inputs.fadeMarginDb;
+      terrain.showHops(linkQuality(route.hops[0].marginDb, fade), linkQuality(route.hops[1].marginDb, fade));
+
+      /** Both hops through the relay, each as its own two-way budget. */
+      function relayRoute(p: { tx: LatLon; rx: LatLon }, at: LatLon) {
+        const analysed = terrain.hops(terrainParams);
+        const relayH = relayHeightM();
+        const relayGain = num("relayGain") || 0;
+        const relayCable = num("relayCable") || 0;
+        // Each site's radio for the hops: losses, gain, height and surroundings.
+        const radio = (site: SiteId) =>
+          site === "tx"
+            ? { loss: inputs.txCableLossDb + inputs.txOtherLossDb, gain: inputs.txGainDbi, h: txHeightM, env: txEnv }
+            : site === "rx"
+              ? { loss: inputs.rxCableLossDb + inputs.rxOtherLossDb, gain: inputs.rxGainDbi, h: rxHeightM, env: rxEnv }
+              : { loss: relayCable, gain: relayGain, h: relayH, env: relayEnv };
+        const oneWay = (a: SiteId, b: SiteId, distanceM: number, terrainLossDb: number | undefined): Way => {
+          const A = radio(a);
+          const B = radio(b);
+          const wayInputs: LinkInputs = {
+            ...inputs,
+            distanceM,
+            terrainLossDb: terrainLossDb ?? 0,
+            txPowerDbm: sitePower(a),
+            txCableLossDb: A.loss,
+            txOtherLossDb: 0,
+            txGainDbi: A.gain,
+            txHeightM: A.h,
+            rxGainDbi: B.gain,
+            rxCableLossDb: B.loss,
+            rxOtherLossDb: 0,
+            rxSensitivityDbm: siteSens(b),
+            rxHeightM: B.h,
+            clutterLossDb: clutterLossDb(A.env, freqHz, A.h) + clutterLossDb(B.env, freqHz, B.h),
+          };
+          return { inputs: wayInputs, result: linkBudget(wayInputs), from: siteName(a), to: siteName(b) };
+        };
+        /** A hop's budget each way; the weaker one limits it. */
+        const hop = (n: 1 | 2, a: SiteId, b: SiteId, pa: LatLon, pb: LatLon, h: HopAnalysis | undefined) => {
+          const d = distanceBetweenM(pa, pb);
+          const there = oneWay(a, b, d, h?.loss.lossDb);
+          const back = oneWay(b, a, d, h?.loss.lossDb);
+          return { n, ab: there, ba: back, distanceM: d, itm: h?.loss.itm, marginDb: Math.min(there.result.marginDb, back.result.marginDb) };
+        };
+        const h1 = hop(1, "tx", "relay", p.tx, at, analysed.hop1);
+        const h2 = hop(2, "relay", "rx", at, p.rx, analysed.hop2);
+        return { hops: [h1, h2] as const, weaker: h2.marginDb < h1.marginDb ? h2 : h1, loading: !analysed.hop1 || !analysed.hop2 };
+      }
     };
 
     // The ledger shows the weaker direction unless one is picked.
     let ledgerDir: "ab" | "ba" | undefined;
+    out("pathView").addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-path-view]");
+      if (!b) return;
+      // A different path: its own weaker direction, not one picked for the other.
+      ledgerDir = undefined;
+      terrain.setView(b.dataset.pathView as "relay" | "direct");
+    });
     form.querySelector('[data-out="dirWrap"]')!.addEventListener("click", (e) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-dir]");
       if (!b) return;

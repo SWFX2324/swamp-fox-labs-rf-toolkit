@@ -1129,6 +1129,12 @@ main:has(.map-first) { max-width: none; }
 /* Link budget: four tiles and free-space loss across the bottom. */
 .lb-right .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .lb-right .tiles .wide-tile { grid-column: 1 / -1; }
+/* With a relay: which path the card describes. */
+.path-view { margin: 0 0 12px; }
+.path-view .seg { display: flex; }
+.path-view .seg button { flex: 1; }
+.path-view .note { margin: 6px 0 0; }
+.relay-results .weaker-hop td:first-child { font-weight: 600; }
 .budget-details { margin-top: 12px; font-size: 13px; }
 .budget-details > summary { cursor: pointer; color: var(--muted); min-height: 32px; display: flex; align-items: center; }
 .budget-details[open] > summary { margin-bottom: 6px; }

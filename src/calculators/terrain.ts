@@ -97,7 +97,12 @@ export interface TerrainCard {
   reset(): void;
   /** How strong the budget says the link is, to style the line; undefined when it can't say. */
   showLink(quality: LinkQuality | undefined): void;
+  /** Which path a placed relay's cards describe: through it, or direct. Shared with the Link budget card. */
+  view(): PathView;
+  setView(v: PathView): void;
 }
+
+export type PathView = "relay" | "direct";
 
 // Line of sight only, not a verdict on the link: the terrain loss from an
 // obstruction is already in the budget, which says whether the link works. So
@@ -240,6 +245,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
   let relayMarker: L.Marker | undefined;
   let placingRelay = false;
   let hopQuality: [LinkQuality | undefined, LinkQuality | undefined] = [undefined, undefined];
+  let profileView: PathView = "relay";
   let hopStatus: [ProfileStatus | undefined, ProfileStatus | undefined] = [undefined, undefined];
   let finding: AbortController | undefined;
   let surface: { image: { url: string; bounds: { north: number; south: number; east: number; west: number } }; data: RelaySurface } | undefined;
@@ -430,6 +436,8 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     relayLoading?.abort();
     relay = undefined;
     placingRelay = false;
+    // The next relay opens on the path through it again.
+    profileView = "relay";
     relayElevations = [undefined, undefined];
     hopQuality = [undefined, undefined];
     setSurface(undefined);
@@ -748,12 +756,12 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
       `${fmt(fromMetres(q.distanceM, distUnit), 2)} ${distUnit} from ${nameOf("tx")}: terrain ${h(q.terrainM)}, ${status}`;
   };
   // With a relay, the profile shows the path through it unless Direct is picked.
-  let profileView: "relay" | "direct" = "relay";
+  // The Link budget card has the same switch; both follow this one value.
   el("viewWrap").addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-view]");
-    if (!b || !lastParams) return;
-    profileView = b.dataset.view as "relay" | "direct";
-    refresh(lastParams);
+    if (!b) return;
+    profileView = b.dataset.view as PathView;
+    onPathChange();
   });
   el("chart").addEventListener("pointerdown", readPoint);
   el("chart").addEventListener("pointermove", (e) => {
@@ -999,6 +1007,11 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     pathDistanceM: () => (tx && rx ? distanceBetweenM(tx, rx) : undefined),
     pins: () => (tx && rx ? { tx, rx } : undefined),
     relay: () => relay,
+    view: () => profileView,
+    setView(v) {
+      profileView = v;
+      onPathChange();
+    },
     hops(params) {
       hopStatus = [undefined, undefined];
       if (!relay || !tx || !rx || !params.applies || !(params.freqHz > 0)) return {};
