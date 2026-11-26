@@ -184,13 +184,28 @@ function unescapeXml(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-// Markup inside a name (HTML in a CDATA block, say) goes first. One pass of
-// tag removal can leave a tag behind ("<<b>script>" becomes "script>", and
-// other shapes leave "<script"), so any raw angle bracket still there is
-// dropped too: in XML text a real "<" is always escaped. The entities are
-// decoded last, so an escaped "<" in a name survives as text.
+/**
+ * Text with every tag removed: anything from a "<" to the next ">" goes, and
+ * so does any stray bracket. Done one character at a time rather than with a
+ * pattern, because one pass of a tag pattern can leave a tag behind (removing
+ * "<b>" from "<<b>script>" leaves "script>"). In XML text a real "<" is always
+ * escaped, so no wanted text is lost.
+ */
+function stripTags(s: string): string {
+  let out = "";
+  let inTag = false;
+  for (const ch of s) {
+    if (ch === "<") inTag = true;
+    else if (ch === ">") inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out;
+}
+
+// A name from a file: markup first (HTML in a CDATA block, say), then the
+// entities, so an escaped "<" in a name survives as text.
 const cleanName = (s: string) =>
-  unescapeXml(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]*>/g, "").replace(/[<>]/g, ""))
+  unescapeXml(stripTags(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 40);
