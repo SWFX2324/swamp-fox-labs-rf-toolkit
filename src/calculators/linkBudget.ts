@@ -930,6 +930,7 @@ export const linkBudgetCalculator: Calculator = {
       }
       // Only said while it matters: until the hops' terrain loads, they're free-space figures.
       out("relayNote").textContent = route.loading ? "Terrain for the hops is still loading; free-space figures for now." : "";
+      fitHops();
       const fade = inputs.fadeMarginDb;
       terrain.showHops(linkQuality(route.hops[0].marginDb, fade), linkQuality(route.hops[1].marginDb, fade));
 
@@ -979,6 +980,32 @@ export const linkBudgetCalculator: Calculator = {
         return { hops: [h1, h2] as const, weaker: h2.marginDb < h1.marginDb ? h2 : h1, loading: !analysed.hop1 || !analysed.hop2 };
       }
     };
+
+    // Each hop stays on one line. In turn, until it fits: smaller text, then the
+    // rating badges down to their coloured dot (the word on hover), then smaller
+    // text again to a floor, and last a long name cut short (full name on hover).
+    const fitHops = () => {
+      const wrap = out("relayResults");
+      const table = wrap.querySelector<HTMLTableElement>("table")!;
+      if (wrap.hidden || !wrap.clientWidth) return;
+      const fits = () => table.scrollWidth <= wrap.clientWidth;
+      const shrinkTo = (floor: number) => {
+        while (!fits() && size > floor) {
+          size -= 0.5;
+          table.style.fontSize = `${size}px`;
+        }
+      };
+      let size = 13;
+      table.style.fontSize = `${size}px`;
+      table.classList.remove("cut", "dots");
+      for (const pill of table.querySelectorAll<HTMLElement>(".pill")) pill.title = pill.textContent ?? "";
+      shrinkTo(11.5);
+      if (!fits()) table.classList.add("dots");
+      shrinkTo(10.5);
+      if (!fits()) table.classList.add("cut");
+      for (const td of table.querySelectorAll<HTMLElement>("tbody td:first-child")) td.title = td.textContent ?? "";
+    };
+    new ResizeObserver(() => fitHops()).observe(out("relayResults"));
 
     // The ledger shows the weaker direction unless one is picked.
     let ledgerDir: "ab" | "ba" | undefined;

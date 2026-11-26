@@ -1155,6 +1155,13 @@ main:has(.map-first) { max-width: none; }
 .path-view .seg button { flex: 1; }
 .path-view .note { margin: 6px 0 0; }
 .relay-results .weaker-hop td:first-child { font-weight: 600; }
+/* Hops: one line each; sized to fit in script. */
+.relay-results .ledger th, .relay-results .ledger td { white-space: nowrap; }
+.relay-results .ledger th { font-size: .92em; }
+.relay-results .ledger td.mono { font-size: .96em; }
+/* Tight: badges show just their dot; tighter still, the name takes what's left and cuts short. */
+.relay-results .ledger.dots .pill { font-size: 0; gap: 0; padding: 5px; }
+.relay-results .ledger.cut td:first-child { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .budget-details { margin-top: 12px; font-size: 13px; }
 .budget-details > summary {
   list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
