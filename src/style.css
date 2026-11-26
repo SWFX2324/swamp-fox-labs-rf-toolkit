@@ -72,6 +72,7 @@ button, select, input { font: inherit; color: inherit; }
 }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand svg { width: 22px; height: 22px; color: var(--accent); }
+.brand-mark { display: block; width: 26px; height: 26px; flex: none; }
 .brand { color: var(--text); text-decoration: none; }
 /* In a tool: a button back to the home page, and the tool's name. */
 .tool-nav { display: flex; align-items: center; gap: 12px; min-width: 0; padding-left: 12px; border-left: 1px solid var(--border); }
