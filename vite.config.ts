@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon-32.png", "brand-fox.png", "apple-touch-icon-dark.png", "icon-192.png", "icon-512.png", "icon-maskable-dark-512.png"],
+      includeAssets: ["favicon-fox-32.png", "brand-fox.png", "apple-touch-icon-dark.png", "icon-fox-192.png", "icon-fox-512.png", "icon-maskable-dark-512.png"],
       manifest: {
         name: "RF Toolkit",
         short_name: "RF Toolkit",
@@ -19,8 +19,8 @@ export default defineConfig({
         display: "standalone",
         // PNG only: iOS can pick an SVG entry here, fail to use it and draw a letter instead.
         icons: [
-          { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "icon-fox-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "icon-fox-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
           { src: "icon-maskable-dark-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
