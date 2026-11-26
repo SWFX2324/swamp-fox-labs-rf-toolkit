@@ -451,9 +451,9 @@ export const linkBudgetCalculator: Calculator = {
       fadeMarginDb: () => num("fadeMargin") || 0,
     });
     for (const name of ["txName", "rxName", "relayName"]) field(name).addEventListener("input", () => terrain.namesChanged());
-    // Each site's pane is titled with its name.
+    // Each site's pane is titled with its name; the relay's stays "Relay".
     const syncPaneTitles = () => {
-      for (const site of ["tx", "rx", "relay"] as SiteId[]) {
+      for (const site of ["tx", "rx"] as SiteId[]) {
         const title = form.querySelector(`details[data-pane="${site}"] .pane-title`);
         if (title) title.textContent = siteName(site);
       }

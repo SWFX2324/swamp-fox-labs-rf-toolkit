@@ -118,7 +118,7 @@ const template = `
   <div class="lb-shell floating">
   ${sideToggles("coverage results")}
   <div class="lb-left">
-    ${pane("tx", "tx", "Transmitter", `
+    ${pane("tx", "tx", "Site A", `
       <div class="fields">
         <label class="wide">Radio
           <span class="preset-pick">
@@ -168,7 +168,7 @@ const template = `
         ${numberField("RX sensitivity", "siteSens", "dBm")}
       </div>`)}
 
-    ${pane("rx", "rx", "Receiver", `
+    ${pane("rx", "rx", "Site B (anywhere)", `
       <div class="fields">
         <label class="wide">Radio
           <select name="rxPreset"></select>
@@ -186,7 +186,7 @@ const template = `
         ${numberField("Fade margin wanted", "fade", "dB", 'min="0"')}
       </div>`)}
 
-    ${pane("sites", "sites", "Additional transmitters", `
+    ${pane("sites", "sites", "More sites", `
       <div class="extra-sites" data-out="extraSites"></div>
       <div class="add-site-row">
         <button type="button" class="secondary" data-action="addSite">Add site</button>
@@ -207,19 +207,6 @@ const template = `
         ${treeHeightFieldHtml()}
       </div>`)}
 
-    ${pane("mapping", "mapping", "Mapping", `
-      <div class="fields">
-        <label>Radius
-          <span class="input-unit">
-            <input name="radius" type="number" inputmode="decimal" step="any" min="0.5" max="80" />
-            <select name="radiusUnit"><option>mi</option><option>km</option></select>
-          </span>
-        </label>
-        <label>Detail
-          <select name="detail">${Object.entries(detailLevels).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select>
-        </label>
-      </div>`)}
-
     ${pane("share", "share", "Share", `<div class="pane-slot" data-slot="share"></div>`)}
   </div>
 
@@ -228,7 +215,7 @@ const template = `
     <div class="map-legend">
       <div class="legend coverage-legend">
         <span class="key"><span class="sw cov-strong"></span>Strong</span>
-        <span class="key"><span class="sw cov-solid"></span>Solid</span>
+        <span class="key"><span class="sw cov-solid"></span>Good</span>
         <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
       </div>
     </div>
@@ -241,6 +228,17 @@ const template = `
         <span class="pill" data-out="pill" hidden></span>
         <button type="button" class="secondary" data-action="reset">Reset</button>
       </div>
+      <div class="fields run-fields">
+        <label>Radius
+          <span class="input-unit">
+            <input name="radius" type="number" inputmode="decimal" step="any" min="0.5" max="80" />
+            <select name="radiusUnit"><option>mi</option><option>km</option></select>
+          </span>
+        </label>
+        <label>Detail
+          <select name="detail">${Object.entries(detailLevels).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select>
+        </label>
+      </div>
       <div class="run-row">
         <button type="button" data-action="run">Run coverage analysis</button>
         <span class="note" data-out="status"></span>
@@ -249,10 +247,11 @@ const template = `
       <p class="callout" data-out="stale" hidden>A site, the radius or the detail changed. Run the coverage analysis to update.</p>
       <div data-out="results" hidden>
         <div class="tiles">
-          <div class="tile"><span class="label">Solid coverage</span><span class="value" data-out="solid"></span><span class="sub" data-out="solidSub"></span></div>
+          <div class="tile"><span class="label">Good coverage</span><span class="value" data-out="solid"></span><span class="sub" data-out="solidSub"></span></div>
           <div class="tile"><span class="label">Marginal</span><span class="value" data-out="marginal"></span><span class="sub">Connects, under the fade margin</span></div>
-          <div class="tile wide-tile"><span class="label" data-out="farLabel">Farthest solid point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
+          <div class="tile wide-tile"><span class="label" data-out="farLabel">Farthest good point</span><span class="value" data-out="far"></span><span class="sub" data-out="farSub"></span></div>
         </div>
+        <p class="note cov-key-note" data-out="keyNote"></p>
         <p class="note" data-out="dirNote" hidden></p>
       </div>
     </section>
@@ -532,6 +531,8 @@ export const coverageCalculator: Calculator = {
 
     // Pins, circles and aim lines for every site.
     const placeSites = (recenter: boolean) => {
+      const title = form.querySelector('details[data-pane="tx"] .pane-title');
+      if (title) title.textContent = siteName();
       const a = site();
       clearControl?.setVisible(!!a || runs.length > 0);
       if (!map) return;
@@ -754,7 +755,7 @@ export const coverageCalculator: Calculator = {
         reach = stats.solid + stats.marginal;
         out("marginal").textContent = `${fmt(stats.marginal * 100, 0)}%`;
         out("solidSub").textContent = `of the ${fmt(fromMetres(first.samples.radiusM, unit), 1)} ${unit} circle`;
-        out("farLabel").textContent = "Farthest solid point";
+        out("farLabel").textContent = "Farthest good point";
         out("far").textContent = stats.farthestSolidM ? `${fmt(fromMetres(stats.farthestSolidM, unit))} ${unit}` : "—";
         out("farSub").textContent = stats.farthestSolidM
           ? `Toward ${Math.round(stats.farthestSolidBearing)}° ${compassPoint(stats.farthestSolidBearing)}`
@@ -769,8 +770,10 @@ export const coverageCalculator: Calculator = {
         out("far").textContent = `${fmt(stats.redundant * 100, 0)}%`;
         out("farSub").textContent = "Meets the fade margin from more than one site";
       }
-      pill.className = `pill ${solid >= 0.6 ? "s-good" : reach >= 0.3 ? "s-marginal" : "s-fail"}`;
-      pill.textContent = `${fmt(reach * 100, 0)}% reachable`;
+      // Rated on what meets the fade margin; reachable includes the marginal fringe.
+      pill.className = `pill ${solid >= 0.6 ? "s-good" : solid >= 0.2 ? "s-marginal" : "s-fail"}`;
+      pill.textContent = `${fmt(solid * 100, 0)}% good · ${fmt(reach * 100, 0)}% reachable`;
+      out("keyNote").textContent = `Strong: ${fmt(fade + 10, 0)} dB+ margin. Good: ${fmt(fade, 0)} dB+, your fade margin. Marginal: connects, under ${fmt(fade, 0)} dB.`;
       out("solid").textContent = `${fmt(solid * 100, 0)}%`;
       drawOverlay();
       readingsCard.refresh();

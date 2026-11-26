@@ -150,7 +150,7 @@ const template = `
     </div>
     <div class="legend relay-legend" data-t="relayLegend" hidden>
       <span class="key"><span class="sw cov-strong"></span>Relay: strong</span>
-      <span class="key"><span class="sw cov-solid"></span>Solid</span>
+      <span class="key"><span class="sw cov-solid"></span>Good</span>
       <span class="key"><span class="sw cov-marginal"></span>Marginal</span>
       <span class="relay-legend-note">Where a relay would close both hops</span>
     </div>
@@ -474,7 +474,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
       }
       const best = found.best;
       relay = { lat: best.lat, lon: best.lon };
-      const verdict = best.marginDb >= fade ? "solid" : best.marginDb >= 0 ? "marginal" : "short";
+      const verdict = best.marginDb >= fade ? "good" : best.marginDb >= 0 ? "marginal" : "short";
       setStatus(
         verdict === "short"
           ? `No spot closes both hops. The best is ${fmt(-best.marginDb, 1)} dB short; a taller relay mast, more power or better antennas would help. The relay is placed there for a closer look.`

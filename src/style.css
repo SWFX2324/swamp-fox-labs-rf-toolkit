@@ -370,6 +370,10 @@ button.secondary:hover { border-color: var(--accent); }
 .coverage-map { height: 420px; margin-top: 12px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--card-2); z-index: 0; }
 .run-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .run-row .note { margin: 0; }
+/* Coverage: the run's own settings, just above Run. */
+.run-fields { margin-top: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cov-key-note { margin: 10px 0 0; }
+.run-row ~ [data-out="results"] { margin-top: 12px; }
 label.check { flex-direction: row; align-items: center; gap: 8px; margin-top: 12px; color: var(--text); }
 label.check input { width: auto; margin: 0; }
 .readings-card .tiles { margin-top: 12px; }
