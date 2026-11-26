@@ -7,11 +7,11 @@ import { THEME_EVENT, isDarkTheme } from "./calculators/theme";
 import { type CoordFormat, getCoordFormat, setCoordFormat } from "./lib/coords";
 import { COORD_EVENT } from "./calculators/settings";
 
-// The dev branch's build lives under /beta/: mark it in the header.
-if (import.meta.env.BASE_URL.endsWith("/beta/")) {
-  document.querySelector(".brand")?.insertAdjacentHTML("beforeend", '<span class="beta-badge">Beta</span>');
-  document.title = document.title.replace("RF Toolkit", "RF Toolkit Beta");
-}
+// The dev branch's build lives under /beta/: mark it in the header and in the
+// tab title, so it can't be mistaken for the stable site.
+const beta = import.meta.env.BASE_URL.endsWith("/beta/");
+const APP_NAME = beta ? "RF Toolkit Beta" : "RF Toolkit";
+if (beta) document.querySelector(".brand")?.insertAdjacentHTML("beforeend", '<span class="beta-badge">Beta</span>');
 
 registerSW({ immediate: true });
 
@@ -30,7 +30,7 @@ function show(): void {
   document.querySelector("#settingsLink")?.toggleAttribute("aria-current", calc?.id === "settings");
   document.querySelector("#aboutLink")?.toggleAttribute("aria-current", calc?.id === "about");
   app.replaceChildren(calc ? calc.render() : renderHome());
-  document.title = calc ? `${calc.title} · RF Toolkit` : "RF Toolkit";
+  document.title = calc ? `${calc.title} · ${APP_NAME}` : APP_NAME;
   if (!calc) window.scrollTo(0, 0);
 }
 
