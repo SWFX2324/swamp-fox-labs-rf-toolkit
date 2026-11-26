@@ -197,15 +197,23 @@ export const satLinkGuide: FieldGuide = {
     satGt:
       "How well the satellite can hear your signal from where you are. Higher is better. G/T compares the antenna's gain (G) with the receiver's noise temperature (T), and it changes with your location. Find it in your access documents or on the satellite's G/T footprint map, or ask the satellite controller.",
     satEirp:
-      "The downlink power your carrier gets toward your location, in dBW. Ask the satellite controller; the footprint map shows the whole transponder, which is more.",
-    symbolRate: "Your carrier's symbol rate from the access plan, in megasymbols per second.",
+      "The satellite's downlink power for the forward carrier (the gateway to you) toward your location, in dBW. Ask the satellite controller; the footprint map shows the whole transponder, which is more.",
+    retEirp:
+      "The satellite's downlink power for your return carrier toward the gateway, in dBW: your carrier's share of the transponder, from the access plan or the network operator.",
+    gwGt:
+      "How well the gateway's large dish hears the satellite. About 30–40 dB/K for a large Ku gateway dish. The network operator can give the figure.",
+    gwEirp:
+      "The gateway's uplink power for the forward carrier, in dBW. Gateways transmit strongly, so this rarely limits the forward direction.",
+    symbolRate: "Your return carrier's symbol rate (you to the gateway), in megasymbols per second, from the access plan.",
     modcod:
-      "Modulation and forward error correction (FEC) from the access plan, such as QPSK 3/4. These are the DVB-S2 options, also called MODCODs. Higher orders carry more data but need a stronger signal.",
+      "Modulation and forward error correction (FEC) for your return carrier, such as QPSK 3/4. DVB-S2 options come first; DVB-S and BPSK add 7/8 and the low-power BPSK settings. Higher orders carry more data but need a stronger signal. Enter what your access authorization states: running a different one needs the gateway's approval first.",
+    fwdSymbolRate: "The forward carrier's symbol rate (the gateway to you), in megasymbols per second. Usually much higher than the return.",
+    fwdModcod: "Modulation and FEC for the forward carrier, as your access authorization states. The gateway sets it.",
     implLoss: "How far a real modem falls short of the ideal. 0.5–1 dB is typical.",
     upLoss: "Atmosphere and rain loss on the uplink. Add rain fade here to plan for bad weather: heavy rain can take 3–6 dB at Ku and 10 dB or more at Ka.",
     downLoss: "Atmosphere and rain loss on the downlink. Rain also raises the noise the dish sees, which is included.",
   },
-  advanced: ["upGHz", "downGHz", "efficiency", "txFeed", "pointing", "lnbK", "antK", "rxFeed", "implLoss"],
+  advanced: ["upGHz", "downGHz", "efficiency", "txFeed", "pointing", "lnbK", "antK", "rxFeed", "implLoss", "gwEirp"],
 };
 
 export const powerGuide: FieldGuide = {

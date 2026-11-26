@@ -6,6 +6,12 @@ import {
   combineCn0,
   dishGainDbi,
   dvbs2Modcods,
+  allModcods,
+  bitsPerSymbolNet,
+  fadeHeadroomDb,
+  fastestModcods,
+  GOOD_MARGIN_DB,
+  starLinkBudget,
   pointingLossDb,
   satLinkBudget,
   systemNoiseTempK,
@@ -52,6 +58,23 @@ describe("C/N0", () => {
 
   it("is dominated by the weaker link", () => {
     expect(combineCn0(90, 70)).toBeCloseTo(69.96, 2);
+  });
+});
+
+describe("legacy DVB-S and BPSK", () => {
+  it("covers 7/8 and BPSK, with DVB-S QPSK 1/2 at Eb/N0 4.5 dB", () => {
+    const q12 = allModcods.find((m) => m.name === "QPSK 1/2 (DVB-S)")!;
+    // Es/N0 = 4.5 + 10 log10(2 × 1/2 × 188/204)
+    expect(q12.esn0).toBeCloseTo(4.5 + 10 * Math.log10(188 / 204), 2);
+    expect(allModcods.some((m) => m.rate === "7/8")).toBe(true);
+    expect(allModcods.some((m) => m.mod === "BPSK")).toBe(true);
+  });
+
+  it("gives BPSK half QPSK's bits, 3 dB less Es/N0, at the same Eb/N0", () => {
+    const b = allModcods.find((m) => m.name === "BPSK 3/4")!;
+    const q = allModcods.find((m) => m.name === "QPSK 3/4 (DVB-S)")!;
+    expect(bitsPerSymbolNet(b) * 2).toBeCloseTo(bitsPerSymbolNet(q), 9);
+    expect(q.esn0 - b.esn0).toBeCloseTo(3.01, 1);
   });
 });
 
@@ -114,5 +137,53 @@ describe("satLinkBudget", () => {
     const rain = satLinkBudget({ ...base, uplinkLossDb: 5, downlinkLossDb: 4 });
     expect(rain.marginDb).toBeLessThan(clear.marginDb - 3);
     expect(rain.systemTempK).toBeGreaterThan(clear.systemTempK);
+  });
+});
+
+describe("star network: return and forward", () => {
+  const qpsk34 = dvbs2Modcods.find((m) => m.name === "QPSK 3/4")!;
+  const base = {
+    rangeM: 37_500_000, uplinkHz: 14.25e9, downlinkHz: 11.95e9, dishM: 1.2, efficiency: 0.65, txPowerW: 4,
+    txFeedLossDb: 0.5, pointingErrorDeg: 0.2, clearSkyAntennaK: 35, rxFeedLossDb: 0.2, lnbK: 60,
+    uplinkLossDb: 0.3, downlinkLossDb: 0.3, satGtDbK: 2, fwdEirpDbw: 42, retEirpDbw: 30,
+    gatewayGtDbK: 35, gatewayEirpDbw: 70,
+    fwd: { symbolRate: 10e6, modcod: qpsk34 }, ret: { symbolRate: 2e6, modcod: qpsk34 }, implementationLossDb: 0.5,
+  };
+
+  it("matches the single-carrier budget on your terminal's legs", () => {
+    const s = starLinkBudget(base);
+    const single = satLinkBudget({ ...base, satEirpDbw: 42, symbolRate: 2e6, modcod: qpsk34 });
+    expect(s.ret.cn0Up).toBeCloseTo(single.cn0Up, 9);
+    expect(s.fwd.cn0Down).toBeCloseTo(single.cn0Down, 9);
+    expect(s.eirpDbw).toBeCloseTo(single.eirpDbw, 9);
+  });
+
+  it("is limited by your terminal in each direction, as a small terminal is", () => {
+    const s = starLinkBudget(base);
+    expect(s.ret.cn0Up).toBeLessThan(s.ret.cn0Down);
+    expect(s.fwd.cn0Down).toBeLessThan(s.fwd.cn0Up);
+    // Each direction alone does better than both terminal legs combined.
+    const loopback = combineCn0(s.ret.cn0Up, s.fwd.cn0Down) - 10 * Math.log10(2e6) - 4.53;
+    expect(s.ret.marginDb).toBeGreaterThan(loopback);
+  });
+
+  it("finds the rain each direction can take", () => {
+    for (const dir of ["ret", "fwd"] as const) {
+      const x = fadeHeadroomDb(base, dir);
+      expect(x).toBeGreaterThan(0);
+      const at = starLinkBudget(dir === "ret" ? { ...base, uplinkLossDb: 0.3 + x } : { ...base, downlinkLossDb: 0.3 + x });
+      expect(at[dir].marginDb).toBeCloseTo(0, 3);
+    }
+    expect(fadeHeadroomDb({ ...base, txPowerW: 0.001 }, "ret")).toBe(0);
+  });
+
+  it("picks the fastest MODCOD that closes, and the fastest with the good margin", () => {
+    const s = starLinkBudget(base);
+    const f = fastestModcods(s.ret.esn0, 2e6, 0.5);
+    expect(f.closes!.marginDb).toBeGreaterThanOrEqual(0);
+    expect(f.good!.marginDb).toBeGreaterThanOrEqual(GOOD_MARGIN_DB);
+    for (const m of dvbs2Modcods) {
+      if (2e6 * m.bitsPerSymbol * m.codeRate > f.closes!.infoRateBps) expect(s.ret.esn0 - (m.esn0 + 0.5)).toBeLessThan(0);
+    }
   });
 });

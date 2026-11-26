@@ -52,16 +52,25 @@ export function combineCn0(...dbHz: number[]): number {
 
 export interface Modcod {
   name: string;
+  /** Modulation and FEC rate on their own, for filtering: "QPSK", "3/4". */
+  mod: string;
+  rate: string;
+  family: "DVB-S2" | "DVB-S";
   bitsPerSymbol: number;
   codeRate: number;
-  /** Ideal Es/N0 for quasi-error-free operation (ETSI EN 302 307-1, normal frames). */
+  /** Outer code rate on top of the FEC (DVB-S's Reed-Solomon, 188/204); 1 when there's none. */
+  outerRate: number;
+  /** Ideal Es/N0 for quasi-error-free operation: ETSI EN 302 307-1 (DVB-S2) or EN 300 421 (DVB-S). */
   esn0: number;
 }
 
 const mc = (mod: string, bits: number, rate: string, esn0: number): Modcod => {
   const [n, d] = rate.split("/").map(Number);
-  return { name: `${mod} ${rate}`, bitsPerSymbol: bits, codeRate: n / d, esn0 };
+  return { name: `${mod} ${rate}`, mod, rate, family: "DVB-S2", bitsPerSymbol: bits, codeRate: n / d, outerRate: 1, esn0 };
 };
+
+/** Information bits per symbol: modulation × FEC × any outer code. */
+export const bitsPerSymbolNet = (m: Modcod) => m.bitsPerSymbol * m.codeRate * m.outerRate;
 
 export const dvbs2Modcods: Modcod[] = [
   mc("QPSK", 2, "1/4", -2.35),
@@ -93,6 +102,34 @@ export const dvbs2Modcods: Modcod[] = [
   mc("32APSK", 5, "8/9", 15.69),
   mc("32APSK", 5, "9/10", 16.05),
 ];
+
+/**
+ * DVB-S (EN 300 421): Viterbi inner code with Reed-Solomon (204,188) outer code,
+ * quasi-error-free at these Eb/N0. BPSK with the same coding needs the same Eb/N0
+ * as QPSK and carries half the bits. These cover 7/8 and BPSK, which DVB-S2 lacks.
+ */
+const DVBS_EBN0: [string, number][] = [["1/2", 4.5], ["2/3", 5.0], ["3/4", 5.5], ["5/6", 6.0], ["7/8", 6.4]];
+const RS = 188 / 204;
+const legacy = (mod: "BPSK" | "QPSK", bits: number): Modcod[] =>
+  DVBS_EBN0.map(([rate, ebn0]) => {
+    const [n, d] = rate.split("/").map(Number);
+    const r = n / d;
+    return {
+      name: mod === "QPSK" ? `QPSK ${rate} (DVB-S)` : `BPSK ${rate}`,
+      mod,
+      rate,
+      family: "DVB-S",
+      bitsPerSymbol: bits,
+      codeRate: r,
+      outerRate: RS,
+      // Es/N0 = Eb/N0 + 10 log10(information bits per symbol).
+      esn0: Math.round((ebn0 + 10 * Math.log10(bits * r * RS)) * 100) / 100,
+    };
+  });
+export const legacyModcods: Modcod[] = [...legacy("BPSK", 1), ...legacy("QPSK", 2)];
+
+/** Every modulation and FEC the page offers: DVB-S2 first, then DVB-S and BPSK. */
+export const allModcods: Modcod[] = [...dvbs2Modcods, ...legacyModcods];
 
 export interface SatLinkInputs {
   rangeM: number;
@@ -174,8 +211,169 @@ export function satLinkBudget(i: SatLinkInputs): SatLinkResult {
     esn0,
     requiredEsn0: required,
     marginDb: esn0 - required,
-    infoRateBps: i.symbolRate * i.modcod.bitsPerSymbol * i.modcod.codeRate,
+    infoRateBps: i.symbolRate * bitsPerSymbolNet(i.modcod),
   };
+}
+
+/**
+ * A small terminal in a star network: it talks through the satellite to a
+ * gateway, where the network lives, in two directions with their own carriers.
+ *
+ * - Return: terminal → satellite → gateway. The terminal's uplink nearly always
+ *   limits it; the gateway's large dish hears well.
+ * - Forward: gateway → satellite → terminal. The terminal's downlink nearly
+ *   always limits it; the gateway transmits strongly.
+ *
+ * The gateway is taken at the same range as the terminal, in clear sky: its
+ * own weather and location aren't modelled.
+ */
+export interface StarLinkInputs {
+  rangeM: number;
+  uplinkHz: number;
+  downlinkHz: number;
+  dishM: number;
+  efficiency: number;
+  txPowerW: number;
+  txFeedLossDb: number;
+  pointingErrorDeg: number;
+  clearSkyAntennaK: number;
+  rxFeedLossDb: number;
+  lnbK: number;
+  /** Atmosphere and rain at your site, each way. */
+  uplinkLossDb: number;
+  downlinkLossDb: number;
+  /** The satellite's receive G/T toward your site. */
+  satGtDbK: number;
+  /** Satellite downlink EIRP for the forward carrier toward you, and for your return carrier toward the gateway. */
+  fwdEirpDbw: number;
+  retEirpDbw: number;
+  gatewayGtDbK: number;
+  gatewayEirpDbw: number;
+  fwd: { symbolRate: number; modcod: Modcod };
+  ret: { symbolRate: number; modcod: Modcod };
+  implementationLossDb: number;
+}
+
+export interface DirectionResult {
+  cn0Up: number;
+  cn0Down: number;
+  cn0Total: number;
+  esn0: number;
+  requiredEsn0: number;
+  marginDb: number;
+  infoRateBps: number;
+}
+
+export interface StarLinkResult {
+  txGainDbi: number;
+  rxGainDbi: number;
+  beamwidthUp: number;
+  beamwidthDown: number;
+  pointingLossUp: number;
+  pointingLossDown: number;
+  /** Your terminal's EIRP and G/T. */
+  eirpDbw: number;
+  terminalGtDbK: number;
+  systemTempK: number;
+  fsplUp: number;
+  fsplDown: number;
+  ret: DirectionResult;
+  fwd: DirectionResult;
+}
+
+function direction(cn0Up: number, cn0Down: number, carrier: { symbolRate: number; modcod: Modcod }, implLossDb: number): DirectionResult {
+  const cn0Total = combineCn0(cn0Up, cn0Down);
+  const esn0 = cn0Total - 10 * Math.log10(carrier.symbolRate);
+  const requiredEsn0 = carrier.modcod.esn0 + implLossDb;
+  return {
+    cn0Up,
+    cn0Down,
+    cn0Total,
+    esn0,
+    requiredEsn0,
+    marginDb: esn0 - requiredEsn0,
+    infoRateBps: carrier.symbolRate * bitsPerSymbolNet(carrier.modcod),
+  };
+}
+
+export function starLinkBudget(i: StarLinkInputs): StarLinkResult {
+  const txGain = dishGainDbi(i.dishM, i.uplinkHz, i.efficiency);
+  const rxGain = dishGainDbi(i.dishM, i.downlinkHz, i.efficiency);
+  const bwUp = beamwidthDeg(i.dishM, i.uplinkHz);
+  const bwDown = beamwidthDeg(i.dishM, i.downlinkHz);
+  const plUp = pointingLossDb(i.pointingErrorDeg, bwUp);
+  const plDown = pointingLossDb(i.pointingErrorDeg, bwDown);
+  const fsplUp = fsplDb(i.uplinkHz, i.rangeM);
+  const fsplDown = fsplDb(i.downlinkHz, i.rangeM);
+
+  // Your terminal: what it sends, and how well it hears (rain adds sky noise).
+  const eirp = 10 * Math.log10(i.txPowerW) - i.txFeedLossDb + txGain - plUp;
+  const tsys = systemNoiseTempK(antennaTempWithLossK(i.clearSkyAntennaK, i.downlinkLossDb), i.rxFeedLossDb, i.lnbK);
+  const gt = rxGain - plDown - 10 * Math.log10(tsys);
+
+  // Return: your uplink, then the satellite down to the gateway.
+  const retUp = cn0DbHz(eirp, fsplUp + i.uplinkLossDb, i.satGtDbK);
+  const retDown = cn0DbHz(i.retEirpDbw, fsplDown, i.gatewayGtDbK);
+  // Forward: the gateway's uplink, then the satellite down to you.
+  const fwdUp = cn0DbHz(i.gatewayEirpDbw, fsplUp, i.satGtDbK);
+  const fwdDown = cn0DbHz(i.fwdEirpDbw, fsplDown + i.downlinkLossDb, gt);
+
+  return {
+    txGainDbi: txGain,
+    rxGainDbi: rxGain,
+    beamwidthUp: bwUp,
+    beamwidthDown: bwDown,
+    pointingLossUp: plUp,
+    pointingLossDown: plDown,
+    eirpDbw: eirp,
+    terminalGtDbK: gt,
+    systemTempK: tsys,
+    fsplUp,
+    fsplDown,
+    ret: direction(retUp, retDown, i.ret, i.implementationLossDb),
+    fwd: direction(fwdUp, fwdDown, i.fwd, i.implementationLossDb),
+  };
+}
+
+/** Margin at or above which a link rates Good; below it, down to 0 dB, Marginal. */
+export const GOOD_MARGIN_DB = 3;
+
+/**
+ * Extra rain loss at your site a direction can take before its margin reaches
+ * zero, dB: on your uplink for the return, on your downlink for the forward
+ * (where rain also adds sky noise, which counts). 0 when it's already short.
+ */
+export function fadeHeadroomDb(i: StarLinkInputs, dir: "ret" | "fwd"): number {
+  const marginWith = (extra: number) =>
+    starLinkBudget(dir === "ret" ? { ...i, uplinkLossDb: i.uplinkLossDb + extra } : { ...i, downlinkLossDb: i.downlinkLossDb + extra })[dir].marginDb;
+  if (marginWith(0) <= 0) return 0;
+  let lo = 0;
+  let hi = 60;
+  if (marginWith(hi) > 0) return hi;
+  for (let k = 0; k < 40; k++) {
+    const mid = (lo + hi) / 2;
+    if (marginWith(mid) > 0) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** A MODCOD with the margin and information rate it would give. */
+export interface ModcodFit {
+  modcod: Modcod;
+  marginDb: number;
+  infoRateBps: number;
+}
+
+/**
+ * The fastest MODCODs a direction carries at its symbol rate: one that closes
+ * at all, and one that keeps GOOD_MARGIN_DB. Same Es/N0; only the threshold changes.
+ */
+export function fastestModcods(esn0: number, symbolRate: number, implLossDb: number): { closes?: ModcodFit; good?: ModcodFit } {
+  const fits = allModcods
+    .map((m) => ({ modcod: m, marginDb: esn0 - (m.esn0 + implLossDb), infoRateBps: symbolRate * bitsPerSymbolNet(m) }))
+    .sort((a, b) => b.infoRateBps - a.infoRateBps);
+  return { closes: fits.find((f) => f.marginDb >= 0), good: fits.find((f) => f.marginDb >= GOOD_MARGIN_DB) };
 }
 
 export interface SatBand {

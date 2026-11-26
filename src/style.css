@@ -374,6 +374,94 @@ button.secondary:hover { border-color: var(--accent); }
 /* Coverage: the run's own settings, just above Run. */
 .run-fields { margin-top: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cov-key-note { margin: 10px 0 0; }
+.sat-key-note { margin: 10px 0 0; }
+.tile .value.value-text { font-family: inherit; font-size: 17px; font-weight: 600; }
+
+/* Satellite Link: the link as a picture (satScene.ts). A night scene in both
+   themes; the margin readout takes its status colour. */
+.sat-chain {
+  position: relative; flex: none; width: 100%; max-width: min(100%, 110vh); margin: 10px auto 14px;
+  border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: #0b1626;
+}
+.sat-chain[hidden] { display: none; }
+.sat-link .lb-stage { container-type: inline-size; }
+.ss { display: block; width: 100%; height: auto; }
+.ss-stars circle { fill: #d7e6ff; }
+.ss-far { fill: #22302b; }
+.ss-mid { fill: #1b2620; }
+.ss-near { fill: #1e2318; stroke: #4a553a; stroke-width: 1.5; }
+.ss-grid { stroke: #9fb38a; stroke-opacity: .07; stroke-width: 1; }
+.ss-bracket { fill: none; stroke: #b6c79c; stroke-opacity: .55; stroke-width: 2; }
+.ss-panel-bg { fill: #050a08; fill-opacity: .55; stroke: #b6c79c; stroke-opacity: .18; }
+.ss-panel-edge { fill: none; stroke: #b6c79c; stroke-opacity: .7; stroke-width: 1.6; }
+.ss-hud { fill: #b6c79c; font-family: var(--mono); letter-spacing: .04em; }
+.ss-reticle { fill: none; stroke: #b6c79c; stroke-opacity: .35; stroke-width: 1.2; stroke-dasharray: 3 5; }
+.ss-reticle-tick { stroke: #b6c79c; stroke-opacity: .6; stroke-width: 1.6; }
+/* The portable terminal in field colours. */
+.ss-term .ss-dish-face { fill: #7a8061; stroke: #9aa07c; }
+.ss-term .ss-dish-back { fill: #4f553e; }
+.ss-term .ss-dish-inner { fill: #666c50; opacity: .8; }
+.ss-term .ss-strut { stroke: #8d9372; }
+.ss-term .ss-feed { fill: #a5ab88; }
+.ss-term .ss-mount, .ss-term .ss-leg { fill: #3f4433; stroke: #3f4433; }
+.ss-term .ss-leg { fill: none; }
+.ss-latch { fill: #2a2f22; }
+.ss-shadow { fill: #000; opacity: .35; }
+.ss-mount { fill: #7d8894; }
+.ss-mount-dark { fill: #59636e; }
+.ss-dish-back { fill: #8c98a5; }
+.ss-dish-face { fill: url(#ssDish); stroke: #e9eef3; stroke-width: 1; }
+.ss-dish-inner { fill: #c9d2da; opacity: .7; }
+.ss-strut { stroke: #c4ccd4; stroke-width: 2; fill: none; stroke-linecap: round; }
+.ss-feed { fill: #e7ecf0; }
+.ss-buc { fill: #4a5561; stroke: #9aa5b0; stroke-width: 1; }
+
+.ss-boom { stroke: #a9b3bd; stroke-width: 2.2; stroke-linecap: round; }
+.ss-panel { fill: #24457e; stroke: #6f8fc7; stroke-width: 1.2; }
+.ss-cells line { stroke: #6f8fc7; stroke-width: .8; opacity: .8; }
+.ss-bus { fill: #c9a24b; stroke: #e6c879; stroke-width: 1.2; }
+.ss-bus-band { fill: #a8843a; }
+.ss-tip { fill: #e6c879; }
+.ss-sat-dish { fill: #eef2f6; stroke: #b8c2cc; stroke-width: 1; }
+/* Return blue, forward teal; amber or red when that direction is marginal or won't connect. */
+.ss-path { fill: none; stroke-linecap: round; }
+.ss-path.ss-ret { stroke: #5aa2ff; }
+.ss-path.ss-fwd { stroke: #3fd0b6; }
+.ss-path.marginal { stroke: #f2b544; }
+.ss-path.fail { stroke: #ff6b6b; }
+.ss-ret-text { fill: #8fc0ff; }
+.ss-fwd-text { fill: #6fe3cf; }
+.ss-tag { font-family: var(--mono); font-weight: 700; letter-spacing: .1em; }
+.ss-place { fill: #c9d4b8; font-family: var(--mono); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.ss-dir { font-family: var(--mono); font-weight: 700; letter-spacing: .1em; }
+.ss-weaker { fill: #f2b544; font-family: var(--mono); font-weight: 700; letter-spacing: .08em; }
+.ss-leg { stroke: #7d8894; stroke-width: 4; stroke-linecap: round; fill: none; }
+.ss-case { fill: #555c41; stroke: #737a58; stroke-width: 1.5; }
+.ss-case-line { stroke: #2f3a33; stroke-width: 2; fill: none; }
+.ss-building { fill: #2b3947; stroke: #44576a; stroke-width: 1.5; }
+.ss-roof { fill: #3a4b5d; }
+.ss-window { fill: #f3d27a; opacity: .85; }
+.ss-door { fill: #1d2833; }
+.ss-mast { stroke: #8a96a3; stroke-width: 2; fill: none; }
+.ss-beacon { fill: #ff6b6b; }
+.ss-pedestal { fill: #8b949c; stroke: #a7b0b8; stroke-width: 1; }
+.ss-glow { stroke-width: 9; opacity: .16; }
+.ss-flow { stroke-width: 2.6; stroke-dasharray: 3 10; animation: ss-flow 1.2s linear infinite; }
+@keyframes ss-flow { to { stroke-dashoffset: -13; } }
+@media (prefers-reduced-motion: reduce) { .ss-flow { animation: none; } }
+.ss-big { fill: #f4f7fa; font-family: var(--mono); font-weight: 700; }
+.ss-unit { fill: #9fb3c8; font-weight: 500; }
+.ss-rating { font-weight: 700; letter-spacing: .08em; }
+.ss-rating { font-family: var(--sans, inherit); }
+.ss-readout.s-good .ss-rating { fill: #4cc38a; }
+.ss-readout.s-marginal .ss-rating { fill: #f2b544; }
+.ss-readout.s-fail .ss-rating { fill: #ff6b6b; }
+.ss-readout.s-fail .ss-big { fill: #ff8a8a; }
+
+/* Too narrow for the picture without overlaps: the budget list below has every number. */
+@container (max-width: 300px) {
+  .sat-chain { display: none; }
+}
 .run-row ~ [data-out="results"] { margin-top: 12px; }
 label.check { flex-direction: row; align-items: center; gap: 8px; margin-top: 12px; color: var(--text); }
 label.check input { width: auto; margin: 0; }
@@ -1359,3 +1447,122 @@ main:has(.map-first) { max-width: none; }
 .ledger.links td:last-child .pill { display: table; margin: 3px 0 0 auto; white-space: nowrap; }
 .dock-head { flex-wrap: wrap; row-gap: 4px; }
 .dock-head h2, .dock-link { white-space: nowrap; }
+/* Satellite Link on a wide screen: the budget list keeps the picture's width. */
+/* Satellite Link budget: one block per direction, in titled sections, the
+   result set apart. Side by side when the middle pane is wide. */
+.sat-ledgers { display: grid; gap: 16px; width: 100%; max-width: min(100%, 110vh); margin: 0 auto 8px; }
+.sat-ledgers[hidden] { display: none; }
+@container (min-width: 900px) { .sat-ledgers { grid-template-columns: 1fr 1fr; align-items: start; } }
+.sat-ledger { border: 1px solid var(--border); border-radius: 12px; background: var(--card-2); padding: 0 14px 12px; }
+.sat-ledger > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0 10px; border-bottom: 1px solid var(--border); }
+.sat-ledger h3 { margin: 0; font-size: 15px; }
+.sat-ledger h3 small { margin-left: 6px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.sat-ledger .ledger { margin-top: 0; }
+.sat-ledger .bseg-head th { padding: 16px 4px 6px; border-bottom: 0; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }
+.sat-ledger .bseg:first-of-type .bseg-head th { padding-top: 12px; }
+.sat-ledger .bseg tr:last-child td { border-bottom: 0; }
+.sat-ledger .bseg + .bseg .bseg-head th { border-top: 1px solid var(--border); }
+.sat-ledger .bseg-result td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.sat-ledger .bseg-result tr td:first-child { padding-left: 10px; }
+.sat-ledger .bseg-result tr td:last-child { padding-right: 10px; }
+.sat-ledger .bseg-result tr:last-child td { font-size: 14px; }
+.rating-word.s-good { color: var(--good); font-weight: 600; }
+.rating-word.s-marginal { color: var(--warning); font-weight: 600; }
+.rating-word.s-fail { color: var(--critical); font-weight: 600; }
+
+/* ------------------------------------------------------------ satellite charts */
+/* Plain-language results: a question on each tile, bars and lists instead of axes. */
+.chart-tile { gap: 8px; }
+.chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.tile-q { font-size: 15px; font-weight: 600; color: var(--text); }
+
+.rain-bars { display: grid; gap: 14px; margin: 2px 0 4px; }
+.rb-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; margin-bottom: 6px; }
+.rb-head b { color: var(--text); }
+.rb-word { color: var(--text-2); text-align: right; }
+.rb-track { position: relative; height: 12px; border-radius: 6px; background: var(--card); border: 1px solid var(--border); margin-bottom: 16px; }
+.rb-fill { height: 100%; border-radius: 6px; }
+.rb-ret { background: var(--accent); }
+.rb-fwd { background: #2fb8a3; }
+.rb-tick { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 1.5px dashed var(--text-2); }
+.rb-tick span { position: absolute; top: 18px; transform: translateX(-50%); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+
+.mc-best { display: grid; gap: 8px; }
+.mc-auth { margin: 0; padding: 6px 10px; border-radius: 8px; font-size: 12px; line-height: 1.45; color: var(--text-2); background: color-mix(in srgb, var(--warning) 9%, transparent); border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent); }
+.mc-pick { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--c, var(--border)); }
+.mc-pick.s-good { --c: var(--good); }
+.mc-pick.s-marginal { --c: var(--warning); }
+.mc-pick.s-fail { --c: var(--critical); }
+.mc-pick > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mc-pick-k { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.mc-pick b { font-size: 15px; color: var(--text); }
+.mc-pick span:last-child { font-size: 12px; color: var(--text-2); }
+.mc-use { flex: none; padding: 5px 14px; min-height: 0; }
+.mc-inuse { flex: none; font-size: 12px; color: var(--muted); }
+.mc-all > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); padding: 6px 0; }
+.mc-all[open] > summary { margin-bottom: 6px; }
+.mc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.mc-chip { padding: 3px 8px; font-size: 11.5px; min-height: 0; }
+.mc-chip[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.mc-chip:disabled { opacity: .35; }
+.mc-list { display: grid; gap: 4px; max-height: 300px; overflow-y: auto; padding-right: 2px; }
+.mc-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name pill" "speed spare"; align-items: center; gap: 4px 10px;
+  padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; background: var(--card); color: var(--text);
+  font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+}
+.mc-row:hover { border-color: var(--border); }
+.mc-row.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+.mc-row.s-fail { color: var(--muted); }
+.mc-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-speed { position: relative; display: flex; align-items: center; height: 18px; }
+.mc-bar { position: absolute; left: 0; top: 4px; bottom: 4px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.mc-row.s-fail .mc-bar { background: color-mix(in srgb, var(--muted) 25%, transparent); }
+.mc-mbps { position: relative; padding-left: 4px; font-family: var(--mono); font-size: 11.5px; }
+.mc-spare { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
+.mc-row .pill { font-size: 10.5px; padding: 1px 7px; }
+
+.pg { display: grid; gap: 4px; }
+.pg-track { position: relative; display: flex; height: 26px; border-radius: 7px; overflow: visible; font-size: 11px; font-weight: 600; }
+.pg-zone { display: grid; place-items: center; color: #10140e; overflow: hidden; white-space: nowrap; }
+.pg-ideal { background: var(--good); border-radius: 7px 0 0 7px; }
+.pg-ok { background: var(--warning); }
+.pg-poor { background: color-mix(in srgb, var(--critical) 75%, var(--card)); border-radius: 0 7px 7px 0; color: #fff; }
+.pg-you { position: absolute; top: -6px; bottom: -6px; width: 3px; margin-left: -1.5px; background: var(--text); border-radius: 2px; box-shadow: 0 0 0 2px var(--card); }
+.pg-scale { position: relative; height: 16px; font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
+.pg-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.pg-scale span:first-child { left: 0; transform: none; }
+.pg-scale .pg-end { right: 0; transform: none; }
+.pg-you-text { margin: 4px 0 0; font-size: 13px; color: var(--text); }
+.mc-name { grid-area: name; }
+.mc-speed { grid-area: speed; }
+.mc-spare { grid-area: spare; justify-self: end; }
+.mc-row .pill { grid-area: pill; justify-self: end; }
+.mc-mbps { white-space: nowrap; }
+
+/* Dish aim: a small table, how far off, what it looks like, what it costs. */
+.aim { display: grid; gap: 3px; }
+.aim-row { display: grid; grid-template-columns: 1fr 1.1fr 1.5fr; gap: 8px; padding: 6px 8px; border-radius: 7px; font-size: 12.5px; background: var(--card); border-left: 4px solid var(--c, transparent); }
+.aim-row .mono { font-family: var(--mono); }
+.aim-head { background: none; border-left-color: transparent; font-size: 11px; color: var(--muted); padding-top: 0; padding-bottom: 2px; }
+.aim-good { --c: var(--good); }
+.aim-ok { --c: color-mix(in srgb, var(--good) 50%, var(--warning)); }
+.aim-poor { --c: var(--warning); }
+.aim-bad { --c: var(--critical); }
+.aim-you { margin: 6px 0 0; font-size: 13px; color: var(--text); }
+
+/* ------------------------------------------------------------ one line */
+/* Tile text stays on one line: values shrink to fit their tile, labels and
+   subs cut short with an ellipsis as a last resort. */
+.tiles .tile { container-type: inline-size; min-width: 0; }
+.tile .label, .tile .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tiles .tile .value { white-space: nowrap; font-size: min(24px, 13.5cqi); }
+.tiles .tile .value.value-text { font-size: min(17px, 9cqi); }
+.tiles .tile .value .unit { font-size: .6em; }
+.mc-pick span, .mc-pick b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aim-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sat-ledger h3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* Home cards: the title fits one line, shrinking a little on narrow screens. */
+.tool-text { container-type: inline-size; }
+.tool-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: min(15px, 6cqi); }
+@media (max-width: 420px) { .tool-art { width: 48px; height: 48px; } }

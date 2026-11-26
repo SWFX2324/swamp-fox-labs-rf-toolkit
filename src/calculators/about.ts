@@ -107,8 +107,8 @@ const SECTIONS: Section[] = [
     items: [
       {
         name: "Satellite link budget",
-        source: "Carrier-to-noise budget against ETSI DVB-S2 thresholds",
-        how: "Works out how strong your signal arrives at the satellite and back down again, combines the two, and compares the result with what your chosen modulation and FEC need. Interference from neighbouring satellites isn't included, so real margins run a little lower.",
+        source: "Carrier-to-noise budget against ETSI DVB-S2 thresholds (EN 302 307-1), and DVB-S (EN 300 421) for 7/8 and BPSK",
+        how: "Your small terminal works a gateway through the satellite, in two directions. The return (you to the gateway) is worked out from your uplink and the satellite's downlink to the gateway's big dish; the forward (the gateway to you) from the gateway's uplink and the satellite's downlink to your dish. Each is compared with what its modulation and FEC need. Interference from neighbouring satellites isn't included, so real margins run a little lower.",
         used: "Satellite Link Analysis",
       },
       {

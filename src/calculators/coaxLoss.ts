@@ -237,13 +237,13 @@ export const coaxLossCalculator: Calculator = {
           ? `${fmt(mine.matched)} dB matched + ${fmt(mine.total - mine.matched)} dB from SWR`
           : `${fmt(lossPer100Ft(mine.cable, freqHz))} dB per 100 ft${connectors ? ` + ${fmt(connectors)} dB connectors` : ""}`;
       out("pout").textContent = formatWatts(pinW * mine.delivered);
-      out("poutSub").textContent = `${percent(mine.delivered)} of ${formatWatts(pinW)}; ${formatWatts(pinW * (1 - mine.delivered))} lost as heat or reflected`;
+      out("poutSub").textContent = `${percent(mine.delivered)} · ${formatWatts(pinW * (1 - mine.delivered))} lost`;
       const swrRadio = swrAtInput(mine.matched, swr);
       out("swrIn").innerHTML = `${fmt(swrRadio)}<span class="unit">:1</span>`;
       out("swrInSub").textContent =
         swr > 1 ? `The antenna is really ${fmt(swr, 1)}:1; line loss hides some of it` : "Matched antenna";
       out("vf").textContent = selected.vf.toFixed(2);
-      out("vfSub").textContent = `Electrical length ${fmt(lengthM / selected.vf / (299_792_458 / freqHz), 2)} wavelengths`;
+      out("vfSub").textContent = `${fmt(lengthM / selected.vf / (299_792_458 / freqHz), 2)} λ long`;
 
       const warn = out("warn");
       warn.hidden = !beyondCableRange(selected, freqHz);
