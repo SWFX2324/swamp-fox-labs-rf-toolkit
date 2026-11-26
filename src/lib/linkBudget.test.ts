@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fsplDb } from "./fspl";
 import { lineOfSightRangeM } from "./horizon";
-import { type LinkInputs, freeSpaceApplies, linkBudget, rateMargin } from "./linkBudget";
+import { type LinkInputs, freeSpaceApplies, linkBudget } from "./linkBudget";
 import { dbmToWatts, toDbm, wattsToDbm } from "./units";
 
 const inputs: LinkInputs = {
@@ -75,19 +75,6 @@ describe("linkBudget", () => {
     const worse = linkBudget({ ...inputs, extraPathLossDb: 15 });
     expect(r.rslDbm - worse.rslDbm).toBeCloseTo(15, 9);
     expect(r.marginDb - worse.marginDb).toBeCloseTo(15, 9);
-  });
-});
-
-describe("rateMargin", () => {
-  it.each([
-    [25, "good"],
-    [20, "good"],
-    [12, "fair"],
-    [3, "marginal"],
-    [0, "marginal"],
-    [-1, "fail"],
-  ])("%d dB is %s", (db, rating) => {
-    expect(rateMargin(db)).toBe(rating);
   });
 });
 

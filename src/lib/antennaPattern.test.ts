@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monopoleField, pattern3d, toDb, wireField } from "./antennaPattern";
+import { pattern3d, toDb, wireField } from "./antennaPattern";
 
 describe("wire patterns", () => {
   it("a half-wave dipole peaks broadside with nulls off its ends", () => {
@@ -13,18 +13,6 @@ describe("wire patterns", () => {
     const half = wireField(0.5, 60) / wireField(0.5, 90);
     const full = wireField(1, 60) / wireField(1, 90);
     expect(full).toBeLessThan(half);
-  });
-
-  it("a quarter-wave vertical over ground peaks at the horizon and nulls overhead", () => {
-    expect(monopoleField(0.25, 0)).toBeGreaterThan(monopoleField(0.25, 30));
-    expect(monopoleField(0.25, 90)).toBeCloseTo(0, 6);
-    expect(monopoleField(0.25, -10)).toBe(0);
-  });
-
-  it("a 5/8-wave vertical is lower and flatter than a quarter wave", () => {
-    const q = (e: number) => monopoleField(0.25, e) / monopoleField(0.25, 0);
-    const f = (e: number) => monopoleField(0.625, e) / monopoleField(0.625, 0);
-    expect(f(20)).toBeLessThan(q(20));
   });
 });
 

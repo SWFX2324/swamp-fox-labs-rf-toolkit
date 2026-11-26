@@ -109,25 +109,11 @@ export function coveragePatternLoss(s: RadialSamples, b: Beam, txHeightM: number
   });
 }
 
-/** A value for every radial point (index 0, the site, included), as a grid. */
-export function radialGrid(s: RadialSamples, value: (p: LatLon, r: number, k: number) => number): Float32Array[] {
-  return s.bearings.map((b, r) => {
-    const out = new Float32Array(s.elevations[r].length);
-    for (let k = 0; k < out.length; k++) out[k] = value(k === 0 ? s.site : destinationPoint(s.site, b, k * s.stepM), r, k);
-    return out;
-  });
-}
-
 /** Adds per-point loss grids together; undefined grids are skipped. */
 export function sumGrids(...grids: (Float32Array[] | undefined)[]): Float32Array[] | undefined {
   const present = grids.filter((g): g is Float32Array[] => !!g);
   if (!present.length) return undefined;
   return present[0].map((row, r) => row.map((v, k) => present.reduce((sum, g, i) => (i === 0 ? sum : sum + g[r][k]), v)));
-}
-
-/** Margin in dB at every radial point (index 0, the site itself, is NaN). */
-export function coverageMargins(s: RadialSamples, radio: CoverageRadio, txHeightM: number, rxHeightM: number, model: ModelSettings = defaultModel): Float32Array[] {
-  return marginsFromLoss(coveragePathLoss(s, radio.freqHz, txHeightM, rxHeightM, model), radio);
 }
 
 /** Margin at a bearing and distance from the nearest radial point, or NaN. */

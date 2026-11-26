@@ -5,7 +5,6 @@ import {
   chooseZoom,
   decodeTerrarium,
   decodeTile,
-  fromGlobalPixel,
   pathHeights,
   tileUrl,
   tilesCovering,
@@ -13,6 +12,14 @@ import {
   toGlobalPixel,
   zoomForPoints,
 } from "./terrainTiles";
+
+/** The inverse of toGlobalPixel: a point from global pixel coordinates at zoom z. */
+function fromGlobalPixel(gx: number, gy: number, z: number) {
+  const n = TILE_SIZE * 2 ** z;
+  const lon = (gx / n) * 360 - 180;
+  const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * gy) / n))) * 180) / Math.PI;
+  return { lat, lon };
+}
 
 describe("tile maths", () => {
   it("puts 0°, 0° at the corner of the four central tiles", () => {

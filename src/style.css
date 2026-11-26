@@ -192,13 +192,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 .fields > .note { grid-column: 1 / -1; margin-top: -4px; }
-.fields > .field-group-head {
-  grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-  margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border);
-  font-size: 13px; font-weight: 600; color: var(--text);
-}
-.field-group-head .meta { font-weight: 400; font-size: 12px; color: var(--text-2); }
-.fields > .field-group-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 /* Coverage: sites beyond Site A, one bordered block each. */
 .fields > .extra-sites, .fields > .add-site-row { grid-column: 1 / -1; }
 .extra-sites { display: grid; gap: 10px; }
@@ -265,7 +258,6 @@ button.secondary:hover { border-color: var(--accent); }
 .tile .value { font-size: 24px; font-weight: 650; font-family: var(--mono); line-height: 1.15; font-variant-numeric: tabular-nums; }
 .tile .unit { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 3px; font-family: system-ui, sans-serif; }
 .tile .sub { font-size: 12px; color: var(--muted); }
-.tile.subtotal { margin-top: 14px; border-left: 3px solid var(--accent); }
 
 /* ------------------------------------------------------------ status pills */
 .pill {
@@ -294,7 +286,6 @@ button.secondary:hover { border-color: var(--accent); }
 .ledger.geometry tr:last-child td { border-bottom: none; }
 
 /* ------------------------------------------------------------ antenna length */
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 /* Band presets: a row per range (HF, VHF, UHF), four even buttons each. */
 .band-groups { display: grid; grid-template-columns: 34px repeat(4, minmax(0, 1fr)); gap: 6px; align-items: center; margin-top: 14px; }
 .band-groups .band-name { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; }
@@ -374,8 +365,6 @@ button.secondary:hover { border-color: var(--accent); }
 /* Coverage: the run's own settings, just above Run. */
 .run-fields { margin-top: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cov-key-note { margin: 10px 0 0; }
-.sat-key-note { margin: 10px 0 0; }
-.tile .value.value-text { font-family: inherit; font-size: 17px; font-weight: 600; }
 
 /* Satellite Link: the link as a picture (satScene.ts). A night scene in both
    themes; the margin readout takes its status colour. */
@@ -764,17 +753,6 @@ main .leaflet-container { background: var(--card-2); }
 }
 
 /* ------------------------------------------------------------ plans, chart */
-.plan-bar { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--grid-line); }
-.plan-bar .fields:has(> :not([hidden])) { margin-top: 12px; }
-.plan-bar .input-unit select { flex: 1; min-width: 0; border-radius: 7px 0 0 7px; border-left: 1px solid var(--border); background: var(--card); }
-.plan-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-@media (max-width: 520px) { .plan-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-/* Export: KMZ or a TAK data package. */
-.plan-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-.plan-choice[hidden] { display: none; }
-.plan-choice button { min-height: 44px; }
-.plan-choice .note { grid-column: 1 / -1; margin: 0; }
-.plan-actions.terrain-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
 .plan-btn {
   display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 6px 8px;
   font-weight: 600;
@@ -1288,7 +1266,6 @@ main:has(.map-first) { max-width: none; }
 .tile-field .input-unit:has(> [data-out="distValue"]:not([hidden])) { border: 0; background: none; align-items: baseline; }
 .tile-field [data-out="distValue"] { color: var(--text); }
 .tile-field input[readonly] { border-color: transparent; background: transparent; padding-left: 0; font-family: var(--mono); font-size: 18px; color: var(--text); }
-.fields > .env-explain { grid-column: 1 / -1; margin-top: -4px; }
 .flow-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 2px; border-bottom: 1px solid var(--grid-line); }
 .flow-row:last-child { border-bottom: 0; }
 .flow-k { color: var(--text-2); display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -1522,18 +1499,6 @@ main:has(.map-first) { max-width: none; }
 .mc-spare { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
 .mc-row .pill { font-size: 10.5px; padding: 1px 7px; }
 
-.pg { display: grid; gap: 4px; }
-.pg-track { position: relative; display: flex; height: 26px; border-radius: 7px; overflow: visible; font-size: 11px; font-weight: 600; }
-.pg-zone { display: grid; place-items: center; color: #10140e; overflow: hidden; white-space: nowrap; }
-.pg-ideal { background: var(--good); border-radius: 7px 0 0 7px; }
-.pg-ok { background: var(--warning); }
-.pg-poor { background: color-mix(in srgb, var(--critical) 75%, var(--card)); border-radius: 0 7px 7px 0; color: #fff; }
-.pg-you { position: absolute; top: -6px; bottom: -6px; width: 3px; margin-left: -1.5px; background: var(--text); border-radius: 2px; box-shadow: 0 0 0 2px var(--card); }
-.pg-scale { position: relative; height: 16px; font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
-.pg-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-.pg-scale span:first-child { left: 0; transform: none; }
-.pg-scale .pg-end { right: 0; transform: none; }
-.pg-you-text { margin: 4px 0 0; font-size: 13px; color: var(--text); }
 .mc-name { grid-area: name; }
 .mc-speed { grid-area: speed; }
 .mc-spare { grid-area: spare; justify-self: end; }
@@ -1557,7 +1522,6 @@ main:has(.map-first) { max-width: none; }
 .tiles .tile { container-type: inline-size; min-width: 0; }
 .tile .label, .tile .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tiles .tile .value { white-space: nowrap; font-size: min(24px, 13.5cqi); }
-.tiles .tile .value.value-text { font-size: min(17px, 9cqi); }
 .tiles .tile .value .unit { font-size: .6em; }
 .mc-pick span, .mc-pick b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aim-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

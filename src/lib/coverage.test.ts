@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { bestSite, combinedStats, coverageMargins, coveragePathLoss, coveragePatternLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials, siteMarginsAt, sumGrids, unionBounds } from "./coverage";
+import { type CoverageRadio, bestSite, combinedStats, coveragePathLoss, coveragePatternLoss, coverageStats, marginAt, marginsFromLoss, sampleRadials, siteMarginsAt, sumGrids, unionBounds } from "./coverage";
 import { beam } from "./pattern";
+import { defaultModel } from "./propagation";
 import { fsplDb } from "./fspl";
 import { bearingDeg, distanceBetweenM } from "./geo";
 
 const site = { lat: 35.2271, lon: -80.8431 };
 const radio = { freqHz: 915e6, eirpDbm: 32, rxGainDbi: 2, rxCableLossDb: 0, sensitivityDbm: -100 };
 const flat = () => 200;
+
+/** Margin at every radial point, the way the Coverage page combines path loss and the radio. */
+const coverageMargins = (s: ReturnType<typeof sampleRadials>, r: CoverageRadio, txHeightM: number, rxHeightM: number) =>
+  marginsFromLoss(coveragePathLoss(s, r.freqHz, txHeightM, rxHeightM, defaultModel), r);
 
 describe("sampleRadials", () => {
   it("samples every radial from the site outward", () => {

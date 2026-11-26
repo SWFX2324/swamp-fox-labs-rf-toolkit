@@ -291,10 +291,6 @@ export function satScene(i: SceneInput): { svg: string; ratio: string } {
         <stop offset="0.65" stop-color="#14263d"/>
         <stop offset="1" stop-color="#2a4560"/>
       </linearGradient>
-      <radialGradient id="ssGlow">
-        <stop offset="0" stop-color="#7fb2ff" stop-opacity="0.22"/>
-        <stop offset="1" stop-color="#7fb2ff" stop-opacity="0"/>
-      </radialGradient>
       <pattern id="ssGrid" width="40" height="40" patternUnits="userSpaceOnUse">
         <path d="M40 0 H0 V40" fill="none" class="ss-grid"/>
       </pattern>

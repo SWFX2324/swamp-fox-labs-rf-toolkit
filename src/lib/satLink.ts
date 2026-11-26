@@ -131,90 +131,6 @@ export const legacyModcods: Modcod[] = [...legacy("BPSK", 1), ...legacy("QPSK", 
 /** Every modulation and FEC the page offers: DVB-S2 first, then DVB-S and BPSK. */
 export const allModcods: Modcod[] = [...dvbs2Modcods, ...legacyModcods];
 
-export interface SatLinkInputs {
-  rangeM: number;
-  uplinkHz: number;
-  downlinkHz: number;
-  dishM: number;
-  efficiency: number;
-  txPowerW: number;
-  txFeedLossDb: number;
-  pointingErrorDeg: number;
-  uplinkLossDb: number;
-  satGtDbK: number;
-  satEirpDbw: number;
-  downlinkLossDb: number;
-  clearSkyAntennaK: number;
-  rxFeedLossDb: number;
-  lnbK: number;
-  symbolRate: number;
-  modcod: Modcod;
-  implementationLossDb: number;
-}
-
-export interface SatLinkResult {
-  txGainDbi: number;
-  rxGainDbi: number;
-  beamwidthUp: number;
-  beamwidthDown: number;
-  pointingLossUp: number;
-  pointingLossDown: number;
-  eirpDbw: number;
-  fsplUp: number;
-  fsplDown: number;
-  systemTempK: number;
-  terminalGtDbK: number;
-  cn0Up: number;
-  cn0Down: number;
-  cn0Total: number;
-  esn0: number;
-  requiredEsn0: number;
-  marginDb: number;
-  infoRateBps: number;
-}
-
-export function satLinkBudget(i: SatLinkInputs): SatLinkResult {
-  const txGain = dishGainDbi(i.dishM, i.uplinkHz, i.efficiency);
-  const rxGain = dishGainDbi(i.dishM, i.downlinkHz, i.efficiency);
-  const bwUp = beamwidthDeg(i.dishM, i.uplinkHz);
-  const bwDown = beamwidthDeg(i.dishM, i.downlinkHz);
-  const plUp = pointingLossDb(i.pointingErrorDeg, bwUp);
-  const plDown = pointingLossDb(i.pointingErrorDeg, bwDown);
-
-  const eirp = 10 * Math.log10(i.txPowerW) - i.txFeedLossDb + txGain - plUp;
-  const fsplUp = fsplDb(i.uplinkHz, i.rangeM);
-  const cn0Up = cn0DbHz(eirp, fsplUp + i.uplinkLossDb, i.satGtDbK);
-
-  const tsys = systemNoiseTempK(antennaTempWithLossK(i.clearSkyAntennaK, i.downlinkLossDb), i.rxFeedLossDb, i.lnbK);
-  const gt = rxGain - plDown - 10 * Math.log10(tsys);
-  const fsplDown = fsplDb(i.downlinkHz, i.rangeM);
-  const cn0Down = cn0DbHz(i.satEirpDbw, fsplDown + i.downlinkLossDb, gt);
-
-  const cn0Total = combineCn0(cn0Up, cn0Down);
-  const esn0 = cn0Total - 10 * Math.log10(i.symbolRate);
-  const required = i.modcod.esn0 + i.implementationLossDb;
-  return {
-    txGainDbi: txGain,
-    rxGainDbi: rxGain,
-    beamwidthUp: bwUp,
-    beamwidthDown: bwDown,
-    pointingLossUp: plUp,
-    pointingLossDown: plDown,
-    eirpDbw: eirp,
-    fsplUp,
-    fsplDown,
-    systemTempK: tsys,
-    terminalGtDbK: gt,
-    cn0Up,
-    cn0Down,
-    cn0Total,
-    esn0,
-    requiredEsn0: required,
-    marginDb: esn0 - required,
-    infoRateBps: i.symbolRate * bitsPerSymbolNet(i.modcod),
-  };
-}
-
 /**
  * A small terminal in a star network: it talks through the satellite to a
  * gateway, where the network lives, in two directions with their own carriers.
@@ -356,24 +272,6 @@ export function fadeHeadroomDb(i: StarLinkInputs, dir: "ret" | "fwd"): number {
     else hi = mid;
   }
   return lo;
-}
-
-/** A MODCOD with the margin and information rate it would give. */
-export interface ModcodFit {
-  modcod: Modcod;
-  marginDb: number;
-  infoRateBps: number;
-}
-
-/**
- * The fastest MODCODs a direction carries at its symbol rate: one that closes
- * at all, and one that keeps GOOD_MARGIN_DB. Same Es/N0; only the threshold changes.
- */
-export function fastestModcods(esn0: number, symbolRate: number, implLossDb: number): { closes?: ModcodFit; good?: ModcodFit } {
-  const fits = allModcods
-    .map((m) => ({ modcod: m, marginDb: esn0 - (m.esn0 + implLossDb), infoRateBps: symbolRate * bitsPerSymbolNet(m) }))
-    .sort((a, b) => b.infoRateBps - a.infoRateBps);
-  return { closes: fits.find((f) => f.marginDb >= 0), good: fits.find((f) => f.marginDb >= GOOD_MARGIN_DB) };
 }
 
 export interface SatBand {

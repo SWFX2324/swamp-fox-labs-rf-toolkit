@@ -100,13 +100,3 @@ export const FREE_SPACE_MIN_HZ = 30e6;
 export function freeSpaceApplies(freqHz: number): boolean {
   return freqHz >= FREE_SPACE_MIN_HZ;
 }
-
-export type MarginRating = "good" | "fair" | "marginal" | "fail";
-
-/** Rough rating: 20 dB+ rides out deep fades, under 0 dB will not connect. */
-export function rateMargin(marginDb: number): MarginRating {
-  if (marginDb >= 20) return "good";
-  if (marginDb >= 10) return "fair";
-  if (marginDb >= 0) return "marginal";
-  return "fail";
-}

@@ -35,13 +35,6 @@ export function toGlobalPixel(p: LatLon, z: number): { gx: number; gy: number } 
   };
 }
 
-export function fromGlobalPixel(gx: number, gy: number, z: number): LatLon {
-  const n = TILE_SIZE * 2 ** z;
-  const lon = (gx / n) * 360 - 180;
-  const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * gy) / n))) * 180) / Math.PI;
-  return { lat, lon };
-}
-
 export function decodeTerrarium(r: number, g: number, b: number): number {
   return r * 256 + g + b / 256 - 32768;
 }

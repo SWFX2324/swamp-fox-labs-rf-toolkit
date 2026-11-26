@@ -105,13 +105,6 @@ export interface TerrainLoss {
   itm?: ItmP2PResult;
 }
 
-export const modeNames: Record<PropMode, string> = {
-  [PropMode.NotSet]: "",
-  [PropMode.LineOfSight]: "Line of sight",
-  [PropMode.Diffraction]: "Diffraction",
-  [PropMode.Troposcatter]: "Troposcatter",
-};
-
 /** Loss beyond free space for a profiled path. */
 export function terrainLoss(path: ProfiledPath, s: ModelSettings): TerrainLoss {
   if (path.freqHz >= ITM_MIN_HZ && path.freqHz <= ITM_MAX_HZ && path.elevationsM.length >= 3) {

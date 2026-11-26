@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LandCoverGrid, decodeLandCover, describePoint, environmentForClass, landCoverUrl } from "./landCover";
+import { LandCoverGrid, decodeLandCover, environmentForClass, landCoverUrl } from "./landCover";
 import { TILE_SIZE, toGlobalPixel } from "./terrainTiles";
 
 describe("landCoverUrl", () => {
@@ -59,7 +59,6 @@ describe("LandCoverGrid", () => {
     grid.set(tile, classes);
     expect(grid.classAt(p)).toBe(2);
     expect(grid.at(p).environment.id).toBe("dense");
-    expect(describePoint(grid.at(p))).toBe("Trees (Dense Vegetation)");
   });
 
   it("calls a built pixel urban only when the area around it is built up", () => {

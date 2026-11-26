@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TREE_HEIGHT_M, aboveModelRange, belowModelRange, clutterLossDb, effectiveHeightM, environments, findEnvironment, withTreeHeight, woodlandLossDb } from "./environment";
+import { DEFAULT_TREE_HEIGHT_M, belowModelRange, clutterLossDb, effectiveHeightM, environments, findEnvironment, withTreeHeight, woodlandLossDb } from "./environment";
 
 const env = findEnvironment;
 
@@ -93,7 +93,6 @@ describe("frequency limits", () => {
   });
 
   it("holds the 3 GHz figure above 3 GHz", () => {
-    expect(aboveModelRange(5.8e9)).toBe(true);
     expect(clutterLossDb(env("urban"), 5.8e9, 1.5)).toBe(clutterLossDb(env("urban"), 3e9, 1.5));
   });
 });

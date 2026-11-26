@@ -60,7 +60,3 @@ export async function landCoverAt(points: LatLon[], signal?: AbortSignal): Promi
   return points.map((p) => pointCache.get(pointKey(p))!);
 }
 
-/** The land cover at a point if it's already been looked up, without loading. */
-export function cachedLandCover(p: LatLon): LandCoverPoint | undefined {
-  return pointCache.get(pointKey(p));
-}

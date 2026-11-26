@@ -79,4 +79,3 @@ export function createPathStore(storage: StorageLike) {
   };
 }
 
-export type PathStore = ReturnType<typeof createPathStore>;

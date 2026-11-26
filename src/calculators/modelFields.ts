@@ -5,31 +5,11 @@
 // live only in Settings and every tab reads them from there.
 
 import { parseKFactor } from "../lib/horizon";
-import { type ModelSettings, defaultModel, groundForEnvironment, parseModel } from "../lib/propagation";
+import { type ModelSettings, groundForEnvironment, parseModel } from "../lib/propagation";
 import { getSettings } from "./settingsStore";
-
-export const modelDefaults: Record<string, string> = {
-  reliability: String(defaultModel.reliability),
-  confidence: String(defaultModel.confidence),
-};
 
 /** Earth curvature (k) from Settings. */
 export const globalK = (): number => parseKFactor(getSettings().kFactor);
-
-const percentField = (label: string, name: string) => `
-    <label>${label}
-      <span class="input-unit">
-        <input name="${name}" type="number" inputmode="decimal" step="any" min="1" max="99" />
-        <span class="unit">%</span>
-      </span>
-    </label>`;
-
-export function modelFieldsHtml(): string {
-  return `
-    <div class="field-group-head" role="heading" aria-level="3">Longley-Rice model <span class="meta">Terrain loss settings</span></div>
-    ${percentField("Reliability (time)", "reliability")}
-    ${percentField("Confidence", "confidence")}`;
-}
 
 /**
  * The model for this tab: its reliability and confidence, with climate, ground

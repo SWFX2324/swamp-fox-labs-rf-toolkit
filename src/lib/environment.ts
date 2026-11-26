@@ -61,11 +61,6 @@ export function belowModelRange(freqHz: number): boolean {
   return freqHz / 1e9 < MIN_GHZ;
 }
 
-/** True above 3 GHz, where the 3 GHz figure is used as a rough stand-in. */
-export function aboveModelRange(freqHz: number): boolean {
-  return freqHz / 1e9 > MAX_GHZ;
-}
-
 /** Default canopy height for woodland, metres. */
 export const DEFAULT_TREE_HEIGHT_M = 20;
 

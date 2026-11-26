@@ -114,7 +114,3 @@ export function magneticField(latDeg: number, lonDeg: number, heightKm: number, 
   };
 }
 
-/** Magnetic declination in degrees (east positive) at ground level now. */
-export function declinationDeg(latDeg: number, lonDeg: number, date = new Date(), heightKm = 0): number {
-  return magneticField(latDeg, lonDeg, heightKm, decimalYear(date)).declination;
-}

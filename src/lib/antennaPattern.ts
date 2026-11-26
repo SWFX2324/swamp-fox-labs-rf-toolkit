@@ -16,13 +16,6 @@ export function wireField(lengthWl: number, fromAxisDeg: number): number {
   return Math.abs((Math.cos(kl2 * Math.cos(t)) - Math.cos(kl2)) / s);
 }
 
-/** A vertical of the given height (wavelengths) over perfect ground, against elevation above the horizon. */
-export function monopoleField(heightWl: number, elevationDeg: number): number {
-  if (elevationDeg < 0 || elevationDeg > 180) return 0;
-  // The ground's image makes it a centre-fed wire twice the height.
-  return wireField(2 * heightWl, 90 - elevationDeg);
-}
-
 /** Field strength as dB below the peak, floored at floorDb. */
 export const toDb = (field: number, floorDb = -30): number => (field > 0 ? Math.max(floorDb, 20 * Math.log10(field)) : floorDb);
 

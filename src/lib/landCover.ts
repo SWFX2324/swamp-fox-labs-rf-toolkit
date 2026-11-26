@@ -17,24 +17,8 @@ export const AUTO_ENVIRONMENT = "auto";
 export const LAND_COVER_YEAR = 2025;
 export const LAND_COVER_HOST = "https://ic.imagery1.arcgis.com";
 const SERVICE = `${LAND_COVER_HOST}/arcgis/rest/services/Sentinel2_10m_LandCover/ImageServer/exportImage`;
-export const LAND_COVER_CREDIT = "Land cover: Impact Observatory, Microsoft and Esri (CC BY 4.0)";
 /** Pixels at zoom 12 are about 38 m at the equator, 30 m in the mid-latitudes. */
 export const LAND_COVER_POINT_ZOOM = 12;
-
-export type LandCoverClass = 0 | 1 | 2 | 4 | 5 | 7 | 8 | 9 | 10 | 11;
-
-export const landCoverNames: Record<number, string> = {
-  0: "No data",
-  1: "Water",
-  2: "Trees",
-  4: "Flooded vegetation",
-  5: "Crops",
-  7: "Built area",
-  8: "Bare ground",
-  9: "Snow or ice",
-  10: "Clouds",
-  11: "Rangeland",
-};
 
 const EARTH_HALF_M = 20037508.342789244;
 const START = Date.UTC(LAND_COVER_YEAR, 0, 1);
@@ -156,10 +140,4 @@ export class LandCoverGrid {
     }
     return { cls, environment: findEnvironment(environmentForClass(cls, share)) };
   }
-}
-
-/** A plain-language name for what's at a point, for notes and the ledger. */
-export function describePoint(p: LandCoverPoint): string {
-  const name = landCoverNames[p.cls] ?? "Unknown";
-  return p.environment.id === "none" ? name : `${name} (${p.environment.name})`;
 }

@@ -9,11 +9,8 @@ import {
   allModcods,
   bitsPerSymbolNet,
   fadeHeadroomDb,
-  fastestModcods,
-  GOOD_MARGIN_DB,
   starLinkBudget,
   pointingLossDb,
-  satLinkBudget,
   systemNoiseTempK,
 } from "./satLink";
 
@@ -92,54 +89,6 @@ describe("dvbs2Modcods", () => {
   });
 });
 
-describe("satLinkBudget", () => {
-  const qpsk34 = dvbs2Modcods.find((m) => m.name === "QPSK 3/4")!;
-  const base = {
-    rangeM: 37_500_000,
-    uplinkHz: 14.25e9,
-    downlinkHz: 11.95e9,
-    dishM: 1.2,
-    efficiency: 0.65,
-    txPowerW: 4,
-    txFeedLossDb: 0.5,
-    pointingErrorDeg: 0.2,
-    uplinkLossDb: 0.3,
-    satGtDbK: 2,
-    satEirpDbw: 42,
-    downlinkLossDb: 0.3,
-    clearSkyAntennaK: 35,
-    rxFeedLossDb: 0.2,
-    lnbK: 60,
-    symbolRate: 2e6,
-    modcod: qpsk34,
-    implementationLossDb: 0.5,
-  };
-
-  it("ties the pieces together", () => {
-    const r = satLinkBudget(base);
-    expect(r.eirpDbw).toBeCloseTo(10 * Math.log10(4) - 0.5 + r.txGainDbi - r.pointingLossUp, 9);
-    expect(r.cn0Total).toBeCloseTo(combineCn0(r.cn0Up, r.cn0Down), 9);
-    expect(r.esn0).toBeCloseTo(r.cn0Total - 63.01, 2);
-    expect(r.marginDb).toBeCloseTo(r.esn0 - 4.53, 9);
-    expect(r.infoRateBps).toBeCloseTo(3e6, 0);
-  });
-
-  it("lands a typical Ku VSAT in a sensible range", () => {
-    const r = satLinkBudget(base);
-    expect(r.eirpDbw).toBeGreaterThan(45);
-    expect(r.eirpDbw).toBeLessThan(50);
-    expect(r.terminalGtDbK).toBeGreaterThan(19);
-    expect(r.terminalGtDbK).toBeLessThan(23);
-  });
-
-  it("loses margin to rain on both links", () => {
-    const clear = satLinkBudget(base);
-    const rain = satLinkBudget({ ...base, uplinkLossDb: 5, downlinkLossDb: 4 });
-    expect(rain.marginDb).toBeLessThan(clear.marginDb - 3);
-    expect(rain.systemTempK).toBeGreaterThan(clear.systemTempK);
-  });
-});
-
 describe("star network: return and forward", () => {
   const qpsk34 = dvbs2Modcods.find((m) => m.name === "QPSK 3/4")!;
   const base = {
@@ -150,12 +99,32 @@ describe("star network: return and forward", () => {
     fwd: { symbolRate: 10e6, modcod: qpsk34 }, ret: { symbolRate: 2e6, modcod: qpsk34 }, implementationLossDb: 0.5,
   };
 
-  it("matches the single-carrier budget on your terminal's legs", () => {
+  it("ties the pieces together", () => {
     const s = starLinkBudget(base);
-    const single = satLinkBudget({ ...base, satEirpDbw: 42, symbolRate: 2e6, modcod: qpsk34 });
-    expect(s.ret.cn0Up).toBeCloseTo(single.cn0Up, 9);
-    expect(s.fwd.cn0Down).toBeCloseTo(single.cn0Down, 9);
-    expect(s.eirpDbw).toBeCloseTo(single.eirpDbw, 9);
+    expect(s.eirpDbw).toBeCloseTo(10 * Math.log10(4) - 0.5 + s.txGainDbi - s.pointingLossUp, 9);
+    expect(s.ret.cn0Up).toBeCloseTo(cn0DbHz(s.eirpDbw, s.fsplUp + 0.3, 2), 9);
+    expect(s.fwd.cn0Down).toBeCloseTo(cn0DbHz(42, s.fsplDown + 0.3, s.terminalGtDbK), 9);
+    expect(s.ret.cn0Total).toBeCloseTo(combineCn0(s.ret.cn0Up, s.ret.cn0Down), 9);
+    // 2 Msym/s is 63.01 dB; QPSK 3/4 needs 4.03 dB plus 0.5 dB implementation loss.
+    expect(s.ret.esn0).toBeCloseTo(s.ret.cn0Total - 63.01, 2);
+    expect(s.ret.marginDb).toBeCloseTo(s.ret.esn0 - 4.53, 9);
+    expect(s.ret.infoRateBps).toBeCloseTo(3e6, 0);
+  });
+
+  it("lands a typical Ku terminal in a sensible range", () => {
+    const s = starLinkBudget(base);
+    expect(s.eirpDbw).toBeGreaterThan(45);
+    expect(s.eirpDbw).toBeLessThan(50);
+    expect(s.terminalGtDbK).toBeGreaterThan(19);
+    expect(s.terminalGtDbK).toBeLessThan(23);
+  });
+
+  it("loses margin to rain in both directions", () => {
+    const clear = starLinkBudget(base);
+    const rain = starLinkBudget({ ...base, uplinkLossDb: 5, downlinkLossDb: 4 });
+    expect(rain.ret.marginDb).toBeLessThan(clear.ret.marginDb - 3);
+    expect(rain.fwd.marginDb).toBeLessThan(clear.fwd.marginDb - 3);
+    expect(rain.systemTempK).toBeGreaterThan(clear.systemTempK);
   });
 
   it("is limited by your terminal in each direction, as a small terminal is", () => {
@@ -175,15 +144,5 @@ describe("star network: return and forward", () => {
       expect(at[dir].marginDb).toBeCloseTo(0, 3);
     }
     expect(fadeHeadroomDb({ ...base, txPowerW: 0.001 }, "ret")).toBe(0);
-  });
-
-  it("picks the fastest MODCOD that closes, and the fastest with the good margin", () => {
-    const s = starLinkBudget(base);
-    const f = fastestModcods(s.ret.esn0, 2e6, 0.5);
-    expect(f.closes!.marginDb).toBeGreaterThanOrEqual(0);
-    expect(f.good!.marginDb).toBeGreaterThanOrEqual(GOOD_MARGIN_DB);
-    for (const m of dvbs2Modcods) {
-      if (2e6 * m.bitsPerSymbol * m.codeRate > f.closes!.infoRateBps) expect(s.ret.esn0 - (m.esn0 + 0.5)).toBeLessThan(0);
-    }
   });
 });
