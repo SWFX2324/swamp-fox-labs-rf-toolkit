@@ -1136,8 +1136,19 @@ main:has(.map-first) { max-width: none; }
 .path-view .note { margin: 6px 0 0; }
 .relay-results .weaker-hop td:first-child { font-weight: 600; }
 .budget-details { margin-top: 12px; font-size: 13px; }
-.budget-details > summary { cursor: pointer; color: var(--muted); min-height: 32px; display: flex; align-items: center; }
-.budget-details[open] > summary { margin-bottom: 6px; }
+.budget-details > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  min-height: 40px; padding: 0 14px; border-radius: 10px; background: var(--card-2);
+  color: var(--text); font-weight: 600; font-size: 13px;
+}
+.budget-details > summary::-webkit-details-marker { display: none; }
+.budget-details > summary::after {
+  content: ""; width: 7px; height: 7px; margin: -3px 2px 0 0;
+  border-right: 1.8px solid var(--muted); border-bottom: 1.8px solid var(--muted); transform: rotate(45deg);
+}
+.budget-details[open] > summary::after { margin-top: 3px; transform: rotate(-135deg); }
+.budget-details > summary:hover { color: var(--accent); }
+.budget-details[open] > summary { margin-bottom: 8px; }
 /* Full budget: a short, even list of the key steps. */
 .budget-flow { display: grid; gap: 2px; }
 /* Distance as a tile: typed, or read from the pins (then read-only). */
@@ -1255,3 +1266,37 @@ main:has(.map-first) { max-width: none; }
 /* Retain MapLibre's native buttons and the compass container's rotation. */
 .view3d-map .maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23232321%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%2012h14m-7-7v14%22%2F%3E%3C%2Fsvg%3E"); }
 .view3d-map .maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23232321%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%2012h14%22%2F%3E%3C%2Fsvg%3E"); }
+
+/* ------------------------------------------------------------ profile dock */
+/* Link Analysis on wide screens: the terrain profile docks under the map,
+   between the side panes; the map's taskbar, key and credits sit above it. */
+.profile-dock[hidden] { display: none; }
+@media (min-width: 1300px) {
+  .lb-shell.floating .profile-dock {
+    position: absolute; z-index: 1000; bottom: 14px; left: 388px; right: 408px; margin: 0;
+    padding: 10px 14px 12px; box-shadow: 0 6px 24px rgb(0 0 0 / .35);
+  }
+  .lb-shell.floating.left-closed .profile-dock { left: 14px; }
+  .lb-shell.floating.right-closed .profile-dock { right: 14px; }
+  .lb-shell.floating.has-dock .lb-map .map-taskbar { bottom: calc(var(--dock-h, 0px) + 56px); }
+  .lb-shell.floating.has-dock .lb-map .map-legend { bottom: calc(var(--dock-h, 0px) + 22px); }
+  .lb-shell.floating.has-dock .lb-map .leaflet-bottom { bottom: var(--dock-h, 0px); }
+}
+.dock-head { display: flex; align-items: center; gap: 10px; }
+.dock-head h2 { margin: 0; font-size: 14px; }
+.dock-pill { display: flex; }
+.dock-toggle {
+  margin-left: auto; display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted);
+}
+.dock-toggle:hover { background: var(--card-2); color: var(--text); }
+.dock-toggle svg { width: 18px; height: 18px; transition: transform .15s; }
+.profile-dock.closed .dock-toggle svg { transform: rotate(180deg); }
+.profile-dock.closed .dock-body { display: none; }
+.dock-body { margin-top: 6px; }
+.dock-head .profile-view { margin: 0 0 0 auto; }
+.dock-head .profile-view + .dock-toggle { margin-left: 0; }
+.dock-body .profile-chart { margin-top: 4px; }
+.dock-body .profile-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 8px; }
+.dock-body .note { margin: 0; }
+.dock-head .profile-view > .note { display: none; }

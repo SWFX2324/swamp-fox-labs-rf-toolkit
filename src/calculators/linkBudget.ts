@@ -18,8 +18,9 @@ import { type ModelSettings, timeAvailable } from "../lib/propagation";
 import { STANDARD_K, midpointClearance } from "../lib/horizon";
 import { type HopAnalysis, type SiteId, createTerrainCard } from "./terrain";
 import { type LatLon, distanceBetweenM } from "../lib/geo";
-import { type LinkInputs, type LinkResult, type MarginRating, freeSpaceApplies, linkBudget, rateMargin } from "../lib/linkBudget";
-import { linkQuality } from "../lib/linkLines";
+import { type LinkInputs, type LinkResult, freeSpaceApplies, linkBudget } from "../lib/linkBudget";
+import { type LinkQuality, linkQuality } from "../lib/linkLines";
+import { rfIcon } from "../ui/rfIcons";
 import {
   type DistanceUnit,
   dbmToWatts,
@@ -38,6 +39,8 @@ const STORAGE_KEY = "rf-toolkit:link-budget";
 // Cards start closed; this remembers which ones you open.
 const PANES_KEY = "rf-toolkit:link-panes";
 const SIDES_KEY = "rf-toolkit:link-sides";
+/** Whether the docked terrain profile is folded away. */
+const DOCK_KEY = "rf-toolkit:link-profile-dock";
 
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
@@ -87,16 +90,12 @@ const hfWarning =
   "free-space loss, margin and range don't reflect real HF performance. Use an HF " +
   "propagation tool such as VOACAP for these bands.";
 
-const ratingText: Record<MarginRating, string> = {
-  good: "Good link",
-  fair: "Workable link",
-  marginal: "Marginal link",
-  fail: "Bad link",
+/** The card's words for a link: the same three as the map's link lines, by the same rule. */
+const qualityWords: Record<LinkQuality, string> = {
+  good: "Good",
+  marginal: "Marginal",
+  fail: "Won't connect",
 };
-/** Margin at or above which a good link reads "Superior link", dB. */
-const SUPERIOR_DB = 30;
-/** The words for a margin: five steps, from the four ratings plus one above good. */
-const ratingWords = (rating: MarginRating, marginDb: number) => (rating === "good" && marginDb >= SUPERIOR_DB ? "Superior link" : ratingText[rating]);
 
 function options(values: readonly string[], selected: string): string {
   return values.map((v) => `<option${v === selected ? " selected" : ""}>${v}</option>`).join("");
@@ -144,7 +143,7 @@ const template = `
   <div class="lb-shell floating">
   ${sideToggles("link budget")}
   <div class="lb-left">
-    ${pane("tx", "tx", "Transmitter", `
+    ${pane("tx", "tx", "Site A", `
       <div class="fields">
         <label>Name
           <input name="txName" type="text" autocomplete="off" maxlength="40" placeholder="Site A" />
@@ -159,7 +158,7 @@ const template = `
         ${numberField("Sensitivity", "txSens", "dBm", 'title="From the radio datasheet, for the data rate or mode you use"')}
       </div>`)}
 
-    ${pane("rx", "rx", "Receiver", `
+    ${pane("rx", "rx", "Site B", `
       <div class="fields">
         <label>Name
           <input name="rxName" type="text" autocomplete="off" maxlength="40" placeholder="Site B" />
@@ -213,6 +212,15 @@ const template = `
 
   <div class="lb-map" data-slot="map"></div>
 
+  <section class="card profile-dock" data-out="profileDock" hidden>
+    <div class="dock-head">
+      <h2 class="with-icon">${PANE_ICONS.terrain}Terrain profile</h2>
+      <span class="dock-pill" data-out="dockPill"></span>
+      <button type="button" class="dock-toggle" data-out="dockToggle" aria-expanded="true" aria-label="Hide the terrain profile">${rfIcon("chevronDown")}</button>
+    </div>
+    <div class="dock-body" data-out="dockBody"></div>
+  </section>
+
   <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
@@ -249,8 +257,9 @@ const template = `
           <span class="sub" data-out="eirpBW"></span>
         </div>
         <div class="tile wide-tile">
-          <span class="label">Free-space path loss</span>
-          <span class="value" data-out="fspl"></span>
+          <span class="label">Path loss</span>
+          <span class="value" data-out="pathLoss"></span>
+          <span class="sub" data-out="pathLossSub"></span>
         </div>
         <div class="tile wide-tile tile-field">
           <label><span data-out="distLabel">Distance</span>
@@ -442,10 +451,79 @@ export const linkBudgetCalculator: Calculator = {
       fadeMarginDb: () => num("fadeMargin") || 0,
     });
     for (const name of ["txName", "rxName", "relayName"]) field(name).addEventListener("input", () => terrain.namesChanged());
+    // Each site's pane is titled with its name.
+    const syncPaneTitles = () => {
+      for (const site of ["tx", "rx", "relay"] as SiteId[]) {
+        const title = form.querySelector(`details[data-pane="${site}"] .pane-title`);
+        if (title) title.textContent = siteName(site);
+      }
+    };
     // The terrain card's parts go where they belong in this layout.
     for (const [name, part] of Object.entries(terrain.parts)) form.querySelector(`[data-slot="${name}"]`)!.append(part);
     const profilePill = terrain.parts.profile.querySelector(".pill");
     if (profilePill) form.querySelector('[data-slot="pill"]')!.append(profilePill);
+
+    // Wide screens: the profile docks under the map, between the side panes,
+    // so the ground and the budget show together. Narrower, it stays in its pane.
+    const dock = out("profileDock");
+    const shell = form.querySelector<HTMLElement>(".lb-shell")!;
+    const terrainPane = form.querySelector<HTMLDetailsElement>('details[data-pane="terrain"]')!;
+    const wide = window.matchMedia("(min-width: 1300px)");
+    const profileSwitch = terrain.parts.profile.querySelector<HTMLElement>(".profile-view");
+    let dockClosed = false;
+    try {
+      dockClosed = localStorage.getItem(DOCK_KEY) === "closed";
+    } catch {
+      // Storage blocked: the dock just starts open.
+    }
+    const syncDockOpen = () => {
+      dock.classList.toggle("closed", dockClosed);
+      out("dockToggle").setAttribute("aria-expanded", String(!dockClosed));
+      out("dockToggle").setAttribute("aria-label", `${dockClosed ? "Show" : "Hide"} the terrain profile`);
+    };
+    const placeProfile = () => {
+      const docked = wide.matches;
+      dock.hidden = !docked;
+      terrainPane.hidden = docked;
+      shell.classList.toggle("has-dock", docked);
+      (docked ? out("dockBody") : form.querySelector('[data-slot="profile"]')!).append(terrain.parts.profile);
+      if (profileSwitch) {
+        if (docked) out("dockToggle").before(profileSwitch);
+        else terrain.parts.profile.querySelector(".profile-chart")!.before(profileSwitch);
+      }
+      if (profilePill) (docked ? out("dockPill") : form.querySelector('[data-slot="pill"]')!).append(profilePill);
+      terrain.redraw();
+    };
+    out("dockToggle").addEventListener("click", () => {
+      dockClosed = !dockClosed;
+      try {
+        localStorage.setItem(DOCK_KEY, dockClosed ? "closed" : "open");
+      } catch {
+        // Storage blocked: remembered for this visit only.
+      }
+      syncDockOpen();
+      if (!dockClosed) terrain.redraw();
+    });
+    // The map's taskbar, key and credits sit above the dock.
+    let dockH = "";
+    new ResizeObserver(() => {
+      const h = dock.hidden ? "0px" : `${dock.offsetHeight + 14}px`;
+      if (h === dockH) return;
+      dockH = h;
+      shell.style.setProperty("--dock-h", h);
+      // Keep the sites in view as the profile loads, opens or folds away.
+      requestAnimationFrame(() => terrain.reframe());
+    }).observe(dock);
+    // Redraw at the new width when the gap between the panes changes.
+    let dockWidth = 0;
+    new ResizeObserver(() => {
+      if (dock.hidden || dock.offsetWidth === dockWidth) return;
+      dockWidth = dock.offsetWidth;
+      terrain.redraw();
+    }).observe(dock);
+    wide.addEventListener("change", placeProfile);
+    syncDockOpen();
+    placeProfile();
     setupMapFirst(form, {
       panesKey: PANES_KEY,
       sidesKey: SIDES_KEY,
@@ -594,6 +672,7 @@ export const linkBudgetCalculator: Calculator = {
     };
 
     const update = () => {
+      syncPaneTitles();
       // Distances in the unit chosen in Settings.
       const distUnit = asDistanceUnit(getSettings().distanceUnit);
       out("distUnitLabel").textContent = distUnit === "km" ? "Kilometers" : "Miles";
@@ -684,7 +763,7 @@ export const linkBudgetCalculator: Calculator = {
 
       if (problem) {
         out("dirNote").hidden = out("dirWrap").hidden = true;
-        for (const name of ["eirp", "eirpW", "eirpB", "eirpBW", "fspl", "rsl", "margin", "marginSub", "barRsl", "barMargin"]) {
+        for (const name of ["eirp", "eirpW", "eirpB", "eirpBW", "pathLoss", "pathLossSub", "rsl", "margin", "marginSub", "barRsl", "barMargin"]) {
           out(name).textContent = "—";
         }
         out("rating").hidden = true;
@@ -732,13 +811,14 @@ export const linkBudgetCalculator: Calculator = {
       const shown = way.inputs;
       const fromName = way.from;
       const toName = way.to;
-      const rating = rateMargin(weakest);
+      // Rated as the map line is: good once the fade margin is covered, marginal above 0 dB.
+      const rating = linkQuality(weakest, inputs.fadeMarginDb);
       // The map line is always the direct path; the hop lines are drawn below.
       // It follows the same rule as the Mesh Analysis: good once the fade margin is covered.
       terrain.showLink(hf ? undefined : linkQuality(directWeakest, inputs.fadeMarginDb));
 
-      out("eirpLabel").textContent = viaRelay ? `${ab.from} EIRP` : "TX EIRP";
-      out("eirpBLabel").textContent = viaRelay ? `${ab.to} EIRP` : "RX EIRP";
+      out("eirpLabel").textContent = `${ab.from} EIRP`;
+      out("eirpBLabel").textContent = `${ab.to} EIRP`;
       out("eirp").innerHTML = dbm(ab.result.eirpDbm);
       out("eirpW").textContent = formatWatts(dbmToWatts(ab.result.eirpDbm));
       out("eirpB").innerHTML = dbm(ba.result.eirpDbm);
@@ -754,7 +834,6 @@ export const linkBudgetCalculator: Calculator = {
         b.textContent = b.dataset.dir === "ab" ? abText : baText;
         b.setAttribute("aria-pressed", String(b.dataset.dir === dir));
       }
-      out("fspl").innerHTML = db(r.fsplDb);
       out("rsl").innerHTML = dbm(r.rslDbm);
       out("margin").innerHTML = db(r.marginDb);
       out("marginSub").textContent = itm && !hf ? availabilityText(timeAvailable(itm, model, r.marginDb), model) : "";
@@ -782,7 +861,7 @@ export const linkBudgetCalculator: Calculator = {
         pill.textContent = "Beyond horizon";
       } else {
         pill.className = `pill s-${rating}`;
-        pill.textContent = ratingWords(rating, weakest);
+        pill.textContent = qualityWords[rating];
       }
 
       // The budget in a few steps: what's sent, what's gained and lost on the
@@ -799,6 +878,8 @@ export const linkBudgetCalculator: Calculator = {
       ];
       const pathLoss = pathParts.reduce((sum, [, v]) => sum + v, 0);
       const parts = pathParts.filter(([, v]) => v > 0).map(([k, v]) => `${k} ${fmt(v, 1)}`).join(" · ");
+      out("pathLoss").innerHTML = db(pathLoss);
+      out("pathLossSub").textContent = parts.charAt(0).toUpperCase() + parts.slice(1);
       const antennas = shown.txGainDbi + shown.rxGainDbi;
       const flow: [string, string, string?, string?][] = [
         [`Transmitter (${from})`, `${fmt(shown.txPowerDbm, 1)} dBm`, undefined, "total accent-good"],
@@ -837,8 +918,8 @@ export const linkBudgetCalculator: Calculator = {
         dist.textContent = `${fmt(fromMetres(h.distanceM, distUnit))} ${distUnit}`;
         const margin = document.createElement("td");
         margin.className = "num";
-        const hr = rateMargin(h.marginDb);
-        margin.innerHTML = `<span class="mono">${fmt(h.marginDb)} dB</span> <span class="pill s-${hr}">${ratingWords(hr, h.marginDb)}</span>`;
+        const hr = linkQuality(h.marginDb, inputs.fadeMarginDb);
+        margin.innerHTML = `<span class="mono">${fmt(h.marginDb)} dB</span> <span class="pill s-${hr}">${qualityWords[hr]}</span>`;
         margin.title = `${fmt(h.ab.result.marginDb)} dB one way, ${fmt(h.ba.result.marginDb)} dB back`;
         tr.append(name, dist, margin);
         tbody.append(tr);

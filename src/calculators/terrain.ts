@@ -100,6 +100,8 @@ export interface TerrainCard {
   /** Which path a placed relay's cards describe: through it, or direct. Shared with the Link budget card. */
   view(): PathView;
   setView(v: PathView): void;
+  /** Frame the sites again for space that changed (the docked profile), unless the user has moved the map. */
+  reframe(): void;
 }
 
 export type PathView = "relay" | "direct";
@@ -492,12 +494,45 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     }
   };
 
+  /**
+   * Frame both sites (and the relay) in the part of the map nothing covers:
+   * clear of the floating side panes and the docked profile on wide screens.
+   */
+  const fitPath = (m: L.Map) => {
+    if (!tx || !rx) return;
+    const box = m.getContainer().getBoundingClientRect();
+    const shell = m.getContainer().closest<HTMLElement>(".lb-shell.floating");
+    const covered = (sel: string) => {
+      const e = shell?.querySelector<HTMLElement>(sel);
+      if (!e || !e.offsetWidth || getComputedStyle(e).position !== "absolute") return undefined;
+      return e.getBoundingClientRect();
+    };
+    const left = covered(".lb-left");
+    const right = covered(".lb-right");
+    // The taskbar floats above the dock, so whichever starts higher bounds the view.
+    const tops = [covered(".profile-dock")?.top, shell ? shell.querySelector<HTMLElement>(".map-taskbar")?.getBoundingClientRect().top : undefined]
+      .filter((t): t is number => t !== undefined && t > box.top);
+    const bottomCover = tops.length ? box.bottom - Math.min(...tops) : 0;
+    const points: [number, number][] = [[tx.lat, tx.lon], [rx.lat, rx.lon]];
+    if (relay) points.push([relay.lat, relay.lon]);
+    m.fitBounds(L.latLngBounds(points), {
+      paddingTopLeft: [30 + (left ? left.right - box.left : 0), 30],
+      paddingBottomRight: [30 + (right ? box.right - right.left : 0), 30 + bottomCover],
+      maxZoom: 13,
+    });
+    fittedAt = performance.now();
+    framed = true;
+  };
+  /** Whether the view is still the one fitPath set, so it can follow the dock. */
+  let framed = false;
+  let fittedAt = 0;
+
   const pinsChanged = () => {
     // A site moved: the shading no longer fits, and the hops need new terrain.
     setSurface(undefined);
     void loadRelayProfiles();
     syncPins();
-    if (tx && rx && map) map.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
+    if (tx && rx && map) fitPath(map);
     onPathChange();
     void loadProfile();
   };
@@ -505,11 +540,20 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
   const initMap = () => {
     if (map || !el("map").isConnected) return;
     map = createMap(el("map"), (m) => {
-      if (tx && rx) m.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
+      if (tx && rx) fitPath(m);
       else if (tx) m.setView([tx.lat, tx.lon], 11);
       else showDefaultView(m);
     }, { taskbar: true });
     map.attributionControl.addAttribution(DATA_ATTRIBUTION);
+    // Panning or zooming by hand means the view is the user's now.
+    // (Leaflet starts its own zoom a frame after fitBounds, so a zoom right
+    // after framing is ours.)
+    map.on("dragstart", () => {
+      framed = false;
+    });
+    map.on("zoomstart", () => {
+      if (performance.now() - fittedAt > 600) framed = false;
+    });
     map.on("click", (e: L.LeafletMouseEvent) => {
       const at = { lat: e.latlng.lat, lon: e.latlng.lng };
       if (placingRelay) {
@@ -657,7 +701,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     saveName.value = path.name;
     setStatus(`Opened "${path.name}".`);
     syncPins();
-    if (map) map.fitBounds(L.latLngBounds([tx.lat, tx.lon], [rx.lat, rx.lon]), { padding: [30, 30], maxZoom: 13 });
+    if (map) fitPath(map);
     onPathChange();
   };
   const listSaved = () => {
@@ -962,7 +1006,8 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     // Draw at the real width so the axis text stays its CSS size on phones.
     const segments = viaRelay && hopSegments ? hopSegments.map((s) => s.result) : [result];
     const names = viaRelay ? [nameOf("tx"), nameOf("relay"), nameOf("rx")] : [nameOf("tx"), nameOf("rx")];
-    chart.innerHTML = drawProfile(segments, params, chart.clientWidth || 640, names);
+    const docked = !!chart.closest(".profile-dock");
+    chart.innerHTML = drawProfile(segments, params, chart.clientWidth || 640, names, docked ? 150 : undefined);
     lastParams = params;
 
     // Built as text: site names are user input.
@@ -1008,6 +1053,9 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     pins: () => (tx && rx ? { tx, rx } : undefined),
     relay: () => relay,
     view: () => profileView,
+    reframe() {
+      if (map && framed) fitPath(map);
+    },
     setView(v) {
       profileView = v;
       onPathChange();
@@ -1049,10 +1097,11 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
  * Several segments (the hops through a relay) are drawn end to end, each with
  * its own line of sight; names label every antenna, in order.
  */
-function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number, names: string[]): string {
+function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number, names: string[], height?: number): string {
   const W = Math.max(300, Math.round(width));
   // The graph is the point of the card: tall enough to read the ground.
-  const H = Math.round(Math.min(320, Math.max(220, W * 0.48)));
+  // Docked under the map it's a wide strip instead, so the map keeps its room.
+  const H = height ?? Math.round(Math.min(320, Math.max(220, W * 0.48)));
   const pad = { l: 58, r: 12, t: 14, b: 26 };
   // Each segment's points, moved along by the length of those before it.
   let run = 0;
