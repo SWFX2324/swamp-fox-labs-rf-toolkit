@@ -3,7 +3,7 @@
 
 import { DEFAULT_TREE_HEIGHT_M, type Environment, environments, withTreeHeight } from "../lib/environment";
 import { AUTO_ENVIRONMENT } from "../lib/landCover";
-import { asDistanceUnit, fromMetres, toMetres } from "../lib/units";
+import { asDistanceUnit, fromMeters, toMeters } from "../lib/units";
 
 /** The Environment dropdown's options: None first, then Auto (from the land cover map), then each profile. */
 export function environmentOptions(): string {
@@ -32,10 +32,10 @@ const treeInput = (form: HTMLElement) => form.querySelector<HTMLInputElement>('i
 const unitOf = (form: HTMLElement, unitName: string) =>
   asDistanceUnit(form.querySelector<HTMLSelectElement | HTMLInputElement>(`[name="${unitName}"]`)?.value ?? "ft", "ft");
 
-/** The canopy height typed in, metres; undefined when blank, so the 20 m default applies. */
+/** The canopy height typed in, meters; undefined when blank, so the 20 m default applies. */
 export function treeHeightM(form: HTMLElement, unitName: string): number | undefined {
   const v = Number.parseFloat(treeInput(form)?.value ?? "");
-  return v > 0 ? toMetres(v, unitOf(form, unitName)) : undefined;
+  return v > 0 ? toMeters(v, unitOf(form, unitName)) : undefined;
 }
 
 /** A profile with the typed tree height applied (woodland only). */
@@ -59,7 +59,7 @@ export function bindTreeField(form: HTMLElement, unitName: string): void {
     label.hidden = env !== "dense" && env !== AUTO_ENVIRONMENT;
     const unit = unitOf(form, unitName);
     label.querySelector("[data-tree-unit]")!.textContent = unit;
-    input.placeholder = String(Math.round(fromMetres(DEFAULT_TREE_HEIGHT_M, unit)));
+    input.placeholder = String(Math.round(fromMeters(DEFAULT_TREE_HEIGHT_M, unit)));
   };
   form.addEventListener("input", sync);
   form.addEventListener("change", sync);

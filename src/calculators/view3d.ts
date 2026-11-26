@@ -50,14 +50,14 @@ const write = (key: string, value: string) => {
   }
 };
 
-/** A colour token from the stylesheet, as premultiplied RGBA for WebGL. */
+/** A color token from the stylesheet, as premultiplied RGBA for WebGL. */
 function tokenRgba(name: string, alpha: number): [number, number, number, number] {
   const hex = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const m = /^#([0-9a-f]{6})$/i.exec(hex);
   const n = m ? Number.parseInt(m[1], 16) : 0xffffff;
   return [((n >> 16) & 255) / 255 * alpha, ((n >> 8) & 255) / 255 * alpha, (n & 255) / 255 * alpha, alpha];
 }
-/** A colour from the stylesheet as written there (a hex code), or the fallback when it isn't set. */
+/** A color from the stylesheet as written there (a hex code), or the fallback when it isn't set. */
 const tokenHex = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
 const styleToken: Record<LinkLineStyle, string> = {
@@ -109,7 +109,7 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
 
   // Builds the triangles for the line of sight in the air: for each link a band
   // between the antenna tops, a faint curtain down to the ground, and a mast at
-  // each end. Positions are relative to the map's centre. Returns nothing to
+  // each end. Positions are relative to the map's center. Returns nothing to
   // draw when the line of sight is turned off.
   const build = (showLos: boolean): Float32Array | undefined => {
     const scene = getScene();
@@ -123,12 +123,12 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
     const data: number[] = [];
     const center = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter(), 0);
     origin = { x: center.x, y: center.y, z: 0 };
-    // A point at a height, in the map's 3D coordinates relative to the centre.
+    // A point at a height, in the map's 3D coordinates relative to the center.
     const at = (p: { lat: number; lon: number }, altM: number) => {
       const c = maplibregl.MercatorCoordinate.fromLngLat([p.lon, p.lat], altM);
       return [c.x - origin.x, c.y - origin.y, c.z];
     };
-    // Adds a four-cornered shape in one colour, as two triangles.
+    // Adds a four-cornered shape in one color, as two triangles.
     const quad = (a: number[], b: number[], c: number[], d: number[], rgba: number[]) => {
       // Two triangles: a-b-c and c-b-d (a, b along the bottom edge; c, d on top).
       for (const v of [a, b, c, c, b, d]) data.push(v[0], v[1], v[2], ...rgba);
@@ -144,7 +144,7 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
       if (groundEx.some((g) => g === null)) return undefined; // terrain still loading
       const g = groundEx as number[];
       // queryTerrainElevation is already exaggerated; the line is worked out in
-      // real metres, then scaled the same way so clearances stay true.
+      // real meters, then scaled the same way so clearances stay true.
       const los = lineOfSightHeights(g[0] / ex + A.heightM, g[g.length - 1] / ex + B.heightM, distanceM, LINK_SAMPLES, scene.k).map((h) => h * ex);
       const alpha = styleAlpha[link.style];
       const band = tokenRgba(styleToken[link.style], alpha);
@@ -225,7 +225,7 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
     render(_gl: WebGL2RenderingContext, options: maplibregl.CustomRenderMethodInput) {
       if (!program || !buffer || !count) return;
       // Shift the matrix to the scene's origin, so vertices stay small enough
-      // for 32-bit floats to place them to the metre.
+      // for 32-bit floats to place them to the meter.
       const m = options.defaultProjectionData.mainMatrix;
       const t = new Float32Array(16);
       for (let i = 0; i < 12; i++) t[i] = m[i];
@@ -389,7 +389,7 @@ export function open3DView(first: Scene3D): View3D {
   const visible = (on: boolean) => (on ? "visible" : "none") as "visible" | "none";
   // Dash lengths are in line widths, echoing the 2D standard.
   const dashFor = (s: LinkLineStyle) => (s === "good-clear" ? undefined : s === "good-obstructed" ? [3, 2] : s === "marginal" ? [0.6, 1.4] : [0.1, 1.4]);
-  // Like the 2D map: a dark casing under each coloured line, so it reads on imagery.
+  // Like the 2D map: a dark casing under each colored line, so it reads on imagery.
   const trackLayers: maplibregl.LineLayerSpecification[] = linkLineOrder.flatMap((s): maplibregl.LineLayerSpecification[] => {
     const dash = dashFor(s);
     const filter: maplibregl.FilterSpecification = ["==", ["get", "style"], s];

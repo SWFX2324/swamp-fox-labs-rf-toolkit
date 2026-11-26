@@ -1,3 +1,4 @@
+import { twoTap } from "./twoTap";
 import { escapeHtml } from "../lib/html";
 import { rfIcon } from "../ui/rfIcons";
 // Radio presets: stored on this device, and the dialog to make, edit, delete,
@@ -160,7 +161,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
       })
       .join("");
   };
-  // Swap a preset with its neighbour; the pickers everywhere follow this order.
+  // Swap a preset with its neighbor; the pickers everywhere follow this order.
   const move = (id: string, step: -1 | 1) => {
     const list = loadPresets(scope);
     const i = list.findIndex((p) => p.id === id);
@@ -237,8 +238,8 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
       else showEditor({ ...copy, id: newPresetId(), name: `${copy.name} copy`.slice(0, 40) });
     }
   });
-  el("delete").addEventListener("click", () => {
-    if (!editing || !confirm(`Delete the preset "${editing.name}"?`)) return;
+  twoTap(el<HTMLButtonElement>("delete"), "Tap again to delete", () => {
+    if (!editing) return;
     savePresets(loadPresets(scope).filter((p) => p.id !== editing!.id), scope);
     setStatus(`Deleted "${editing.name}".`);
     showList();

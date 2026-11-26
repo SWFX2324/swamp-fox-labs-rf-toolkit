@@ -26,11 +26,11 @@ import {
   type DistanceUnit,
   dbmToWatts,
   frequencyUnits,
-  fromMetres,
+  fromMeters,
   powerUnits,
   toDbm,
   toHz,
-  toMetres,
+  toMeters,
   asDistanceUnit,
   asFrequencyUnit,
   asPowerUnit,
@@ -42,7 +42,7 @@ const PANES_KEY = "rf-toolkit:link-panes";
 const SIDES_KEY = "rf-toolkit:link-sides";
 
 // The built-in defaults from before Settings existed. Settings now override the
-// fields they cover; these still fill the rest and recognise untouched old saves.
+// fields they cover; these still fill the rest and recognize untouched old saves.
 const legacyDefaults: Record<string, string> = {
   txSens: "-100",
   rxPower: "1",
@@ -108,7 +108,7 @@ function cableOptions(): string {
     .join("");
 }
 
-/** A labelled number box with its unit. */
+/** A labeled number box with its unit. */
 function numberField(label: string, name: string, unit: string, attrs = ""): string {
   return `
     <label>${label}
@@ -119,7 +119,7 @@ function numberField(label: string, name: string, unit: string, attrs = ""): str
     </label>`;
 }
 
-/** A labelled number box with a unit dropdown beside it. */
+/** A labeled number box with a unit dropdown beside it. */
 function unitField(label: string, name: string, units: readonly string[], unitName: string): string {
   return `
     <label>${label}
@@ -379,8 +379,8 @@ function availabilityText(percent: number, model: ModelSettings): string {
 }
 
 /** A range in the chosen unit, or "Beyond 100,000" for one that large. */
-function formatRange(metres: number, unit: DistanceUnit): string {
-  const value = fromMetres(metres, unit);
+function formatRange(meters: number, unit: DistanceUnit): string {
+  const value = fromMeters(meters, unit);
   return value >= 1e5 ? "Beyond 100,000" : fmt(value, value < 10 ? 2 : 1);
 }
 
@@ -599,7 +599,7 @@ export const linkBudgetCalculator: Calculator = {
         note.textContent = "";
         return 0;
       }
-      const lengthM = toMetres(num(`${side}CableLen`) || 0, asDistanceUnit(field(`${side}CableUnit`).value));
+      const lengthM = toMeters(num(`${side}CableLen`) || 0, asDistanceUnit(field(`${side}CableUnit`).value));
       if (!(freqHz > 0) || lengthM < 0) {
         note.textContent = "";
         return 0;
@@ -631,8 +631,8 @@ export const linkBudgetCalculator: Calculator = {
 
     // A site's typed name, or Site A, Site B or Relay when it has none.
     const siteName = (site: SiteId) => field(`${site}Name`).value.trim() || { tx: "Site A", rx: "Site B", relay: "Relay" }[site];
-    // The relay's antenna height in metres.
-    const relayHeightM = () => toMetres(num("relayHeight") || 0, asDistanceUnit(field("relayHeightUnit").value));
+    // The relay's antenna height in meters.
+    const relayHeightM = () => toMeters(num("relayHeight") || 0, asDistanceUnit(field("relayHeightUnit").value));
     // The relay's transmit power in dBm.
     const relayPowerDbm = () => toDbm(num("relayPower"), asPowerUnit(field("relayPowerUnit").value));
 
@@ -667,8 +667,8 @@ export const linkBudgetCalculator: Calculator = {
       if (![sitePower("tx"), sitePower("rx"), relayPower].every(Number.isFinite)) return "Enter TX power for both sites and the relay.";
       if (![siteSens("tx"), siteSens("rx"), siteSens("relay")].every(Number.isFinite)) return "Enter the sensitivity of both sites and the relay.";
       const { txEnv, rxEnv, relayEnv } = siteEnvironments();
-      const txH = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
-      const rxH = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
+      const txH = toMeters(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
+      const rxH = toMeters(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
       const relayH = relayHeightM();
       const extra = num("extraLoss") || 0;
       const relayCable = num("relayCable") || 0;
@@ -723,7 +723,7 @@ export const linkBudgetCalculator: Calculator = {
       const pinned = terrain.pathDistanceM();
       const distInput = field("dist") as HTMLInputElement;
       distInput.readOnly = pinned !== undefined;
-      if (pinned !== undefined) distInput.value = fromMetres(pinned, distUnit).toFixed(2);
+      if (pinned !== undefined) distInput.value = fromMeters(pinned, distUnit).toFixed(2);
       // From the pins it reads like the other tiles; without them it's a field to type in.
       distInput.hidden = pinned !== undefined;
       out("distValue").hidden = pinned === undefined;
@@ -734,11 +734,11 @@ export const linkBudgetCalculator: Calculator = {
 
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
       const { txEnv, rxEnv, relayEnv } = siteEnvironments();
-      const txHeightM = toMetres(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
-      const rxHeightM = toMetres(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
+      const txHeightM = toMeters(num("txHeight") || 0, asDistanceUnit(field("txHeightUnit").value));
+      const rxHeightM = toMeters(num("rxHeight") || 0, asDistanceUnit(field("rxHeightUnit").value));
       const inputs: LinkInputs = {
         freqHz,
-        distanceM: toMetres(num("dist"), distUnit),
+        distanceM: toMeters(num("dist"), distUnit),
         txPowerDbm: toDbm(num("txPower"), asPowerUnit(field("txPowerUnit").value)),
         txCableLossDb: sideCable("tx", freqHz),
         txOtherLossDb: num("txOther") || 0,
@@ -884,7 +884,7 @@ export const linkBudgetCalculator: Calculator = {
       out("distLabel").textContent = viaRelay ? "Distance via relay" : "Distance";
       if (viaRelay) {
         const total = route!.hops[0].distanceM + route!.hops[1].distanceM;
-        out("distValue").textContent = fmt(fromMetres(total, distUnit));
+        out("distValue").textContent = fmt(fromMeters(total, distUnit));
       }
       if (!hf) {
         // Horizon and geometry stay on the direct path.
@@ -959,7 +959,7 @@ export const linkBudgetCalculator: Calculator = {
         name.textContent = `${h.n} · ${h.ab.from} ↔ ${h.ab.to}`; // names are user text
         const dist = document.createElement("td");
         dist.className = "num mono";
-        dist.textContent = `${fmt(fromMetres(h.distanceM, distUnit))} ${distUnit}`;
+        dist.textContent = `${fmt(fromMeters(h.distanceM, distUnit))} ${distUnit}`;
         const margin = document.createElement("td");
         margin.className = "num";
         const hr = linkQuality(h.marginDb, inputs.fadeMarginDb);
@@ -976,7 +976,7 @@ export const linkBudgetCalculator: Calculator = {
 
       /** Both hops through the relay, each as its own two-way budget. */
       function relayRoute(p: { tx: LatLon; rx: LatLon }, at: LatLon) {
-        const analysed = terrain.hops(terrainParams);
+        const analyzed = terrain.hops(terrainParams);
         const relayH = relayHeightM();
         const relayGain = num("relayGain") || 0;
         const relayCable = num("relayCable") || 0;
@@ -1016,14 +1016,14 @@ export const linkBudgetCalculator: Calculator = {
           const back = oneWay(b, a, d, h?.loss.lossDb);
           return { n, ab: there, ba: back, distanceM: d, itm: h?.loss.itm, marginDb: Math.min(there.result.marginDb, back.result.marginDb) };
         };
-        const h1 = hop(1, "tx", "relay", p.tx, at, analysed.hop1);
-        const h2 = hop(2, "relay", "rx", at, p.rx, analysed.hop2);
-        return { hops: [h1, h2] as const, weaker: h2.marginDb < h1.marginDb ? h2 : h1, loading: !analysed.hop1 || !analysed.hop2 };
+        const h1 = hop(1, "tx", "relay", p.tx, at, analyzed.hop1);
+        const h2 = hop(2, "relay", "rx", at, p.rx, analyzed.hop2);
+        return { hops: [h1, h2] as const, weaker: h2.marginDb < h1.marginDb ? h2 : h1, loading: !analyzed.hop1 || !analyzed.hop2 };
       }
     };
 
     // Each hop stays on one line. In turn, until it fits: smaller text, then the
-    // rating badges down to their coloured dot (the word on hover), then smaller
+    // rating badges down to their colored dot (the word on hover), then smaller
     // text again to a floor, and last a long name cut short (full name on hover).
     const fitHops = () => {
       const wrap = out("relayResults");

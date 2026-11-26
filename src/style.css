@@ -183,7 +183,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
 .card-head + .callout { margin: 0 0 12px; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 4px 16px 24px; }
 .foot a { color: inherit; }
-/* The logo's lettering is light, so it sits on the app's dark card colour in
+/* The logo's lettering is light, so it sits on the app's dark card color in
    both themes: a quiet badge in light mode, a card-like tile in dark mode. */
 
 /* ------------------------------------------------------------ fields */
@@ -308,7 +308,7 @@ button.secondary:hover { border-color: var(--accent); }
 .lb-stage .antenna-diagram { margin: 0; padding: 14px 10px 8px; }
 .lb-stage .antenna-diagram svg { max-height: 280px; }
 .lb-stage .pattern-note { margin: 0; text-align: center; }
-/* The 3D pattern: a canvas you can turn, with its colour key under it. */
+/* The 3D pattern: a canvas you can turn, with its color key under it. */
 .pattern3d { position: relative; background: var(--card-2); border-radius: 10px; padding: 8px; }
 /* Waves on or off, top right of the 3D view. */
 .pattern3d-waves {
@@ -367,7 +367,7 @@ button.secondary:hover { border-color: var(--accent); }
 .cov-key-note { margin: 10px 0 0; }
 
 /* Satellite Link: the link as a picture (satScene.ts). A night scene in both
-   themes; the margin readout takes its status colour. */
+   themes; the margin readout takes its status color. */
 .sat-chain {
   position: relative; flex: none; width: 100%; max-width: min(100%, 110vh); margin: 10px auto 14px;
   border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: #0b1626;
@@ -386,7 +386,7 @@ button.secondary:hover { border-color: var(--accent); }
 .ss-hud { fill: #b6c79c; font-family: var(--mono); letter-spacing: .04em; }
 .ss-reticle { fill: none; stroke: #b6c79c; stroke-opacity: .35; stroke-width: 1.2; stroke-dasharray: 3 5; }
 .ss-reticle-tick { stroke: #b6c79c; stroke-opacity: .6; stroke-width: 1.6; }
-/* The portable terminal in field colours. */
+/* The portable terminal in field colors. */
 .ss-term .ss-dish-face { fill: #7a8061; stroke: #9aa07c; }
 .ss-term .ss-dish-back { fill: #4f553e; }
 .ss-term .ss-dish-inner { fill: #666c50; opacity: .8; }
@@ -488,8 +488,8 @@ label.check input { width: auto; margin: 0; }
 .icon-btn { padding: 4px 9px; line-height: 1; }
 .links .link-name { color: var(--text); }
 .links .pill { margin-left: 4px; }
-/* Link lines (lib/linkLines.ts): colour for link strength, pattern for line of
-   sight, each pattern different so colour is never the only cue. The casing is
+/* Link lines (lib/linkLines.ts): color for link strength, pattern for line of
+   sight, each pattern different so color is never the only cue. The casing is
    the same pattern, wider and dark, so lines read on any base map. Round caps
    lengthen each dash by its width, so the dash lengths here are shorter. */
 .link-line, .link-casing { fill: none; stroke-linecap: round; }
@@ -607,7 +607,7 @@ button.secondary:disabled:hover { border-color: var(--border); }
 .radio-pin { background: none; border: none; }
 .radio-pin svg { display: block; overflow: visible; filter: drop-shadow(0 2px 3px rgb(0 0 0 / .4)); }
 .leaflet-container { font: inherit; }
-/* Map controls in the app's colours (zoom, recenter, layers, attribution). */
+/* Map controls in the app's colors (zoom, recenter, layers, attribution). */
 /* The .leaflet-container prefix: Leaflet's stylesheet loads after this one, so
    these would lose at equal specificity. */
 main .leaflet-container { background: var(--card-2); }
@@ -642,6 +642,8 @@ main .leaflet-container { background: var(--card-2); }
 .offline-panel.over-taskbar { top: auto; z-index: 1001; }
 /* The Clear map button asking for its second tap. */
 .map-clear.armed { color: var(--critical); border-color: var(--critical); }
+/* Any button waiting for its second tap (see twoTap.ts): red, on one line. */
+button.armed:not(.taskbar-btn) { color: var(--critical); background: transparent; border-color: var(--critical); white-space: nowrap; width: auto; }
 .taskbar-btn.armed { color: var(--critical); background: color-mix(in srgb, var(--critical) 14%, transparent); }
 .map-taskbar.compact .taskbar-btn.armed span { display: inline; }
 .offline-panel p { margin: 6px 0 0; color: var(--text-2); font-size: 12px; }
@@ -651,7 +653,7 @@ main .leaflet-container { background: var(--card-2); }
 .offline-panel button[hidden] { display: none; }
 .offline-panel button.link { padding: 0; border: 0; background: none; color: var(--accent); text-decoration: underline; font-size: 12px; }
 /* Leaflet's layers icon is a dark PNG, unreadable on a dark card: draw it in the
-   text colour instead. */
+   text color instead. */
 .leaflet-container .leaflet-control-layers-toggle { background-image: none; display: grid; place-items: center; }
 .leaflet-container .leaflet-control-layers-toggle::before {
   content: ""; width: 22px; height: 22px; background: var(--text);
@@ -680,7 +682,7 @@ main .leaflet-container { background: var(--card-2); }
 .profile-chart .los { fill: none; stroke: var(--good); stroke-width: 2; }
 /* Line of sight, styled like the link on the map: green solid when clear, green
    dashed when obstructed but the budget still closes, amber dashed when marginal,
-   solid red only when it won't connect; grey dashed with no verdict. */
+   solid red only when it won't connect; gray dashed with no verdict. */
 .profile-chart .los.los-good-clear { stroke: var(--good); }
 .profile-chart .los.los-good-obstructed { stroke: var(--good); stroke-dasharray: 9 5; }
 .profile-chart .los.los-marginal { stroke: var(--warning); stroke-dasharray: 5 4; }
@@ -874,7 +876,7 @@ main .leaflet-container { background: var(--card-2); }
 .view3d-bar [data-v="close"] { margin-left: 12px; }
 @media (max-width: 600px) { .view3d-bar [data-v="close"] { margin-left: auto; } }
 
-/* The 3D view's site editor, in the app's colours rather than MapLibre's white. */
+/* The 3D view's site editor, in the app's colors rather than MapLibre's white. */
 .view3d-popup { max-width: none !important; }
 .view3d-popup .maplibregl-popup-content { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 16px rgb(0 0 0 / .35); }
 .view3d-popup .maplibregl-popup-tip { border-top-color: var(--card) !important; border-bottom-color: var(--card) !important; }
@@ -1087,7 +1089,7 @@ main:has(.map-first) { max-width: none; }
   border: 1px solid var(--border); box-shadow: 0 1px 4px rgb(0 0 0 / .25);
 }
 .map-legend .legend { margin: 0; flex-direction: column; align-items: flex-start; gap: 3px; font-size: 11px; }
-/* The taskbar: labelled map tools, bottom centre. */
+/* The taskbar: labeled map tools, bottom center. */
 .map-taskbar {
   position: absolute; z-index: 900; left: 50%; bottom: 22px; transform: translateX(-50%);
   display: flex; gap: 4px; padding: 5px; border-radius: 14px;
@@ -1311,7 +1313,7 @@ main:has(.map-first) { max-width: none; }
   .profile-stats { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Floating panes: centre the map's own bits in the visible gap. */
+/* Floating panes: center the map's own bits in the visible gap. */
 @media (min-width: 1100px) {
   .lb-shell.floating .map-taskbar, .lb-shell.floating .map-legend, .lb-shell.floating .map-status { left: var(--gap-center, 50%); }
 }
@@ -1329,7 +1331,7 @@ main:has(.map-first) { max-width: none; }
 /* A long profile tag moves under the title rather than being cut off. */
 .pane-pill .pill { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
 .pane-card > summary .pane-pill { flex: 0 1 auto; min-width: 0; }
-/* Coverage's colour key under the taskbar, like the line key on Link Analysis. */
+/* Coverage's color key under the taskbar, like the line key on Link Analysis. */
 .lb-map .map-legend .coverage-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 14px; margin: 0; font-size: 11px; }
 .pane-body .run-row { margin-top: 12px; }
 .lb-map .coverage-map { margin-top: 0; }
@@ -1532,4 +1534,8 @@ main:has(.map-first) { max-width: none; }
 @media (max-width: 420px) { .tool-art { width: 48px; height: 48px; } }
 
 /* The dev branch's build, at /beta/. */
+.update-prompt {
+  position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 2000;
+  padding: 10px 18px; border-radius: 999px; font-weight: 600; white-space: nowrap; box-shadow: 0 4px 16px rgb(0 0 0 / .35);
+}
 .beta-badge { margin-left: 2px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #10140e; background: var(--warning); }

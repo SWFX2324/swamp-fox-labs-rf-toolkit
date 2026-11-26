@@ -1,5 +1,5 @@
 // Line-of-sight geometry over a smooth earth. The atmosphere bends VHF and up
-// slightly back toward the ground, which is modelled by using an "effective"
+// slightly back toward the ground, which is modeled by using an "effective"
 // earth radius k times the real one. k = 4/3 is the standard planning value.
 
 import { wavelengthM } from "./fspl";
@@ -23,7 +23,7 @@ export function parseKFactor(id: string | undefined): number {
   return kFactors.find((f) => f.id === id)?.k ?? STANDARD_K;
 }
 
-/** Distance from an antenna at heightM to its radio horizon, in metres. */
+/** Distance from an antenna at heightM to its radio horizon, in meters. */
 export function radioHorizonM(heightM: number, k = STANDARD_K): number {
   return Math.sqrt(2 * k * EARTH_RADIUS_M * Math.max(0, heightM));
 }
@@ -33,12 +33,12 @@ export function lineOfSightRangeM(txHeightM: number, rxHeightM: number, k = STAN
   return radioHorizonM(txHeightM, k) + radioHorizonM(rxHeightM, k);
 }
 
-/** How far the earth rises above a straight chord, d1 and d2 metres from each end. */
+/** How far the earth rises above a straight chord, d1 and d2 meters from each end. */
 export function earthBulgeM(d1: number, d2: number, k = STANDARD_K): number {
   return (d1 * d2) / (2 * k * EARTH_RADIUS_M);
 }
 
-/** Radius of the nth Fresnel zone at a point d1 and d2 metres from each end. */
+/** Radius of the nth Fresnel zone at a point d1 and d2 meters from each end. */
 export function fresnelRadiusM(freqHz: number, d1: number, d2: number, n = 1): number {
   return Math.sqrt((n * wavelengthM(freqHz) * d1 * d2) / (d1 + d2));
 }

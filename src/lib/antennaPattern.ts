@@ -7,7 +7,7 @@
 
 const deg = Math.PI / 180;
 
-/** A thin centre-fed wire of the given length (in wavelengths), against the angle from its axis. */
+/** A thin center-fed wire of the given length (in wavelengths), against the angle from its axis. */
 export function wireField(lengthWl: number, fromAxisDeg: number): number {
   const kl2 = Math.PI * lengthWl; // k·L/2
   const t = fromAxisDeg * deg;

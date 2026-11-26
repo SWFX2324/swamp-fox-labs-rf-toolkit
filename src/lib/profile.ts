@@ -19,11 +19,11 @@ export interface ProfileInputs {
 
 export interface ProfilePoint {
   distanceM: number;
-  /** Ground elevation plus earth bulge, metres. */
+  /** Ground elevation plus earth bulge, meters. */
   terrainM: number;
-  /** Height of the antenna-to-antenna line, metres. */
+  /** Height of the antenna-to-antenna line, meters. */
   losM: number;
-  /** Radius of the first Fresnel zone here, metres. */
+  /** Radius of the first Fresnel zone here, meters. */
   fresnelM: number;
   /** losM − terrainM: negative means the terrain blocks the line of sight. */
   clearanceM: number;

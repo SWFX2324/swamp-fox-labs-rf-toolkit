@@ -21,14 +21,14 @@ function radioMarkerHtml(label: string): string {
   </svg>`;
 }
 
-/** A map marker labelled with a node number, TX, RX or similar. Its base marks the spot. */
+/** A map marker labeled with a node number, TX, RX or similar. Its base marks the spot. */
 export const radioMarker = (label: string | number) =>
   L.divIcon({ className: "radio-pin", html: radioMarkerHtml(String(label)), iconSize: [22, 31], iconAnchor: [11, 31] });
 
 /** The file name exported KML uses for the icon. */
 export const RADIO_FILE = "radio.png";
 
-/** The icon as a file for a KMZ. Fixed colours: it sits on any map. */
+/** The icon as a file for a KMZ. Fixed colors: it sits on any map. */
 export function radioIconFile(): { name: string; data: Uint8Array } {
   // Drawn at its display size, because WinTAK sizes the icon from the image.
   // A margin keeps the white outline inside it.

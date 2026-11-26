@@ -5,7 +5,7 @@
 // where k1 is conductor loss and k2 is dielectric loss. This ignores the extra
 // loss from a high SWR, so it is the best case for a well-matched antenna.
 
-import { toMetres } from "./units";
+import { toMeters } from "./units";
 
 export interface Cable {
   id: string;
@@ -54,12 +54,12 @@ export function lossPer100Ft(cable: Cable, freqHz: number): number {
   return cable.k1 * Math.sqrt(mhz) + cable.k2 * mhz;
 }
 
-/** Matched loss in dB for a run of lengthM metres at freqHz. */
+/** Matched loss in dB for a run of lengthM meters at freqHz. */
 export function cableLossDb(cable: Cable, freqHz: number, lengthM: number): number {
   if (!(freqHz > 0) || !(lengthM >= 0)) {
     throw new RangeError("Frequency must be above zero and length zero or more");
   }
-  return (lossPer100Ft(cable, freqHz) * lengthM) / toMetres(100, "ft");
+  return (lossPer100Ft(cable, freqHz) * lengthM) / toMeters(100, "ft");
 }
 
 /**

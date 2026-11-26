@@ -11,7 +11,7 @@ export interface LatLon {
 const rad = (deg: number) => (deg * Math.PI) / 180; // Degrees to radians.
 const deg = (r: number) => (r * 180) / Math.PI; // Radians to degrees.
 
-/** Great-circle distance in metres (haversine). */
+/** Great-circle distance in meters (haversine). */
 export function distanceBetweenM(a: LatLon, b: LatLon): number {
   const dLat = rad(b.lat - a.lat);
   const dLon = rad(b.lon - a.lon);
@@ -64,7 +64,7 @@ export function parseLatLon(text: string): LatLon | undefined {
   return { lat, lon };
 }
 
-/** A point as "latitude, longitude" in decimal degrees to five places, about one metre. */
+/** A point as "latitude, longitude" in decimal degrees to five places, about one meter. */
 export function formatLatLon(p: LatLon): string {
   return `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`;
 }

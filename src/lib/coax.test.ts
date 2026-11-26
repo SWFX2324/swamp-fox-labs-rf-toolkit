@@ -8,7 +8,7 @@ import {
   swrAtInput,
   totalLineLossDb,
 } from "./coax";
-import { toHz, toMetres } from "./units";
+import { toHz, toMeters } from "./units";
 
 const cable = (id: string) => findCable(id)!;
 
@@ -36,8 +36,8 @@ describe("cableLossDb", () => {
   it("scales with length", () => {
     const f = toHz(915, "MHz");
     const per100 = lossPer100Ft(cable("lmr-400"), f);
-    expect(cableLossDb(cable("lmr-400"), f, toMetres(100, "ft"))).toBeCloseTo(per100, 9);
-    expect(cableLossDb(cable("lmr-400"), f, toMetres(25, "ft"))).toBeCloseTo(per100 / 4, 9);
+    expect(cableLossDb(cable("lmr-400"), f, toMeters(100, "ft"))).toBeCloseTo(per100, 9);
+    expect(cableLossDb(cable("lmr-400"), f, toMeters(25, "ft"))).toBeCloseTo(per100 / 4, 9);
   });
 
   it("is zero for a zero-length run", () => {

@@ -42,7 +42,7 @@ describe("tile maths", () => {
 });
 
 describe("decoding", () => {
-  it("decodes terrarium colours", () => {
+  it("decodes terrarium colors", () => {
     expect(decodeTerrarium(128, 0, 0)).toBe(0);
     expect(decodeTerrarium(128, 1, 128)).toBe(1.5);
     expect(decodeTerrarium(127, 255, 0)).toBe(-1);
@@ -64,10 +64,10 @@ describe("tilesCovering and chooseZoom", () => {
     expect(tilesCovering(charlotte, 40_000, 11).length).toBeGreaterThan(tilesCovering(charlotte, 10_000, 11).length);
   });
 
-  it("includes the tile under the centre", () => {
+  it("includes the tile under the center", () => {
     const { gx, gy } = toGlobalPixel(charlotte, 11);
-    const centre = { z: 11, x: Math.floor(gx / TILE_SIZE), y: Math.floor(gy / TILE_SIZE) };
-    expect(tilesCovering(charlotte, 5_000, 11)).toContainEqual(centre);
+    const center = { z: 11, x: Math.floor(gx / TILE_SIZE), y: Math.floor(gy / TILE_SIZE) };
+    expect(tilesCovering(charlotte, 5_000, 11)).toContainEqual(center);
   });
 
   it("picks the sharpest zoom that fits the tile budget", () => {
@@ -94,7 +94,7 @@ describe("tilesForPoints and zoomForPoints", () => {
     expect(new Set(along.map((t) => `${t.x}/${t.y}`)).size).toBe(along.length);
   });
 
-  it("includes the neighbour tile when a point sits on a tile edge", () => {
+  it("includes the neighbor tile when a point sits on a tile edge", () => {
     const edge = fromGlobalPixel(256 * 1000, 256 * 500 + 100, 12);
     const tiles = tilesForPoints([edge], 12);
     expect(tiles.map((t) => t.x).sort((p, q) => p - q)).toEqual([999, 1000]);
@@ -119,7 +119,7 @@ describe("ElevationGrid", () => {
   for (let y = 0; y < TILE_SIZE; y++) for (let x = 0; x < TILE_SIZE; x++) heights[y * TILE_SIZE + x] = x;
   grid.set({ z: 2, x: 1, y: 1 }, heights);
 
-  it("interpolates between pixel centres", () => {
+  it("interpolates between pixel centers", () => {
     const at = (px: number, py: number) => fromGlobalPixel(256 + px, 256 + py, 2);
     expect(grid.sample(at(10.5, 10.5))).toBeCloseTo(10, 6);
     expect(grid.sample(at(11, 10.5))).toBeCloseTo(10.5, 6);

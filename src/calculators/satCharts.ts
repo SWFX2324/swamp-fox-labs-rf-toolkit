@@ -1,6 +1,6 @@
 // Plain-language charts for the Satellite Link results, made for anyone to
 // read at a glance: how much rain each direction rides out, which modulation
-// and FEC to use, and how carefully to point. HTML and SVG strings, coloured by
+// and FEC to use, and how carefully to point. HTML and SVG strings, colored by
 // CSS so they follow the theme.
 
 import { escapeHtml } from "../lib/html";
@@ -13,7 +13,7 @@ const fmt = (v: number, digits = 1) =>
 /**
  * Rough rain loss on one leg, dB, for light, moderate and heavy rain at moderate
  * elevation, by band. A guide for the bars only: real rain loss depends on the
- * rain rate, elevation and climate, which aren't modelled.
+ * rain rate, elevation and climate, which aren't modeled.
  */
 const RAIN_DB: Record<string, [number, number, number]> = {
   C: [0.1, 0.3, 0.8],
@@ -44,7 +44,7 @@ export function rainBars(band: string, retAt: number | undefined, fwdAt: number 
   // A value as a share of the chart's width, capped at the full width.
   const pct = (v: number) => `${Math.min(100, (v / max) * 100).toFixed(1)}%`;
   const ticks = tiers.map((t, i) => `<span class="rb-tick" style="left:${pct(t)}"><span>${RAIN_WORDS[i][0].toUpperCase()}${RAIN_WORDS[i].slice(1)}</span></span>`).join("");
-  // One labelled bar: how much rain this direction rides out, over the rain marks.
+  // One labeled bar: how much rain this direction rides out, over the rain marks.
   const bar = (name: string, cls: string, at: number | undefined) => `
     <div class="rb-row">
       <div class="rb-head"><b>${name}</b><span class="rb-word">${rainWord(at, tiers)}</span></div>
@@ -82,7 +82,7 @@ export function bestModcods(v: Pick<ModcodView, "esn0" | "implLossDb">): { good?
   };
 }
 
-/** The rating word and its colour class for a margin: Good, Marginal or Won't connect. */
+/** The rating word and its color class for a margin: Good, Marginal or Won't connect. */
 const ratingOf = (mg: number) => (mg >= GOOD_MARGIN_DB ? ["Good", "s-good"] : mg >= 0 ? ["Marginal", "s-marginal"] : ["Won't connect", "s-fail"]);
 
 /**
@@ -122,7 +122,7 @@ export function aimTable(beamwidthDeg: number, dishM: number, errorDeg: number, 
   const offFor = (lossDb: number) => beamwidthDeg * Math.sqrt(lossDb / 12);
   /** How far the dish's rim moves for an aim change, mm. */
   const rimMm = (deg: number) => (dishM / 2) * Math.tan((deg * Math.PI) / 180) * 1000;
-  // A rim movement as text, "<1 mm" for anything under a millimetre.
+  // A rim movement as text, "<1 mm" for anything under a millimeter.
   const mm = (deg: number) => {
     const v = rimMm(deg);
     return v < 1 ? "<1 mm" : `${fmt(v, v < 10 ? 1 : 0)} mm`;

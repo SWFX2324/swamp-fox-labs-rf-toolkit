@@ -97,7 +97,7 @@ describe("KML", () => {
     expect(kml).toContain("-80.800000,35.200000,0 -80.700000,35.300000,0");
   });
 
-  it("tells clear and obstructed good links apart by colour and width, since KML has no dashes", () => {
+  it("tells clear and obstructed good links apart by color and width, since KML has no dashes", () => {
     const kml = buildKml("T", []);
     expect(kml).toContain('<Style id="good-clear"><LineStyle><color>ff0ca30c</color><width>4</width>');
     expect(kml).toContain('<Style id="good-obstructed"><LineStyle><color>b30ca30c</color><width>2</width>');

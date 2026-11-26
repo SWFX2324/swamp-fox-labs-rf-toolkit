@@ -28,7 +28,7 @@ describe("parseCoordinates", () => {
     }
   });
 
-  it("reads lower-precision MGRS as the centre of its cell", () => {
+  it("reads lower-precision MGRS as the center of its cell", () => {
     const p = parseCoordinates("17S NU 142 982")!; // 100 m cell
     expect(distanceBetweenM(p, { lat: 35.2271, lon: -80.8431 })).toBeLessThan(100);
   });
@@ -39,7 +39,7 @@ describe("parseCoordinates", () => {
     }
   });
 
-  it("round-trips through MGRS to within a metre", () => {
+  it("round-trips through MGRS to within a meter", () => {
     for (const p of [
       { lat: 51.5, lon: -0.1 },
       { lat: -33.87, lon: 151.21 },

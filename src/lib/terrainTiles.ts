@@ -1,7 +1,7 @@
 // Ground elevation from Terrain Tiles (Mapzen, hosted on AWS Open Data):
-// 256 by 256 pixel PNG web-map tiles whose pixel colours encode height as
+// 256 by 256 pixel PNG web-map tiles whose pixel colors encode height as
 //
-//   elevation in metres = (R * 256 + G + B / 256) - 32768
+//   elevation in meters = (R * 256 + G + B / 256) - 32768
 //
 // Unlike the point API there is no rate limit, so a whole coverage area can
 // be loaded in a few dozen tiles.
@@ -36,7 +36,7 @@ export function toGlobalPixel(p: LatLon, z: number): { gx: number; gy: number } 
   };
 }
 
-/** The height in metres a terrain tile pixel's red, green and blue values stand for (see the formula at the top). */
+/** The height in meters a terrain tile pixel's red, green and blue values stand for (see the formula at the top). */
 export function decodeTerrarium(r: number, g: number, b: number): number {
   return r * 256 + g + b / 256 - 32768;
 }
@@ -48,7 +48,7 @@ export function decodeTile(rgba: Uint8ClampedArray | Uint8Array): Float32Array {
   return out;
 }
 
-/** Tiles covering a circle of radiusM around a centre point. */
+/** Tiles covering a circle of radiusM around a center point. */
 export function tilesCovering(center: LatLon, radiusM: number, z: number): TileId[] {
   const dLat = (radiusM / EARTH_RADIUS_M) * (180 / Math.PI);
   const dLon = dLat / Math.max(0.01, Math.cos((center.lat * Math.PI) / 180));
@@ -65,7 +65,7 @@ export function tilesCovering(center: LatLon, radiusM: number, z: number): TileI
 }
 
 /**
- * Tiles needed to sample every point, including the neighbouring pixels
+ * Tiles needed to sample every point, including the neighboring pixels
  * bilinear interpolation reads across tile edges.
  */
 export function tilesForPoints(points: LatLon[], z: number): TileId[] {
@@ -138,10 +138,10 @@ export class ElevationGrid {
     return t[py * TILE_SIZE + px];
   }
 
-  /** Height in metres at a point, or NaN where no tile is loaded. */
+  /** Height in meters at a point, or NaN where no tile is loaded. */
   sample(p: LatLon): number {
     const { gx, gy } = toGlobalPixel(p, this.z);
-    // Pixel values sit at pixel centres.
+    // Pixel values sit at pixel centers.
     const x = gx - 0.5;
     const y = gy - 0.5;
     const x0 = Math.floor(x);

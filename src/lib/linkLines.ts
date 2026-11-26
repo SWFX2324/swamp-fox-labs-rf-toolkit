@@ -1,4 +1,4 @@
-// The app's standard for link lines on maps and in exports: colour for how
+// The app's standard for link lines on maps and in exports: color for how
 // strong the link is, pattern for line of sight.
 //
 // - Good, clear line of sight: solid green
@@ -36,7 +36,7 @@ export const linkLineLabels: Record<LinkLineStyle, string> = {
   fail: "Won't connect",
 };
 
-/** Short names for the key under a map, where the line itself shows the colour. */
+/** Short names for the key under a map, where the line itself shows the color. */
 export const linkLineShortLabels: Record<LinkLineStyle, string> = {
   "good-clear": "Clear LOS",
   "good-obstructed": "Obstructed LOS",

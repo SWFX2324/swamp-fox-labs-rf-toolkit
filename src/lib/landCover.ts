@@ -5,7 +5,7 @@
 // the ITU-R P.2108 clutter loss) used at that end of the path.
 //
 // Tiles are requested on the same web-map grid as the terrain, as raw class
-// codes in a greyscale PNG, resampled by majority so a coarse pixel takes its
+// codes in a grayscale PNG, resampled by majority so a coarse pixel takes its
 // most common class.
 
 import { type Environment, findEnvironment } from "./environment";
@@ -43,7 +43,7 @@ export function landCoverUrl({ z, x, y }: TileId): string {
   return `${SERVICE}?${params}`;
 }
 
-/** Class codes from a tile's RGBA pixels: the grey level, 0 where transparent. */
+/** Class codes from a tile's RGBA pixels: the gray level, 0 where transparent. */
 export function decodeLandCover(rgba: Uint8ClampedArray | Uint8Array): Uint8Array {
   const out = new Uint8Array(TILE_SIZE * TILE_SIZE);
   for (let i = 0; i < out.length; i++) out[i] = rgba[i * 4 + 3] === 0 ? 0 : rgba[i * 4];

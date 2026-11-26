@@ -13,7 +13,7 @@ import { getSettings, resetSettings, setSettings } from "./settingsStore";
 
 export const COORD_EVENT = "rf-toolkit:coord-format";
 
-/** A labelled number box with its unit. A unit of "height" shows the chosen height unit and follows it when it changes. */
+/** A labeled number box with its unit. A unit of "height" shows the chosen height unit and follows it when it changes. */
 const numberField = (label: string, name: string, unit: string, attrs = "") => `
     <label>${label}
       <span class="input-unit">
@@ -88,10 +88,10 @@ const template = `
       <div class="card-head"><h2>Units</h2><span class="meta">How the app shows numbers</span></div>
       <div class="fields">
         <label>Heights
-          <select name="heightUnit"><option value="ft">Feet</option><option value="m">Metres</option></select>
+          <select name="heightUnit"><option value="ft">Feet</option><option value="m">Meters</option></select>
         </label>
         <label>Distances
-          <select name="distanceUnit"><option value="mi">Miles</option><option value="km">Kilometres</option></select>
+          <select name="distanceUnit"><option value="mi">Miles</option><option value="km">Kilometers</option></select>
         </label>
         <label>Coordinates
           <select name="coordFormat"><option value="latlon">Lat/Lon</option><option value="mgrs">MGRS</option></select>
@@ -169,8 +169,8 @@ export const settingsCalculator: Calculator = {
     const read = (): AppSettings => {
       const current = getSettings();
       const unit = field("heightUnit").value as AppSettings["heightUnit"];
-      // A height field in metres. Default antenna height may be 0; anything else must be above 0.
-      const metres = (name: string, fallback: number) => {
+      // A height field in meters. Default antenna height may be 0; anything else must be above 0.
+      const meters = (name: string, fallback: number) => {
         const v = num(name);
         return v > 0 || (name === "defaultHeight" && v === 0) ? (unit === "ft" ? v * 0.3048 : v) : fallback;
       };
@@ -189,10 +189,10 @@ export const settingsCalculator: Calculator = {
         connectorLossDb: n("connectorLossDb", 0, 5),
         connectorsPerEnd: Math.round(n("connectorsPerEnd", 0, 10)),
         sensitivityDerateDb: n("sensitivityDerateDb", 0, 30),
-        defaultHeightM: metres("defaultHeight", current.defaultHeightM),
+        defaultHeightM: meters("defaultHeight", current.defaultHeightM),
         environment: field("environment").value,
         fallbackEnvironment: field("fallbackEnvironment").value,
-        treeHeightM: metres("treeHeight", current.treeHeightM),
+        treeHeightM: meters("treeHeight", current.treeHeightM),
         climate: field("climate").value,
         ground: field("ground").value,
         polarization: field("polarization").value,
@@ -205,7 +205,7 @@ export const settingsCalculator: Calculator = {
       const target = e.target as HTMLElement;
       if (target === field("coordFormat")) return;
       if (target === field("heightUnit")) {
-        // A unit change converts the shown heights; the stored metres don't move.
+        // A unit change converts the shown heights; the stored meters don't move.
         const s = { ...getSettings(), heightUnit: field("heightUnit").value as AppSettings["heightUnit"] };
         setSettings(s);
         fill(s);

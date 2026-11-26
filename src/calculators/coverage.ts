@@ -51,11 +51,11 @@ import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager, presetsEven
 import {
   type DistanceUnit,
   frequencyUnits,
-  fromMetres,
+  fromMeters,
   powerUnits,
   toDbm,
   toHz,
-  toMetres,
+  toMeters,
   asDistanceUnit,
   asFrequencyUnit,
   asPowerUnit,
@@ -67,7 +67,7 @@ const PANES_KEY = "rf-toolkit:coverage-panes";
 const SIDES_KEY = "rf-toolkit:coverage-sides";
 
 // The built-in defaults from before Settings existed. Settings now override the
-// fields they cover; these still fill the rest and recognise untouched old saves.
+// fields they cover; these still fill the rest and recognize untouched old saves.
 const legacyDefaults: Record<string, string> = {
   sitePreset: "",
   rxPreset: "",
@@ -105,7 +105,7 @@ const detailLevels: Record<string, { radials: number; steps: number; label: stri
   fine: { radials: 240, steps: 160, label: "Fine (1.5° steps)" },
 };
 
-/** A labelled number box with its unit. */
+/** A labeled number box with its unit. */
 function numberField(label: string, name: string, unit: string, attrs = ""): string {
   return `
     <label>${label}
@@ -296,7 +296,7 @@ function loadState(defaults: Record<string, string>): Record<string, string> {
 const fmt = (v: number, digits = 1) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
-/** A colour from the page's CSS variables (such as --good) as red, green and blue, so the canvas uses the theme's colours. */
+/** A color from the page's CSS variables (such as --good) as red, green and blue, so the canvas uses the theme's colors. */
 function cssColor(name: string): [number, number, number] {
   const probe = document.createElement("span");
   probe.style.color = `var(${name})`;
@@ -469,15 +469,15 @@ export const coverageCalculator: Calculator = {
         // Storage blocked: settings just won't be remembered.
       }
     };
-    // Shows a message under the site box, in warning colours when warn is set.
+    // Shows a message under the site box, in warning colors when warn is set.
     const setStatus = (text: string, warn = false) => {
       out("status").textContent = text;
       out("status").classList.toggle("warn", warn);
     };
     // The height unit chosen for antenna heights.
     const heightUnit = () => asDistanceUnit(field("heightUnit").value);
-    // The coverage radius in metres.
-    const radiusM = () => toMetres(num("radius"), asDistanceUnit(field("radiusUnit").value));
+    // The coverage radius in meters.
+    const radiusM = () => toMeters(num("radius"), asDistanceUnit(field("radiusUnit").value));
     // Site A's position, or undefined when its box doesn't hold a valid location.
     const site = () => parseCoordinates(field("site").value);
     // Site A's typed name, or "Site A".
@@ -496,7 +496,7 @@ export const coverageCalculator: Calculator = {
       const A: SiteSpec = {
         name: siteName(),
         at: a,
-        heightM: toMetres(num("txHeight") || 0, heightUnit()),
+        heightM: toMeters(num("txHeight") || 0, heightUnit()),
         beam: txBeam(),
         powerDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)),
         cableDb: num("txCable") || 0,
@@ -521,7 +521,7 @@ export const coverageCalculator: Calculator = {
           return {
             name: extraName(i),
             at: { lat: e.lat, lon: e.lon },
-            heightM: val(e.height) !== undefined ? toMetres(val(e.height)!, heightUnit()) : A.heightM,
+            heightM: val(e.height) !== undefined ? toMeters(val(e.height)!, heightUnit()) : A.heightM,
             beam: beam(e.antenna || "omni", gain, val(e.aim) ?? 0, 0),
             powerDbm: p?.power ? toDbm(Number(p.power), asPowerUnit(p.powerUnit ?? "W")) : A.powerDbm,
             cableDb: val(p?.cable) ?? A.cableDb,
@@ -722,7 +722,7 @@ export const coverageCalculator: Calculator = {
       const trees = (e: Environment) => withFormTrees(form, "heightUnit", e);
       // Where the land-cover map has no data yet, the Settings fallback stands in.
       const env = trees(autoCover() ? fallbackEnvironment() : findEnvironment(field("environment").value));
-      const rxH = toMetres(num("rxHeight") || 0, heightUnit());
+      const rxH = toMeters(num("rxHeight") || 0, heightUnit());
       const model = readModel(form);
       const correction = readingsCard.correctionDb();
       // Each site's margins, from its own terrain, antenna and radio. The
@@ -790,9 +790,9 @@ export const coverageCalculator: Calculator = {
         solid = stats.solid;
         reach = stats.solid + stats.marginal;
         out("marginal").textContent = `${fmt(stats.marginal * 100, 0)}%`;
-        out("solidSub").textContent = `of the ${fmt(fromMetres(first.samples.radiusM, unit), 1)} ${unit} circle`;
+        out("solidSub").textContent = `of the ${fmt(fromMeters(first.samples.radiusM, unit), 1)} ${unit} circle`;
         out("farLabel").textContent = "Farthest good point";
-        out("far").textContent = stats.farthestSolidM ? `${fmt(fromMetres(stats.farthestSolidM, unit))} ${unit}` : "—";
+        out("far").textContent = stats.farthestSolidM ? `${fmt(fromMeters(stats.farthestSolidM, unit))} ${unit}` : "—";
         out("farSub").textContent = stats.farthestSolidM
           ? `Toward ${Math.round(stats.farthestSolidBearing)}° ${compassPoint(stats.farthestSolidBearing)}`
           : "Nowhere meets the fade margin";
@@ -1162,7 +1162,7 @@ export const coverageCalculator: Calculator = {
             .map((x) => `${specs[x.i].name} (${fmt(x.m)} dB)`);
           const d = distanceBetweenM(spec.at, q);
           const b = bearingDeg(spec.at, q);
-          const where = `${fmt(fromMetres(d, unit), 2)} ${unit} ${multi ? `from ${name} ` : ""}at ${Math.round(b)}° ${compassPoint(b)}`;
+          const where = `${fmt(fromMeters(d, unit), 2)} ${unit} ${multi ? `from ${name} ` : ""}at ${Math.round(b)}° ${compassPoint(b)}`;
           const alsoText = multi ? (others.length ? `Also reaches here: ${others.join(", ")}.` : "No other site reaches here.") : "";
           const lead = multi ? `Best: ${name}. ` : "";
           L.popup({ className: "coverage-popup" })
@@ -1188,7 +1188,7 @@ export const coverageCalculator: Calculator = {
         void run();
       }
     };
-    // The shading uses theme colours, so redraw it when the theme changes.
+    // The shading uses theme colors, so redraw it when the theme changes.
     const onTheme = () => {
       if (form.isConnected) drawOverlay();
       else window.removeEventListener("rf-toolkit:theme", onTheme);

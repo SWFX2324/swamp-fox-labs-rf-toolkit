@@ -13,7 +13,24 @@ const beta = import.meta.env.BASE_URL.endsWith("/beta/");
 const APP_NAME = beta ? "RF Toolkit Beta" : "RF Toolkit";
 if (beta) document.querySelector(".brand")?.insertAdjacentHTML("beforeend", '<span class="beta-badge">Beta</span>');
 
-registerSW({ immediate: true });
+// When a new version has downloaded, offer it instead of reloading on our own:
+// a reload in the middle of planning would throw away what's on screen. The
+// button stays until tapped; tapping it switches to the new version and reloads.
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    if (document.querySelector(".update-prompt")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "update-prompt";
+    button.textContent = "Update available. Tap to reload.";
+    button.addEventListener("click", () => {
+      button.disabled = true;
+      void updateSW(true);
+    });
+    document.body.append(button);
+  },
+});
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const toolNav = document.querySelector<HTMLElement>("#toolNav")!;
@@ -65,9 +82,9 @@ const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
 const SUN = rfIcon("sun");
 const MOON = rfIcon("moon");
 const isDark = isDarkTheme;
-// Brings the header's theme button and the browser's toolbar colour in line with
+// Brings the header's theme button and the browser's toolbar color in line with
 // the current light or dark theme, and tells the open page, so its map can switch
-// to that theme's default layer and the antenna pattern can redraw in its colours.
+// to that theme's default layer and the antenna pattern can redraw in its colors.
 const markTheme = () => {
   const dark = isDark();
   // The icon shows the theme a press switches to.

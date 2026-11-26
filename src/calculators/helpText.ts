@@ -172,7 +172,7 @@ export const satPointingGuide: FieldGuide = {
     site: shared.location,
     slot: shared.slot,
     offset:
-      "Most small VSAT dishes are offset-fed: the beam points higher than the dish face, often by 17–25°. The angle is on the reflector's datasheet. Leave 0 for a round, centre-fed dish.",
+      "Most small VSAT dishes are offset-fed: the beam points higher than the dish face, often by 17–25°. The angle is on the reflector's datasheet. Leave 0 for a round, center-fed dish.",
   },
   advanced: ["offset"],
 };
@@ -221,7 +221,10 @@ export const powerGuide: FieldGuide = {
     limit:
       "How much of a generator's rating to plan on using. 80% is a common rule: it leaves room for startup surges, like air conditioners and pumps, and for gear added later. The generator's kVA (kW ÷ 0.8) is checked too.",
   },
-  advanced: ["limit"],
+  // The load limit shows in both modes: it decides which generator is recommended.
+  // Advanced mode adds the power factor column (the CSS hides it in Simple mode;
+  // listing it here gives the page its Simple/Advanced switch).
+  advanced: [".pf-col"],
 };
 
 export const converterGuide: FieldGuide = {
@@ -258,8 +261,8 @@ export const settingsGuide: FieldGuide = {
     climate: modelHelp.climate,
     ground: modelHelp.ground,
     polarization: modelHelp.polarization,
-    heightUnit: "Feet or metres for antenna and tree heights on the planning tabs.",
-    distanceUnit: "Miles or kilometres for distances and coverage radius on the planning tabs.",
+    heightUnit: "Feet or meters for antenna and tree heights on the planning tabs.",
+    distanceUnit: "Miles or kilometers for distances and coverage radius on the planning tabs.",
     coordFormat: "How locations are shown and typed: decimal latitude/longitude, or MGRS. The Lat/Lon / MGRS switch in the top bar changes the same setting.",
   },
 };

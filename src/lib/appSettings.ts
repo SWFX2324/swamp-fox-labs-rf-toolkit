@@ -1,4 +1,4 @@
-// App-wide modelling settings: the defaults every planning tab starts from.
+// App-wide modeling settings: the defaults every planning tab starts from.
 // A tab field the user hasn't changed follows these; one they changed for a
 // particular link keeps its value until they press Reset on that tab. Saved
 // plans and share links carry their own values, so a plan reads the same on
@@ -29,7 +29,7 @@ export interface AppSettings {
   connectorsPerEnd: number;
   /** Added to every receiver sensitivity: the radio is taken as this much less sensitive than its datasheet. */
   sensitivityDerateDb: number;
-  /** Antenna height new links, nodes and sites start at, metres. */
+  /** Antenna height new links, nodes and sites start at, meters. */
   defaultHeightM: number;
   /** Environment choice id (or "auto" for the land-cover map). */
   environment: string;
@@ -125,9 +125,9 @@ export const connectorsDb = (s: AppSettings): number => s.connectorsPerEnd * s.c
 /** A number as a field shows it: up to two decimals, no trailing zeros. */
 export const fieldNumber = (v: number): string => String(Math.round(v * 100) / 100);
 
-/** A length in metres, as a field in this unit shows it: whole numbers from 10 up, one decimal below. */
-export const inUnit = (metres: number, unit: "ft" | "m"): string => {
-  const v = unit === "ft" ? metres / 0.3048 : metres;
+/** A length in meters, as a field in this unit shows it: whole numbers from 10 up, one decimal below. */
+export const inUnit = (meters: number, unit: "ft" | "m"): string => {
+  const v = unit === "ft" ? meters / 0.3048 : meters;
   return String(v >= 10 ? Math.round(v) : Math.round(v * 10) / 10);
 };
 

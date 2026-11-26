@@ -107,7 +107,7 @@ function saveState(state: Record<string, string>): void {
   }
 }
 
-/** A length in metres to three decimal places, or in centimetres below a metre. */
+/** A length in meters to three decimal places, or in centimeters below a meter. */
 const metric = (m: number) =>
   m >= 1 ? `${m.toFixed(3)} m` : `${(m * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })} cm`;
 

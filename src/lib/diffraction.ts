@@ -35,7 +35,7 @@ export interface DiffractionResult {
   knifeEdgeDb: number;
   /** Diffraction parameter at the Bullington point. */
   nu: number;
-  /** Distance of the Bullington point from TX, metres. */
+  /** Distance of the Bullington point from TX, meters. */
   pointM: number;
   /** True when terrain cuts the line of sight (Stim at least Str). */
   transHorizon: boolean;

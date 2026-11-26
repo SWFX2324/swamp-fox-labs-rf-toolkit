@@ -23,7 +23,7 @@ import {
   powerUnits,
   toDbm,
   toHz,
-  toMetres,
+  toMeters,
   asDistanceUnit,
   asFrequencyUnit,
   asPowerUnit,
@@ -198,7 +198,7 @@ export const coaxLossCalculator: Calculator = {
       saveState(state);
 
       const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
-      const lengthM = toMetres(num("runLength"), asDistanceUnit(field("lengthUnit").value));
+      const lengthM = toMeters(num("runLength"), asDistanceUnit(field("lengthUnit").value));
       const pinDbm = toDbm(num("power"), asPowerUnit(field("powerUnit").value));
       const swr = num("swr");
       const connectors = num("connectors") || 0;

@@ -1,3 +1,4 @@
+import { twoTap } from "./twoTap";
 import { rfIcon } from "../ui/rfIcons";
 // Save, reopen, share, export and import a tool's plan. Shared by the Mesh
 // Analysis and Coverage Analysis. Share links carry the plan in the URL fragment,
@@ -140,8 +141,7 @@ export function createPlanCard(o: PlanCardOptions): HTMLElement {
         del.className = "secondary icon-btn saved-del";
         del.innerHTML = rfIcon("close");
         del.setAttribute("aria-label", `Delete ${p.name}`);
-        del.addEventListener("click", () => {
-          if (!confirm(`Delete the saved plan "${p.name}"?`)) return;
+        twoTap(del, "Tap again to delete", () => {
           store.remove(p.name);
           list();
           status(`Deleted "${p.name}".`);

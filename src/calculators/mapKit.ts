@@ -77,8 +77,8 @@ function saveLayer(name: string): void {
 /** Map options. */
 export interface MapOptions {
   /**
-   * Put Map layers, Download map, Clear map and 3D mode in a labelled bar
-   * floating at the bottom centre of the map, instead of corner buttons.
+   * Put Map layers, Download map, Clear map and 3D mode in a labeled bar
+   * floating at the bottom center of the map, instead of corner buttons.
    */
   taskbar?: boolean;
 }
@@ -98,7 +98,7 @@ export const TASK_ICONS = {
   view3d: rfIcon("view3d"),
 };
 
-/** A labelled taskbar button. */
+/** A labeled taskbar button. */
 export function taskButton(label: string, icon: string): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
@@ -115,7 +115,7 @@ export interface ClearControl {
 }
 
 /**
- * A labelled "Clear map" button in the same corner of every map, for removing
+ * A labeled "Clear map" button in the same corner of every map, for removing
  * the page's pins, nodes or coverage. what names them for screen readers.
  */
 export function addClearControl(
@@ -127,7 +127,7 @@ export function addClearControl(
 ): ClearControl {
   const slot = taskbarSlot(map, "clear");
   if (slot) {
-    // In the taskbar it stays put, greyed out while there's nothing to clear.
+    // In the taskbar it stays put, grayed out while there's nothing to clear.
     const b = taskButton("Clear map", TASK_ICONS.clear);
     const label = b.querySelector("span")!;
     b.setAttribute("aria-label", `Clear ${what} from the map`);
@@ -157,7 +157,7 @@ export function addClearControl(
     });
     slot.append(b);
     return {
-      // Greys the button out when there's nothing to clear.
+      // Grays the button out when there's nothing to clear.
       setVisible(visible) {
         b.disabled = !visible;
         if (!visible) disarm();
@@ -229,7 +229,7 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     L.DomEvent.disableScrollPropagation(bar);
     taskbars.set(map, bar);
   }
-  // Dark is the same OpenStreetMap tiles recoloured in CSS (see .map-dark),
+  // Dark is the same OpenStreetMap tiles recolored in CSS (see .map-dark),
   // so it needs no API key, no extra provider and shares the offline cache.
   const osm = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
   const layers: Record<LayerName, L.Layer> = {
@@ -305,8 +305,8 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     layerSlot.append(button, menu);
     syncLayerMenu();
   } else {
-    const labelled = Object.fromEntries((Object.keys(layers) as LayerName[]).map((n) => [LAYER_LABELS[n], layers[n]]));
-    L.control.layers(labelled, undefined, { position: "topright" }).addTo(map);
+    const labeled = Object.fromEntries((Object.keys(layers) as LayerName[]).map((n) => [LAYER_LABELS[n], layers[n]]));
+    L.control.layers(labeled, undefined, { position: "topright" }).addTo(map);
   }
   // The layer control also fires this when the code adds a layer: the first one
   // once the map has a view, and theme swaps. Only a different layer is a choice.
@@ -406,7 +406,7 @@ export interface Control3D {
  */
 export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "zoom">): Control3D {
   let view: View3D | undefined;
-  // The scene with the 2D map's current centre and zoom added.
+  // The scene with the 2D map's current center and zoom added.
   const full = (): Scene3D => {
     const c = map.getCenter();
     return { ...scene(), center: { lat: c.lat, lon: c.lng }, zoom: map.getZoom() };

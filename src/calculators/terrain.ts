@@ -2,6 +2,8 @@
 // (and an optional relay between them), the elevation profile between them,
 // and how well the path clears it.
 
+import { rfIcon } from "../ui/rfIcons";
+import { twoTap } from "./twoTap";
 import { escapeHtml } from "../lib/html";
 import * as L from "leaflet";
 import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView, DATA_ATTRIBUTION } from "./mapKit";
@@ -21,7 +23,7 @@ import { createPathStore } from "../lib/pathStore";
 import { coordPlaceholder, formatCoordinates, parseCoordinates } from "../lib/coords";
 import { type LatLon, bearingDeg, distanceBetweenM, formatLatLon, parseLatLon, samplePath } from "../lib/geo";
 import { FRESNEL_CLEAR_RATIO, type ProfilePoint, type ProfileResult, type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
-import { type DistanceUnit, fromMetres } from "../lib/units";
+import { type DistanceUnit, fromMeters } from "../lib/units";
 import { STANDARD_K } from "../lib/horizon";
 
 const STORAGE_KEY = "rf-toolkit:terrain";
@@ -37,7 +39,7 @@ export interface TerrainParams {
   model: ModelSettings;
   /** Effective earth radius factor for the clearance check. */
   k: number;
-  /** The relay's antenna height for its hops' paths, metres. */
+  /** The relay's antenna height for its hops' paths, meters. */
   relayHeightM?: number;
 }
 
@@ -80,7 +82,7 @@ export interface TerrainCard {
   redraw(): void;
   /** Put the pins down, as from a share link. */
   setPins(p: { tx?: LatLon; rx?: LatLon; relay?: LatLon }): void;
-  /** Length of the pinned path in metres, or undefined without both pins. */
+  /** Length of the pinned path in meters, or undefined without both pins. */
   pathDistanceM(): number | undefined;
   /** Both pins, when both are down. */
   pins(): { tx: LatLon; rx: LatLon } | undefined;
@@ -812,10 +814,9 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
         const del = document.createElement("button");
         del.type = "button";
         del.className = "secondary icon-btn saved-del";
-        del.textContent = "✕";
+        del.innerHTML = rfIcon("close");
         del.setAttribute("aria-label", `Delete ${p.name}`);
-        del.addEventListener("click", () => {
-          if (!confirm(`Delete the saved path "${p.name}"?`)) return;
+        twoTap(del, "Tap again to delete", () => {
           store.remove(p.name);
           listSaved();
           setStatus(`Deleted "${p.name}".`);
@@ -881,7 +882,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     cross.style.display = "";
     const { distUnit, heightUnit } = lastParams;
     // A height in the chosen unit, rounded to whole units.
-    const h = (m: number) => `${fmt(fromMetres(Math.abs(m), heightUnit), 0)} ${heightUnit}`;
+    const h = (m: number) => `${fmt(fromMeters(Math.abs(m), heightUnit), 0)} ${heightUnit}`;
     const status =
       lastAntennas.has(i)
         ? "at the antenna"
@@ -889,7 +890,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
           ? `terrain is ${h(q.clearanceM)} above the line of sight`
           : `${h(q.clearanceM)} clear, ${fmt(Math.max(0, q.clearanceRatio) * 100, 0)}% of the Fresnel zone`;
     el("chart").querySelector(".chart-readout")!.textContent =
-      `${fmt(fromMetres(q.distanceM, distUnit), 2)} ${distUnit} from ${nameOf("tx")}: terrain ${h(q.terrainM)}, ${status}`;
+      `${fmt(fromMeters(q.distanceM, distUnit), 2)} ${distUnit} from ${nameOf("tx")}: terrain ${h(q.terrainM)}, ${status}`;
   };
   // With a relay, the profile shows the path through it unless Direct is picked.
   // The Link budget card has the same switch; both follow this one value.
@@ -1058,9 +1059,9 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     el("viewWrap").querySelectorAll<HTMLButtonElement>("button[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === (viaRelay ? "relay" : "direct"))));
 
     // A height in the chosen unit, rounded to whole units.
-    const h = (m: number) => `${fmt(fromMetres(m, params.heightUnit), 0)} ${params.heightUnit}`;
+    const h = (m: number) => `${fmt(fromMeters(m, params.heightUnit), 0)} ${params.heightUnit}`;
     // A distance in the chosen unit, to two decimal places.
-    const d = (m: number) => `${fmt(fromMetres(m, params.distUnit), 2)} ${params.distUnit}`;
+    const d = (m: number) => `${fmt(fromMeters(m, params.distUnit), 2)} ${params.distUnit}`;
     // The tightest point: how far the ground rises into the line, or clears it.
     const tight = (w: ProfilePoint): [string, string] =>
       w.clearanceM < 0 ? [`${h(-w.clearanceM)} blocked`, "Ground above the line of sight"] : [`${h(w.clearanceM)} clear`, `${fmt(Math.max(0, w.clearanceRatio) * 100, 0)}% of the Fresnel zone`];
@@ -1191,7 +1192,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
       hopStatus = [hop1?.status, hop2?.status];
       return { hop1, hop2 };
     },
-    /** Sets each hop's rating, which colours its line on the map and its line of sight on the profile. */
+    /** Sets each hop's rating, which colors its line on the map and its line of sight on the profile. */
     showHops(q1, q2) {
       const changed = q1 !== hopQuality[0] || q2 !== hopQuality[1];
       hopQuality = [q1, q2];
@@ -1206,7 +1207,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     },
     refresh,
     reset,
-    /** Sets the direct link's rating, which colours its line on the map and on the profile. */
+    /** Sets the direct link's rating, which colors its line on the map and on the profile. */
     showLink(q) {
       const changed = q !== quality;
       quality = q;
@@ -1285,9 +1286,9 @@ export function drawProfile(
   const losLines = segs
     .map((sp, i) => `<path class="los los-${losStyle(i)}" d="${path([[x(sp[0].distanceM), y(sp[0].losM)], [x(sp[sp.length - 1].distanceM), y(sp[sp.length - 1].losM)]])}"/>`)
     .join("");
-  // The same rule as the map's link lines: colour from the budget, dashes when the
+  // The same rule as the map's link lines: color from the budget, dashes when the
   // path isn't clear. Red only when the budget says it won't connect; a blocked
-  // path that still closes by diffraction is dashed green. Without a verdict, grey.
+  // path that still closes by diffraction is dashed green. Without a verdict, gray.
   function losStyle(i: number): LosStyle {
     const q = qualities?.[i];
     if (q) return linkLineStyle(q, segments[i].status);
@@ -1318,9 +1319,9 @@ export function drawProfile(
     .join("");
 
   // A height label in the chosen unit.
-  const hLabel = (m: number) => `${fmt(fromMetres(m, p.heightUnit), 0)} ${p.heightUnit}`;
+  const hLabel = (m: number) => `${fmt(fromMeters(m, p.heightUnit), 0)} ${p.heightUnit}`;
   // A distance label in the chosen unit, to one decimal place on short paths.
-  const dLabel = (m: number) => `${fmt(fromMetres(m, p.distUnit), fromMetres(total, p.distUnit) < 10 ? 1 : 0)}`;
+  const dLabel = (m: number) => `${fmt(fromMeters(m, p.distUnit), fromMeters(total, p.distUnit) < 10 ? 1 : 0)}`;
   const yTicks = [min + (max - min) * 0.1, (min + max) / 2, max - (max - min) * 0.05];
   const xTicks = [0, total / 2, total];
 

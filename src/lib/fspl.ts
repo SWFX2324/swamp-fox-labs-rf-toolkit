@@ -6,12 +6,12 @@
 
 import { SPEED_OF_LIGHT } from "./units";
 
-/** Free-space wavelength in metres. */
+/** Free-space wavelength in meters. */
 export function wavelengthM(freqHz: number): number {
   return SPEED_OF_LIGHT / freqHz;
 }
 
-/** Free-space path loss in dB for a distance in metres and frequency in Hz. */
+/** Free-space path loss in dB for a distance in meters and frequency in Hz. */
 export function fsplDb(freqHz: number, distanceM: number): number {
   if (!(freqHz > 0) || !(distanceM > 0)) {
     throw new RangeError("Frequency and distance must be greater than zero");
@@ -19,7 +19,7 @@ export function fsplDb(freqHz: number, distanceM: number): number {
   return 20 * Math.log10((4 * Math.PI * distanceM * freqHz) / SPEED_OF_LIGHT);
 }
 
-/** The distance in metres at which free-space path loss reaches lossDb. */
+/** The distance in meters at which free-space path loss reaches lossDb. */
 export function distanceForLossM(freqHz: number, lossDb: number): number {
   if (!(freqHz > 0)) {
     throw new RangeError("Frequency must be greater than zero");

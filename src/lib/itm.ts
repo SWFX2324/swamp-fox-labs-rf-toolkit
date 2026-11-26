@@ -126,7 +126,7 @@ export function toPfl(elevationsM: ArrayLike<number>, distanceM: number): Float6
 // ---------------------------------------------------------------------------
 // Helper functions
 
-/** Free-space path loss in dB for a distance in metres and a frequency in MHz. */
+/** Free-space path loss in dB for a distance in meters and a frequency in MHz. */
 export function freeSpaceLoss(d__meter: number, f__mhz: number): number {
   return 32.45 + 20.0 * Math.log10(f__mhz) + 20.0 * Math.log10(d__meter / 1000.0);
 }

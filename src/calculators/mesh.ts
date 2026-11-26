@@ -37,11 +37,11 @@ import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager, presetsEven
 import {
   type DistanceUnit,
   frequencyUnits,
-  fromMetres,
+  fromMeters,
   powerUnits,
   toDbm,
   toHz,
-  toMetres,
+  toMeters,
   asDistanceUnit,
   asFrequencyUnit,
   asPowerUnit,
@@ -89,7 +89,7 @@ const hasOwnRadio = (n: MeshNode) => NODE_RADIO_FIELDS.some((f) => (n[f.key] ?? 
 const RADIO_ICON = rfIcon("radio", "node-radio-icon");
 
 // The built-in defaults from before Settings existed. Settings now override the
-// fields they cover; these still fill the rest and recognise untouched old saves.
+// fields they cover; these still fill the rest and recognize untouched old saves.
 const legacySettingDefaults: Record<string, string> = {
   preset: "",
   freq: "915",
@@ -112,7 +112,7 @@ const statusText: Record<MeshLinkStatus, [string, string]> = {
   fail: ["Won't connect", "s-fail"],
 };
 
-/** A labelled number box with its unit. */
+/** A labeled number box with its unit. */
 function numberField(label: string, name: string, unit: string, attrs = ""): string {
   return `
     <label>${label}
@@ -351,7 +351,7 @@ export const meshCalculator: Calculator = {
         // Storage blocked: the plan just won't be remembered.
       }
     };
-    // Shows a message under the node list, in warning colours when warn is set.
+    // Shows a message under the node list, in warning colors when warn is set.
     const setStatus = (text: string, warn = false) => {
       out("status").textContent = text;
       out("status").classList.toggle("warn", warn);
@@ -370,9 +370,9 @@ export const meshCalculator: Calculator = {
     // Nodes whose own-radio row is open, so it stays open when the list redraws.
     const openRadios = new WeakSet<MeshNode>();
 
-    // A node's antenna height in metres: its own, or the shared height when it has none.
+    // A node's antenna height in meters: its own, or the shared height when it has none.
     const heightM = (n: MeshNode) =>
-      toMetres(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, asDistanceUnit(field("heightUnit").value));
+      toMeters(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, asDistanceUnit(field("heightUnit").value));
 
     // Pattern loss at node "from" toward node "to". The profile runs from "from".
     const antennaLoss = (from: MeshNode, to: MeshNode, distanceM: number, elev: number[] | undefined, gainDbi: number, k: number) => {
@@ -595,7 +595,7 @@ export const meshCalculator: Calculator = {
       }
       const [text] = statusText[r.link.status];
       out("dockFacts").innerHTML = [
-        ["Distance", `${fmt(fromMetres(r.distanceM, distUnit), 2)} ${distUnit}`],
+        ["Distance", `${fmt(fromMeters(r.distanceM, distUnit), 2)} ${distUnit}`],
         ["Terrain loss", `${fmt(r.link.terrainLossDb)} dB`],
         ["Margin", `${fmt(r.link.marginDb)} dB, ${text}`],
       ]
@@ -845,7 +845,7 @@ export const meshCalculator: Calculator = {
           const chosen = selected && nodes[r.a] === selected[0] && nodes[r.b] === selected[1];
           return `<tr tabindex="0" data-a="${r.a}" data-b="${r.b}"${chosen ? ' class="selected"' : ""}>
             <td class="link-name"></td>
-            <td class="num mono">${fmt(fromMetres(r.distanceM, distUnit), 2)} ${distUnit}</td>
+            <td class="num mono">${fmt(fromMeters(r.distanceM, distUnit), 2)} ${distUnit}</td>
             <td class="num mono">${terrainCell}</td>
             <td class="num"><span class="mono">${fmt(r.link.marginDb)} dB</span> <span class="pill ${cls}">${text}</span>${
               Math.abs(r.link.marginAbDb - r.link.marginBaDb) >= 0.5

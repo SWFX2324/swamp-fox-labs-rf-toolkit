@@ -11,7 +11,7 @@ import { formatOrbitalSlot, lookAngles, parseOrbitalSlot } from "../lib/satPoint
 import { type DirectionResult, type Modcod, type StarLinkInputs, GOOD_MARGIN_DB, allModcods, bitsPerSymbolNet, fadeHeadroomDb, satBands, starLinkBudget } from "../lib/satLink";
 import { aimTable, bestModcods, modcodList, rainBars } from "./satCharts";
 import { type SceneInput, fitReadoutPanel, satScene } from "./satScene";
-import { fromMetres } from "../lib/units";
+import { fromMeters } from "../lib/units";
 import { locateButton, locateMe } from "./locate";
 import { PANE_ICONS, fitStage, moveModeBar } from "./mapFirst";
 
@@ -58,7 +58,7 @@ const MODS = ["BPSK", "QPSK", "8PSK", "16APSK", "32APSK"];
 const rateValue = (r: string) => { const [n, d] = r.split("/").map(Number); return n / d; };
 const RATES = [...new Set(allModcods.map((m) => m.rate))].sort((a, b) => rateValue(a) - rateValue(b));
 
-/** A labelled number box with its unit. */
+/** A labeled number box with its unit. */
 function field(label: string, name: string, unit: string, attrs = ""): string {
   return `
     <label>${label}
@@ -376,7 +376,7 @@ export const satLinkCalculator: Calculator = {
       const slot = parseOrbitalSlot(el("slot").value);
       const look = site && slot !== undefined ? lookAngles(site, slot) : undefined;
       out("geo").textContent = look
-        ? `${formatOrbitalSlot(slot!)} · ${fmt(look.elevation)}° up · ${Math.round(fromMetres(look.rangeM, "mi")).toLocaleString()} mi`
+        ? `${formatOrbitalSlot(slot!)} · ${fmt(look.elevation)}° up · ${Math.round(fromMeters(look.rangeM, "mi")).toLocaleString()} mi`
         : "Geostationary";
 
       // The modulation and FEC chosen in a dropdown, or QPSK 3/4 when the saved choice no longer exists.
@@ -491,7 +491,7 @@ export const satLinkCalculator: Calculator = {
           ? `<div class="mc-pick s-marginal"><div><span class="mc-pick-k">Faster, but risky</span><b>${best.any.name}</b><span>${speedOf(best.any)} · ${(() => { const sp = view.esn0 - best.any.esn0 - view.implLossDb; return sp < 0.1 ? "almost no spare" : `only ${fmt(sp)} dB spare`; })()}</span></div>${useBtn(best.any)}</div>`
           : "",
       ].join("");
-      // One filter chip, greyed out when no setting matches it with the other filter.
+      // One filter chip, grayed out when no setting matches it with the other filter.
       const chip = (kind: "mod" | "rate", value: string, on: boolean, ok: boolean) =>
         `<button type="button" class="chip mc-chip" data-mc-${kind}="${value}" aria-pressed="${on}"${ok ? "" : " disabled"}>${value}</button>`;
       out("mcMods").innerHTML =
@@ -581,7 +581,7 @@ export const satLinkCalculator: Calculator = {
       el("downGHz").value = String(band.downlinkGHz);
       el("upLoss").value = el("downLoss").value = String(band.clearSkyLossDb);
     });
-    // Shows a message under the location box, in warning colours when warn is set.
+    // Shows a message under the location box, in warning colors when warn is set.
     const setStatus = (text: string, warn = false) => {
       out("status").textContent = text;
       out("status").classList.toggle("warn", warn);

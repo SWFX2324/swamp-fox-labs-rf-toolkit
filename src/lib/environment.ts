@@ -19,7 +19,7 @@ import { knifeEdgeLossDb } from "./diffraction";
 export interface Environment {
   id: string;
   name: string;
-  /** Representative clutter height R, metres. */
+  /** Representative clutter height R, meters. */
   clutterHeightM: number;
   /**
    * "diffraction": signal comes down over buildings or trees (equation 2a).
@@ -52,7 +52,7 @@ export function findEnvironment(id: string): Environment {
 
 const MIN_GHZ = 0.03;
 const MAX_GHZ = 3;
-/** Street width default, metres (P.2108 Table 2). */
+/** Street width default, meters (P.2108 Table 2). */
 const STREET_WIDTH_M = 27;
 /** Keeps the ground model finite for an antenna height of zero. */
 const MIN_ANTENNA_M = 0.5;
@@ -62,7 +62,7 @@ export function belowModelRange(freqHz: number): boolean {
   return freqHz / 1e9 < MIN_GHZ;
 }
 
-/** Default canopy height for woodland, metres. */
+/** Default canopy height for woodland, meters. */
 export const DEFAULT_TREE_HEIGHT_M = 20;
 
 /**
@@ -72,7 +72,7 @@ export const DEFAULT_TREE_HEIGHT_M = 20;
  * vehicle antenna. P.833's St Petersburg mixed-forest data (Table 1, 106 MHz
  * to 2.1 GHz, paths to 7 km) fall on nearly the same curve. The forest is taken
  * as extensive, so the full Am applies: equation 1 approaches it within a few
- * hundred metres at VHF.
+ * hundred meters at VHF.
  */
 export function woodlandLossDb(freqHz: number): number {
   const mhz = Math.min(MAX_GHZ, Math.max(MIN_GHZ, freqHz / 1e9)) * 1000;

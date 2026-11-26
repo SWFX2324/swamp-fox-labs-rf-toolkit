@@ -33,7 +33,7 @@ export interface LinkInputs {
   rxSensitivityDbm: number;
   /** Margin the link must keep for fading, used for the max range. */
   fadeMarginDb: number;
-  /** Antenna heights above ground, metres. */
+  /** Antenna heights above ground, meters. */
   txHeightM: number;
   rxHeightM: number;
   /** Effective earth radius factor for the radio horizon; 4/3 if unset. */
@@ -47,13 +47,13 @@ export interface LinkResult {
   rxIsotropicDbm: number;
   rslDbm: number;
   marginDb: number;
-  /** Longest distance that keeps fadeMarginDb and line of sight, in metres. */
+  /** Longest distance that keeps fadeMarginDb and line of sight, in meters. */
   maxRangeM: number;
-  /** Longest distance the budget alone allows, ignoring the horizon, metres. */
+  /** Longest distance the budget alone allows, ignoring the horizon, meters. */
   budgetRangeM: number;
   /** What sets maxRangeM. */
   rangeLimit: "budget" | "horizon";
-  /** Smooth-earth line-of-sight range for the antenna heights, metres. */
+  /** Smooth-earth line-of-sight range for the antenna heights, meters. */
   horizonM: number;
   /** True when distanceM is past the radio horizon. */
   beyondHorizon: boolean;

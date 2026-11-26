@@ -14,7 +14,9 @@ export default defineConfig({
   build: { chunkSizeWarningLimit: 1200 },
   plugins: [
     VitePWA({
-      registerType: "autoUpdate",
+      // A new version waits until the user taps "Update available" (see main.ts),
+      // so a deploy never reloads a page in the middle of someone's work.
+      registerType: "prompt",
       includeAssets: ["favicon-fox-32.png", "brand-fox.png", "apple-touch-icon-dark.png", "icon-fox-192.png", "icon-fox-512.png", "icon-maskable-dark-512.png"],
       manifest: {
         name: beta ? "RF Toolkit Beta" : "RF Toolkit",

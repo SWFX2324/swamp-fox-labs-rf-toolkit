@@ -3,7 +3,7 @@ import { LandCoverGrid, decodeLandCover, environmentForClass, landCoverUrl } fro
 import { TILE_SIZE, toGlobalPixel } from "./terrainTiles";
 
 describe("landCoverUrl", () => {
-  it("asks for a raw-class tile in web-map metres", () => {
+  it("asks for a raw-class tile in web-map meters", () => {
     const url = new URL(landCoverUrl({ z: 1, x: 1, y: 0 }));
     expect(url.origin).toBe("https://ic.imagery1.arcgis.com");
     // Zoom 1, tile x1 y0 is the north-east quarter of the world.
@@ -19,7 +19,7 @@ describe("landCoverUrl", () => {
 });
 
 describe("decodeLandCover", () => {
-  it("reads the grey level, with transparent pixels as no data", () => {
+  it("reads the gray level, with transparent pixels as no data", () => {
     const rgba = new Uint8Array(TILE_SIZE * TILE_SIZE * 4);
     rgba.set([7, 7, 7, 255], 0);
     rgba.set([2, 2, 2, 0], 4);
@@ -39,7 +39,7 @@ describe("environmentForClass", () => {
     expect(environmentForClass(0)).toBe("none");
   });
 
-  it("splits built areas by how built-up the neighbourhood is", () => {
+  it("splits built areas by how built-up the neighborhood is", () => {
     expect(environmentForClass(7, 0.3)).toBe("suburban");
     expect(environmentForClass(7, 0.9)).toBe("urban");
   });

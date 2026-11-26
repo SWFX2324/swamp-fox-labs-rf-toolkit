@@ -1,13 +1,13 @@
 // A 3D view of an antenna's idealized radiation pattern (lib/antennaPattern.ts),
-// drawn like antenna modelling software: a wireframe mesh whose distance from
-// the centre is the field strength, each line coloured by dB from red at the
+// drawn like antenna modeling software: a wireframe mesh whose distance from
+// the center is the field strength, each line colored by dB from red at the
 // peak to dark blue at −30 dB, with X, Y and Z axes, a ground grid and the antenna
 // in the scene. Drag to turn it.
 
 import { toDb } from "../lib/antennaPattern";
 
 const FLOOR = -30;
-/** Colour stops: dB below the peak, and the colour there. */
+/** Color stops: dB below the peak, and the color there. */
 const STOPS: [number, [number, number, number]][] = [
   [0, [232, 69, 44]],
   [-3, [242, 166, 35]],
@@ -17,8 +17,8 @@ const STOPS: [number, [number, number, number]][] = [
   [-30, [33, 52, 128]],
 ];
 
-/** The colour for a level, dB below the peak, lit by shade (0–1). */
-export function patternColour(db: number, shade = 1): string {
+/** The color for a level, dB below the peak, lit by shade (0–1). */
+export function patternColor(db: number, shade = 1): string {
   const d = Math.max(FLOOR, Math.min(0, db));
   for (let i = 0; i < STOPS.length - 1; i++) {
     const [a, ca] = STOPS[i];
@@ -32,7 +32,7 @@ export function patternColour(db: number, shade = 1): string {
   return "rgb(33,52,128)";
 }
 
-/** The colour key: a gradient from the peak to −30 dB. */
+/** The color key: a gradient from the peak to −30 dB. */
 export const PATTERN_GRADIENT = `linear-gradient(to right, ${STOPS.map(([db, c]) => `rgb(${c.join(",")}) ${(db / FLOOR) * 100}%`).join(", ")})`;
 
 export interface PatternScene {
@@ -42,7 +42,7 @@ export interface PatternScene {
   antenna: "horizontal" | "vertical" | "ground" | "loop";
 }
 
-// Mesh spacing: rings every 6°, meridians every 10°, like a modelling program's wireframe.
+// Mesh spacing: rings every 6°, meridians every 10°, like a modeling program's wireframe.
 const T_STEP = 6;
 const P_STEP = 10;
 
@@ -72,7 +72,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
   let frame = 0;
 
   // Works out the pattern's surface for the current antenna: a point for every
-  // angle step, as far from the centre as the field is strong, with its level in dB.
+  // angle step, as far from the center as the field is strong, with its level in dB.
   const build = () => {
     grid = [];
     if (!scene) return;
@@ -92,7 +92,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
       row.map((v, j) => {
         const rel = peak > 0 ? v / peak : 0;
         const db = toDb(rel, FLOOR);
-        // Size by field strength, colour by dB.
+        // Size by field strength, color by dB.
         const r = rel;
         const t = (i * T_STEP * Math.PI) / 180;
         const p = (j * P_STEP * Math.PI) / 180;
@@ -132,14 +132,14 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
       return { sx: w / 2 + x1 * scale, sy: h / 2 - (q.z * cp - y1 * sp) * scale, depth: y1 * cp + q.z * sp };
     };
     const style = getComputedStyle(wrap);
-    const gridColour = style.getPropertyValue("--muted").trim() || "#888";
-    const textColour = style.getPropertyValue("--text").trim() || "#ddd";
+    const gridColor = style.getPropertyValue("--muted").trim() || "#888";
+    const textColor = style.getPropertyValue("--text").trim() || "#ddd";
 
     // Everything goes into one list and is drawn back to front, so the mesh,
     // grid, axes and antenna overlap properly as it turns.
     const prims: { depth: number; paint: () => void }[] = [];
     // Queues one line to be drawn in depth order.
-    const line = (p: P3, q: P3, colour: string, width: number, alpha = 1) => {
+    const line = (p: P3, q: P3, color: string, width: number, alpha = 1) => {
       const a = project(p);
       const b = project(q);
       prims.push({
@@ -147,7 +147,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
         // Draws this line when its turn comes in depth order.
         paint: () => {
           ctx.globalAlpha = alpha;
-          ctx.strokeStyle = colour;
+          ctx.strokeStyle = color;
           ctx.lineWidth = width;
           ctx.beginPath();
           ctx.moveTo(a.sx, a.sy);
@@ -160,8 +160,8 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
     // The ground grid, in the horizontal plane.
     const G = 1.2;
     for (let v = -G; v <= G + 1e-9; v += 0.3) {
-      line({ x: -G, y: v, z: 0 }, { x: G, y: v, z: 0 }, gridColour, 1, 0.25);
-      line({ x: v, y: -G, z: 0 }, { x: v, y: G, z: 0 }, gridColour, 1, 0.25);
+      line({ x: -G, y: v, z: 0 }, { x: G, y: v, z: 0 }, gridColor, 1, 0.25);
+      line({ x: v, y: -G, z: 0 }, { x: v, y: G, z: 0 }, gridColor, 1, 0.25);
     }
 
     // With waves showing, the mesh steps back so the waves read.
@@ -191,7 +191,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
             line(
               { x: r * Math.cos((a * Math.PI) / 180), y: r * Math.sin((a * Math.PI) / 180), z: 0 },
               { x: r * Math.cos((b * Math.PI) / 180), y: r * Math.sin((b * Math.PI) / 180), z: 0 },
-              patternColour(toDb(g, FLOOR)),
+              patternColor(toDb(g, FLOOR)),
               2.4,
               Math.min(1, g * 1.1) * fade,
             );
@@ -204,7 +204,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
             line(
               { x: r * Math.cos((a * Math.PI) / 180), y: 0, z: r * Math.sin((a * Math.PI) / 180) },
               { x: r * Math.cos((b * Math.PI) / 180), y: 0, z: r * Math.sin((b * Math.PI) / 180) },
-              patternColour(toDb(v, FLOOR)),
+              patternColor(toDb(v, FLOOR)),
               2.4,
               Math.min(1, v * 1.1) * fade,
             );
@@ -213,15 +213,15 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
       }
     }
 
-    // The pattern: a mesh of rings and meridians, each segment in its strength's colour.
+    // The pattern: a mesh of rings and meridians, each segment in its strength's color.
     const zero = (q: P3) => Math.abs(q.x) + Math.abs(q.y) + Math.abs(q.z) < 1e-6;
     for (let i = 0; i < grid.length; i++) {
       for (let j = 0; j < grid[i].length; j++) {
         const q = grid[i][j];
         const right = grid[i][j + 1];
         const down = grid[i + 1]?.[j];
-        if (right && !(zero(q) && zero(right))) line(q, right, patternColour((q.db + right.db) / 2), 1.2, meshAlpha);
-        if (down && !(zero(q) && zero(down))) line(q, down, patternColour((q.db + down.db) / 2), 1.2, meshAlpha);
+        if (right && !(zero(q) && zero(right))) line(q, right, patternColor((q.db + right.db) / 2), 1.2, meshAlpha);
+        if (down && !(zero(q) && zero(down))) line(q, down, patternColor((q.db + down.db) / 2), 1.2, meshAlpha);
       }
     }
 
@@ -240,8 +240,8 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
       labels.push([{ x: L, y: 0, z: 0 }, X, along], [{ x: -L, y: 0, z: 0 }, X, along], [{ x: 0, y: L, z: 0 }, Y, across], [{ x: 0, y: -L, z: 0 }, Y, across]);
     }
 
-    // The antenna, in the scene at the centre.
-    const ant = (p: P3, q: P3) => line(p, q, textColour, 3);
+    // The antenna, in the scene at the center.
+    const ant = (p: P3, q: P3) => line(p, q, textColor, 3);
     if (scene.antenna === "horizontal") ant({ x: -0.3, y: 0, z: 0 }, { x: 0.3, y: 0, z: 0 });
     else if (scene.antenna === "vertical") ant({ x: 0, y: 0, z: -0.3 }, { x: 0, y: 0, z: 0.3 });
     else if (scene.antenna === "ground") {
@@ -267,7 +267,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
     ctx.textBaseline = "middle";
     const backing = style.getPropertyValue("--card-2").trim() || "#222";
     // A label on a small backing, kept inside the canvas.
-    const tag = (at: { sx: number; sy: number }, colour: string, text: string) => {
+    const tag = (at: { sx: number; sy: number }, color: string, text: string) => {
       const tw = ctx.measureText(text).width + 10;
       // Kept inside the canvas.
       const x = Math.max(tw / 2 + 2, Math.min(w - tw / 2 - 2, at.sx));
@@ -276,12 +276,12 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
       ctx.fillStyle = backing;
       ctx.fillRect(x - tw / 2, y - 9, tw, 18);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = colour;
+      ctx.fillStyle = color;
       ctx.fillText(text, x, y);
     };
-    for (const [tip, colour, text] of labels) tag(project({ x: tip.x * 1.1, y: tip.y * 1.1, z: tip.z * 1.1 }), colour, text);
+    for (const [tip, color, text] of labels) tag(project({ x: tip.x * 1.1, y: tip.y * 1.1, z: tip.z * 1.1 }), color, text);
     // A vertical radiates the same every way round: said on the ground.
-    if (scene.antenna === "vertical" || scene.antenna === "ground") tag(project({ x: 0, y: -1.05, z: 0 }), textColour, "Same all round");
+    if (scene.antenna === "vertical" || scene.antenna === "ground") tag(project({ x: 0, y: -1.05, z: 0 }), textColor, "Same all round");
   };
 
   // The waves move while showing, the page is in view and motion is welcome.

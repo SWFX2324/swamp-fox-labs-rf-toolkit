@@ -15,7 +15,7 @@ export interface Box {
   east: number;
 }
 
-/** Farthest the finder reaches from either site, metres (the Coverage Analysis's limit). */
+/** Farthest the finder reaches from either site, meters (the Coverage Analysis's limit). */
 export const MAX_RELAY_RADIUS_M = 80_000;
 
 /**

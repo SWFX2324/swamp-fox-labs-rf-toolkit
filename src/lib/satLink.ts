@@ -1,7 +1,7 @@
 // Satellite link budget for a terminal working a geostationary transponder:
 // uplink and downlink carrier-to-noise density, combined, against the Es/N0
 // a DVB-S2 MODCOD needs. Interference (C/I) and transponder intermodulation
-// are not modelled; the satellite's G/T and the carrier's downlink EIRP come
+// are not modeled; the satellite's G/T and the carrier's downlink EIRP come
 // from the access documents.
 
 import { fsplDb, wavelengthM } from "./fspl";
@@ -143,7 +143,7 @@ export const allModcods: Modcod[] = [...dvbs2Modcods, ...legacyModcods];
  *   always limits it; the gateway transmits strongly.
  *
  * The gateway is taken at the same range as the terminal, in clear sky: its
- * own weather and location aren't modelled.
+ * own weather and location aren't modeled.
  */
 export interface StarLinkInputs {
   rangeM: number;

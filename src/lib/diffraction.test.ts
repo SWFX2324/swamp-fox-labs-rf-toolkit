@@ -26,7 +26,7 @@ const ridge = (top: number) => {
   e[50] = top;
   return e;
 };
-// ν for an edge h metres above the line of sight at the midpoint.
+// ν for an edge h meters above the line of sight at the midpoint.
 const nuFor = (h: number) => h * Math.sqrt((2 / wavelengthM(915e6)) * (10_000 / (5000 * 5000)));
 
 describe("bullingtonLoss", () => {

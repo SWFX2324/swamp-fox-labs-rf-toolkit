@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STANDARD_K, earthBulgeM, fresnelRadiusM, lineOfSightRangeM, midpointClearance, parseKFactor, radioHorizonM } from "./horizon";
-import { fromMetres, toMetres } from "./units";
+import { fromMeters, toMeters } from "./units";
 
 describe("radioHorizonM", () => {
   // Rule of thumb: d_km ≈ 4.12·√h_m with k = 4/3.
@@ -17,8 +17,8 @@ describe("radioHorizonM", () => {
 describe("lineOfSightRangeM", () => {
   // Rule of thumb: d_mi ≈ √(2·h_ft) per end.
   it("is about 15.5 mi for two antennas at 30 ft", () => {
-    const h = toMetres(30, "ft");
-    expect(fromMetres(lineOfSightRangeM(h, h), "mi")).toBeCloseTo(2 * Math.sqrt(60), 1);
+    const h = toMeters(30, "ft");
+    expect(fromMeters(lineOfSightRangeM(h, h), "mi")).toBeCloseTo(2 * Math.sqrt(60), 1);
   });
 });
 

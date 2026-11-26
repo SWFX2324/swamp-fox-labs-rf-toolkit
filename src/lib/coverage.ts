@@ -137,7 +137,7 @@ export interface CoverageStats {
   solid: number;
   /** Share with positive margin but less than the fade margin. */
   marginal: number;
-  /** Farthest point that meets the fade margin, metres, and its bearing. */
+  /** Farthest point that meets the fade margin, meters, and its bearing. */
   farthestSolidM: number;
   farthestSolidBearing: number;
 }

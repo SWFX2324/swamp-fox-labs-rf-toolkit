@@ -53,7 +53,7 @@ export async function loadLandCover(
 }
 
 const pointCache = new Map<string, LandCoverPoint>();
-/** The cache key for a point, rounded to five decimal places (about a metre). */
+/** The cache key for a point, rounded to five decimal places (about a meter). */
 const pointKey = (p: LatLon) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`;
 
 /** The land cover at each point, from cache where it's been looked up before. */

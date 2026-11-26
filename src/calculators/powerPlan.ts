@@ -1,3 +1,4 @@
+import { twoTap } from "./twoTap";
 import { rfIcon } from "../ui/rfIcons";
 // Power Plan: list the gear, its data plate watts (or volts and amps) and how
 // many of each, and get the total load and the generator size to carry it.
@@ -337,13 +338,18 @@ export const powerPlanCalculator: Calculator = {
       update();
       out("items").querySelector<HTMLInputElement>(".power-item:last-child [data-f='name']")?.focus();
     });
-    form.querySelector('[data-action="reset"]')!.addEventListener("click", () => {
-      if (items.some((it) => it.name.trim() || itemLoad(it)) && !confirm("Clear every item from this power plan?")) return;
-      items = [blankItem()];
-      limitInput.value = defaults.limit;
-      renderItems();
-      update();
-    });
+    // Reset clears the plan; it asks for a second tap only when there's something to lose.
+    twoTap(
+      form.querySelector<HTMLButtonElement>('[data-action="reset"]')!,
+      "Tap again to clear the plan",
+      () => {
+        items = [blankItem()];
+        limitInput.value = defaults.limit;
+        renderItems();
+        update();
+      },
+      () => items.some((it) => it.name.trim() || itemLoad(it)),
+    );
     form.querySelector('[data-action="export"]')!.addEventListener("click", () => {
       const status = out("exportStatus");
       if (!planTotals(items).counted) {

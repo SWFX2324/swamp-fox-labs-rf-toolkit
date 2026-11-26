@@ -91,7 +91,7 @@ export interface MapFirstOptions {
 
 /**
  * Wire up a map-first page: remembered cards, fold-away side panes, the
- * taskbar centred in the gap between the panes (icons only when the gap is
+ * taskbar centered in the gap between the panes (icons only when the gap is
  * narrow), and the page sized to the window below the header.
  */
 export function setupMapFirst(form: HTMLElement, o: MapFirstOptions): void {
@@ -127,11 +127,11 @@ export function setupMapFirst(form: HTMLElement, o: MapFirstOptions): void {
   }
   syncSides();
 
-  // With the panes floating on the map, its taskbar, key and messages centre
+  // With the panes floating on the map, its taskbar, key and messages center
   // in the gap between them, and the taskbar drops its labels when that gap
   // is too narrow for them.
   const floating = window.matchMedia("(min-width: 1100px)");
-  // Centres the taskbar between the floating panes and switches it to icons only
+  // Centers the taskbar between the floating panes and switches it to icons only
   // when the gap is too narrow for its labels. Below the floating width it sits
   // in its normal place.
   const fitTaskbar = () => {

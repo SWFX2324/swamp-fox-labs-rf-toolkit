@@ -1,4 +1,4 @@
-// Unit conversions. The math modules work in SI units (Hz, metres) and the UI
+// Unit conversions. The math modules work in SI units (Hz, meters) and the UI
 // converts at the edges.
 
 /** Speed of light in a vacuum, m/s. */
@@ -38,19 +38,19 @@ export function toHz(value: number, unit: FrequencyUnit): number {
   return value * frequencyUnits[unit];
 }
 
-/** Converts a distance in the given unit to metres. */
-export function toMetres(value: number, unit: DistanceUnit): number {
+/** Converts a distance in the given unit to meters. */
+export function toMeters(value: number, unit: DistanceUnit): number {
   return value * distanceUnits[unit];
 }
 
-/** Converts a distance in metres to the given unit. */
-export function fromMetres(metres: number, unit: DistanceUnit): number {
-  return metres / distanceUnits[unit];
+/** Converts a distance in meters to the given unit. */
+export function fromMeters(meters: number, unit: DistanceUnit): number {
+  return meters / distanceUnits[unit];
 }
 
 /** Feet and inches to the nearest eighth of an inch, like 32′ 10¾″ for cutting. */
-export function formatFeetInches(metres: number): string {
-  const eighths = Math.round(metres / 0.0254 / 0.125);
+export function formatFeetInches(meters: number): string {
+  const eighths = Math.round(meters / 0.0254 / 0.125);
   const feet = Math.floor(eighths / 96);
   const inches = Math.floor((eighths % 96) / 8);
   const frac = ["", "⅛", "¼", "⅜", "½", "⅝", "¾", "⅞"][eighths % 8];

@@ -17,7 +17,7 @@ export interface RelayFinderInputs {
   b: LatLon;
   freqHz: number;
   model: ModelSettings;
-  /** Antenna heights for the terrain paths (clutter tops where the profile lifts them), metres. */
+  /** Antenna heights for the terrain paths (clutter tops where the profile lifts them), meters. */
   aHeightM: number;
   bHeightM: number;
   relayHeightM: number;
@@ -35,7 +35,7 @@ const SURFACE_SIZE = 160;
  * Finds where a relay could close both hops: loads terrain around each site,
  * works out every hop's margin to a receiver at the relay's height, and
  * combines them into a surface of the weaker hop's margin at each spot.
- * Undefined when the search is cancelled. onStatus reports progress.
+ * Undefined when the search is canceled. onStatus reports progress.
  */
 export async function findRelay(inputs: RelayFinderInputs, onStatus: (text: string) => void, signal: AbortSignal): Promise<RelaySurface | undefined> {
   const box = relaySearchBox(inputs.a, inputs.b);
@@ -71,7 +71,7 @@ function weakest(loss: Float32Array[], radios: HopRadio[]): Float32Array[] {
   return each[0].map((row, i) => row.map((v, k) => each.reduce((m, g) => Math.min(m, g[i][k]), v)));
 }
 
-/** A colour from the page's CSS variables (such as --good) as red, green and blue, so the canvas uses the theme's colours. */
+/** A color from the page's CSS variables (such as --good) as red, green and blue, so the canvas uses the theme's colors. */
 function cssColor(name: string): [number, number, number] {
   const probe = document.createElement("span");
   probe.style.color = `var(${name})`;
@@ -82,7 +82,7 @@ function cssColor(name: string): [number, number, number] {
 }
 
 /**
- * The surface as a transparent PNG data URL in the Coverage Analysis's colours:
+ * The surface as a transparent PNG data URL in the Coverage Analysis's colors:
  * strong (fade margin + 10 dB), solid (fade margin), marginal (above 0 dB).
  * Spots where a relay wouldn't close both hops stay clear.
  */

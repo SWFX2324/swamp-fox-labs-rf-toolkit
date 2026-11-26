@@ -23,7 +23,7 @@ export const CACHE_LIMIT = 20;
 
 /**
  * The cache key for a path between two pins. Coordinates are rounded to about
- * a metre, so a pin nudged by less than that still finds its saved profile.
+ * a meter, so a pin nudged by less than that still finds its saved profile.
  */
 export function pathKey(tx: LatLon, rx: LatLon): string {
   return `${formatLatLon(tx)} > ${formatLatLon(rx)}`;

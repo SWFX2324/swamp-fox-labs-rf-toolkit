@@ -11,7 +11,7 @@ const decoded = new Map<string, Float32Array>();
 
 /**
  * One terrain tile's heights: downloaded, drawn onto a canvas to read its pixel
- * colours, and decoded. Kept for the rest of the page load, so each tile is
+ * colors, and decoded. Kept for the rest of the page load, so each tile is
  * decoded once. Throws when the download fails.
  */
 export async function loadTile(tile: TileId, signal?: AbortSignal): Promise<Float32Array> {
@@ -51,7 +51,7 @@ export async function loadTiles(
   await Promise.all([worker(), worker(), worker(), worker()]);
 }
 
-/** Ground heights in metres at each point, ready for a terrain profile. */
+/** Ground heights in meters at each point, ready for a terrain profile. */
 export async function fetchPathElevations(points: LatLon[], signal?: AbortSignal): Promise<number[]> {
   const z = zoomForPoints(points, 40);
   const grid = new ElevationGrid(z);

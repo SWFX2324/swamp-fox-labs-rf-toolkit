@@ -1,17 +1,17 @@
 // Look angles from a ground site to a geostationary satellite. The site is a
 // WGS84 geodetic position and the satellite sits on the equator at the GEO
 // radius, at its orbital slot longitude. Everything is done with earth-
-// centred vectors, so the same code covers every hemisphere and quadrant.
+// centered vectors, so the same code covers every hemisphere and quadrant.
 
 import { SPEED_OF_LIGHT } from "./units";
 
 const WGS84_A = 6378137; // m
 const WGS84_F = 1 / 298.257223563;
 const WGS84_E2 = WGS84_F * (2 - WGS84_F);
-/** Geostationary orbit radius from the earth's centre, metres. */
+/** Geostationary orbit radius from the earth's center, meters. */
 export const GEO_RADIUS_M = 42_164_170;
 
-// A position or direction as x, y and z in earth-centred coordinates (metres for
+// A position or direction as x, y and z in earth-centered coordinates (meters for
 // a position): x points to 0° latitude 0° longitude, y to 0° latitude 90° east,
 // and z to the North Pole.
 type Vec = [number, number, number];
@@ -28,7 +28,7 @@ const cross = (a: Vec, b: Vec): Vec => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] -
 export interface GroundSite {
   lat: number;
   lon: number;
-  /** Height above the WGS84 ellipsoid, metres. */
+  /** Height above the WGS84 ellipsoid, meters. */
   heightM?: number;
 }
 
@@ -42,13 +42,13 @@ export interface LookAngles {
    * feed clockwise as seen from behind the dish, looking toward the satellite.
    */
   skew: number;
-  /** Distance to the satellite, metres. */
+  /** Distance to the satellite, meters. */
   rangeM: number;
 }
 
 /**
- * Converts a site's latitude, longitude and height to earth-centred x, y and z
- * in metres, on the WGS84 ellipsoid that GPS uses. The earth is slightly
+ * Converts a site's latitude, longitude and height to earth-centered x, y and z
+ * in meters, on the WGS84 ellipsoid that GPS uses. The earth is slightly
  * flattened at the poles, which is what the WGS84_E2 terms account for.
  */
 function siteEcef({ lat, lon, heightM = 0 }: GroundSite): Vec {

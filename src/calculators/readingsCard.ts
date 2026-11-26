@@ -2,6 +2,7 @@
 // got at a spot, see it next to the map's prediction there, and optionally
 // correct the map by the average error.
 
+import { twoTap } from "./twoTap";
 import * as L from "leaflet";
 import type { LatLon } from "../lib/geo";
 import { MIN_FOR_CORRECTION, errorStats, loadReadings, readingsCsv, sameSite, saveReadings, statsByCover } from "../lib/readings";
@@ -124,7 +125,7 @@ export function createReadingsCard(host: ReadingsHost): ReadingsCard {
   let markers: L.LayerGroup | undefined;
   let lastCorrection = 0;
 
-  // Shows a message on the card, in warning colours when warn is set.
+  // Shows a message on the card, in warning colors when warn is set.
   const setStatus = (text: string, warn = false) => {
     el("status").textContent = text;
     el("status").classList.toggle("warn", warn);
@@ -272,9 +273,9 @@ export function createReadingsCard(host: ReadingsHost): ReadingsCard {
     );
     downloadFile(`field-readings-${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv");
   });
-  el("clear").addEventListener("click", () => {
+  twoTap(el<HTMLButtonElement>("clear"), "Tap again to delete this site's readings", () => {
     const here = mine();
-    if (!here.length || !confirm(`Delete all ${here.length} readings for this site? This can't be undone.`)) return;
+    if (!here.length) return;
     const ids = new Set(here.map((r) => r.id));
     readings = readings.filter((r) => !ids.has(r.id));
     saveReadings(storage, readings);

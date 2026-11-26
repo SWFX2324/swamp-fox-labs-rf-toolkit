@@ -109,7 +109,7 @@ const SECTIONS: Section[] = [
       {
         name: "Satellite link budget",
         source: "Carrier-to-noise budget against ETSI DVB-S2 thresholds (EN 302 307-1), and DVB-S (EN 300 421) for 7/8 and BPSK",
-        how: "Your small terminal works a gateway through the satellite, in two directions. The return (you to the gateway) is worked out from your uplink and the satellite's downlink to the gateway's big dish; the forward (the gateway to you) from the gateway's uplink and the satellite's downlink to your dish. Each is compared with what its modulation and FEC need. Interference from neighbouring satellites isn't included, so real margins run a little lower.",
+        how: "Your small terminal works a gateway through the satellite, in two directions. The return (you to the gateway) is worked out from your uplink and the satellite's downlink to the gateway's big dish; the forward (the gateway to you) from the gateway's uplink and the satellite's downlink to your dish. Each is compared with what its modulation and FEC need. Interference from neighboring satellites isn't included, so real margins run a little lower.",
         used: "Satellite Link Analysis",
       },
       {
@@ -152,7 +152,7 @@ const SECTIONS: Section[] = [
       {
         name: "Light and Dark",
         source: "OpenStreetMap",
-        how: "Street maps drawn from OpenStreetMap's volunteer data. Dark is the same map recoloured. They aren't saved for offline use, because OpenStreetMap's rules don't allow it, but tiles you've already looked at may still show.",
+        how: "Street maps drawn from OpenStreetMap's volunteer data. Dark is the same map recolored. They aren't saved for offline use, because OpenStreetMap's rules don't allow it, but tiles you've already looked at may still show.",
       },
       {
         name: "ESRI Satellite",
@@ -173,7 +173,7 @@ const SECTIONS: Section[] = [
       {
         name: "Terrain Tiles",
         source: "Mapzen, hosted by AWS Open Data; built from USGS 3DEP, SRTM, GMTED2010, ETOPO1 and national datasets",
-        how: "Height of the bare ground, stored as small map tiles with the height in each pixel's colour. The app reads the ground along every path or around every site from these tiles. It works at about 30 m detail, so small ridges and earthworks may not show, and trees and buildings come from the clutter settings instead. The data hasn't been updated since 2018. Download saves it for the area on screen so calculations work offline.",
+        how: "Height of the bare ground, stored as small map tiles with the height in each pixel's color. The app reads the ground along every path or around every site from these tiles. It works at about 30 m detail, so small ridges and earthworks may not show, and trees and buildings come from the clutter settings instead. The data hasn't been updated since 2018. Download saves it for the area on screen so calculations work offline.",
       },
     ],
   },

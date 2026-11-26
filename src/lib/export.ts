@@ -32,18 +32,18 @@ export interface ExportLine {
   description?: string;
 }
 
-// KML has no dashed lines, so colour and width carry the style, and each
-// line's description says what it means. KML colours are aabbggrr.
-const lineStyles: Record<LinkLineStyle, { colour: string; width: number }> = {
-  "good-clear": { colour: "ff0ca30c", width: 4 },
-  "good-obstructed": { colour: "b30ca30c", width: 2 },
-  marginal: { colour: "ff19b2fa", width: 3 },
-  fail: { colour: "803b3bd0", width: 1 },
+// KML has no dashed lines, so color and width carry the style, and each
+// line's description says what it means. KML colors are aabbggrr.
+const lineStyles: Record<LinkLineStyle, { color: string; width: number }> = {
+  "good-clear": { color: "ff0ca30c", width: 4 },
+  "good-obstructed": { color: "b30ca30c", width: 2 },
+  marginal: { color: "ff19b2fa", width: 3 },
+  fail: { color: "803b3bd0", width: 1 },
 };
 
 /**
  * A point style using an icon inside the KMZ, so it shows offline. The icon's
- * centre marks the point, because WinTAK centres icons whatever the file says.
+ * center marks the point, because WinTAK centers icons whatever the file says.
  */
 const iconStyle = (iconFile: string) =>
   `    <Style id="node"><IconStyle><scale>0.9</scale><Icon><href>${escapeXml(iconFile)}</href></Icon><hotSpot x="0.5" y="0.5" xunits="fraction" yunits="fraction"/></IconStyle></Style>`;
@@ -62,7 +62,7 @@ function placemark(name: string, description: string | undefined, geometry: stri
 /** A KML document of named points and rated link lines. */
 export function buildKml(title: string, points: ExportPoint[], lines: ExportLine[] = [], iconFile?: string): string {
   const styles = Object.entries(lineStyles)
-    .map(([id, { colour, width }]) => `    <Style id="${id}"><LineStyle><color>${colour}</color><width>${width}</width></LineStyle></Style>`)
+    .map(([id, { color, width }]) => `    <Style id="${id}"><LineStyle><color>${color}</color><width>${width}</width></LineStyle></Style>`)
     .concat(iconFile ? [iconStyle(iconFile)] : [])
     .join("\n");
   const body = [

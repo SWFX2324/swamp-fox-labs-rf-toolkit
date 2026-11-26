@@ -18,8 +18,8 @@ export function parseCoordinates(text: string): LatLon | undefined {
   const m = MGRS_PATTERN.exec(compact);
   if (!m || m[4].length % 2 !== 0 || m[4].length > 10 || Number(m[1]) < 1 || Number(m[1]) > 60) return undefined;
   try {
-    // Without digits this is the centre of the 100 km square; with them,
-    // the centre of the cell they describe.
+    // Without digits this is the center of the 100 km square; with them,
+    // the center of the cell they describe.
     const [lon, lat] = toPoint(compact);
     return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : undefined;
   } catch {

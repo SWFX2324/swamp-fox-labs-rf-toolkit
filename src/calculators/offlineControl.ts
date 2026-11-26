@@ -1,3 +1,4 @@
+import { twoTap } from "./twoTap";
 import { rfIcon } from "../ui/rfIcons";
 // The map's "save this view" button: stores terrain and satellite tiles for
 // what's on screen, in the same caches the service worker reads from.
@@ -147,7 +148,7 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
     stored.textContent = await storedText();
   };
 
-  // On a map with a taskbar, opens the panel just above it, centred on the
+  // On a map with a taskbar, opens the panel just above it, centered on the
   // Download button and kept inside the map.
   const placeOverTaskbar = () => {
     const bar = button.closest<HTMLElement>(".map-taskbar");
@@ -158,10 +159,10 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
     panel.classList.add("over-taskbar");
     panel.style.bottom = `${box.bottom - barTop + 10}px`;
     panel.style.maxHeight = `${Math.max(160, barTop - box.top - 20)}px`;
-    // Centred on the button, kept inside the map.
+    // Centered on the button, kept inside the map.
     const half = panel.offsetWidth / 2;
-    const centre = Math.min(Math.max(b.left + b.width / 2 - box.left, half + 10), box.width - half - 10);
-    panel.style.left = `${centre - half}px`;
+    const center = Math.min(Math.max(b.left + b.width / 2 - box.left, half + 10), box.width - half - 10);
+    panel.style.left = `${center - half}px`;
   };
 
   // Opens or closes the panel. Opening it re-plans the current view.
@@ -214,8 +215,7 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
   save.addEventListener("click", () => void start());
   cancel.addEventListener("click", () => running?.abort());
   part("close").addEventListener("click", () => open(false));
-  part("clear").addEventListener("click", async () => {
-    if (!confirm("Remove all saved and viewed terrain, land-cover and satellite tiles from this device?")) return;
+  twoTap(part<HTMLButtonElement>("clear"), "Tap again to clear saved tiles", async () => {
     await Promise.all([caches.delete(TERRAIN_CACHE), caches.delete(LAND_COVER_CACHE), caches.delete(IMAGERY_CACHE)]);
     status.textContent = "Saved tiles cleared.";
     void refreshStored();

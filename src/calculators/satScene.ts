@@ -99,7 +99,7 @@ function ridge(w: number, base: number, bottom: number, pts: [number, number][])
   return d;
 }
 
-/** Feed point of a dish drawn by `reflector`: 60 units in front of its centre, after the tilt. */
+/** Feed point of a dish drawn by `reflector`: 60 units in front of its center, after the tilt. */
 const feedPoint = (x: number, y: number, s: number, tilt: number, lift: number): Pt => {
   const rad = (tilt * Math.PI) / 180;
   return { x: x + 60 * Math.sin(rad) * s, y: y - lift * s - 60 * Math.cos(rad) * s };
@@ -214,7 +214,7 @@ export function fitReadoutPanel(svg: SVGSVGElement): void {
 
 /**
  * The scene for the Satellite Link page as SVG: your terminal, the satellite
- * and the gateway, the return and forward paths coloured by how each one rates,
+ * and the gateway, the return and forward paths colored by how each one rates,
  * and a readout of both margins. Returns the SVG and its width to height ratio.
  */
 export function satScene(i: SceneInput): { svg: string; ratio: string } {
@@ -255,7 +255,7 @@ export function satScene(i: SceneInput): { svg: string; ratio: string } {
   const retDown = right.arc(satR, gwFeed, 1);
   const fwdUp = right.arc(gwFeed, satR, -1);
 
-  // The CSS classes for a direction's paths: its colour, plus marginal or fail when it isn't good.
+  // The CSS classes for a direction's paths: its color, plus marginal or fail when it isn't good.
   const pathCls = (dir: "ret" | "fwd") => {
     const v = i[dir];
     return `ss-path ss-${dir}${v.ratingCls === "s-good" ? "" : v.ratingCls === "s-marginal" ? " marginal" : " fail"}`;
@@ -264,7 +264,7 @@ export function satScene(i: SceneInput): { svg: string; ratio: string } {
   const paths = (dir: "ret" | "fwd", ds: string[]) =>
     ds.map((d) => `<path class="${pathCls(dir)} ss-glow" d="${d}"/>`).join("") + ds.map((d) => `<path class="${pathCls(dir)} ss-flow" d="${d}"/>`).join("");
 
-  // Names beside the terminal's two arcs, so the colours read without a key.
+  // Names beside the terminal's two arcs, so the colors read without a key.
   const tag = (p: Pt, anchor: string, text: string, dir: "ret" | "fwd") =>
     `<text class="ss-tag ss-${dir}-text" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anchor}" font-size="${L.label}">${text}</text>`;
   const gap = L.bow / 2 + (i.wide ? 22 : 18);

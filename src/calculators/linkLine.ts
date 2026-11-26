@@ -6,7 +6,7 @@ import type { LatLon } from "../lib/geo";
 import { type LinkLineStyle, linkLineLabels, linkLineOrder, linkLineShortLabels } from "../lib/linkLines";
 
 /**
- * A link between two points: a dark casing under the coloured line, so it
+ * A link between two points: a dark casing under the colored line, so it
  * stays readable over streets, satellite imagery and terrain alike.
  */
 export function drawLinkLine(map: L.Map, from: LatLon, to: LatLon, style: LinkLineStyle): L.LayerGroup {

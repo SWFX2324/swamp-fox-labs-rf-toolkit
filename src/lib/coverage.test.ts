@@ -108,7 +108,7 @@ describe("antenna pattern on coverage", () => {
     // Radial 2 points east, along the beam; radial 6 points west, behind it.
     expect(loss[2][50]).toBeLessThan(1);
     expect(loss[6][50]).toBe(25);
-    // 45° off the beam centre is the 3 dB edge, plus a little vertical loss.
+    // 45° off the beam center is the 3 dB edge, plus a little vertical loss.
     expect(loss[1][50]).toBeGreaterThanOrEqual(3);
     expect(loss[1][50]).toBeLessThan(4);
   });

@@ -10,7 +10,7 @@ const H = 250;
 
 type Anchor = "start" | "middle" | "end";
 
-/** A length in metres to two decimal places, or in centimetres below a metre. */
+/** A length in meters to two decimal places, or in centimeters below a meter. */
 const metric = (m: number) => (m >= 1 ? `${m.toFixed(2)} m` : `${(m * 100).toFixed(1)} cm`);
 
 /** A length on a rounded tag: feet and inches, then metric, kept inside the drawing. */
@@ -45,13 +45,13 @@ const dim = (x1: number, y1: number, x2: number, y2: number) =>
 const wire = (d: string) => `<path class="wire" d="${d}"/>`;
 /** Coax: a thick jacket with a thin core showing down the middle. */
 const coax = (d: string) => `<path class="coax" d="${d}"/><path class="coax-core-line" d="${d}"/>`;
-/** A small insulator centred on a point. */
+/** A small insulator centered on a point. */
 const insulator = (x: number, y: number) => `<rect class="insulator" x="${x - 5}" y="${y - 4}" width="10" height="8" rx="3"/>`;
 /** The feed point: a small box where the coax connects. */
 const feed = (x: number, y: number, w = 14, h = 10) =>
   `<rect class="feed" x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3"/>`;
 
-/** A centre-fed dipole; a full-wave one is drawn with ladder line, not coax. */
+/** A center-fed dipole; a full-wave one is drawn with ladder line, not coax. */
 function dipole([leg, total]: ElementLength[], ladderLine = false): string {
   const feedLine = ladderLine
     ? `<path class="ladder" d="M205 117 V232 M215 117 V232"/>` +

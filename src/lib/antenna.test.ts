@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { designs, elementLengths, findDesign } from "./antenna";
 import { findCable } from "./coax";
-import { formatFeetInches, fromMetres, toHz } from "./units";
+import { formatFeetInches, fromMeters, toHz } from "./units";
 
 const design = (id: string) => findDesign(id)!;
-const feet = (m: number) => fromMetres(m, "ft");
+const feet = (m: number) => fromMeters(m, "ft");
 // The ARRL constants correspond to these factors exactly.
 const ARRL_WIRE = 468 / 491.8;
 const ARRL_LOOP = 1005 / 983.6;
