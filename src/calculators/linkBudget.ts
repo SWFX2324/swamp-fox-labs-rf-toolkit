@@ -1,3 +1,4 @@
+import { escapeHtml } from "../lib/html";
 import { PANE_ICONS, moveModeBar, pane, setupMapFirst, sideToggles } from "./mapFirst";
 import { type PlanNode, decodePlan, encodePlan, planFromHash } from "../lib/plans";
 import { enhanceFields } from "./fieldHelp";
@@ -1061,7 +1062,3 @@ export const linkBudgetCalculator: Calculator = {
   },
 };
 
-/** Names are user text: make them safe inside the ledger's markup. */
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}

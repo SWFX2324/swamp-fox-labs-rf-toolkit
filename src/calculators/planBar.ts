@@ -8,7 +8,7 @@ import { rfIcon } from "../ui/rfIcons";
 import type { ExportPoint } from "../lib/export";
 import { fileName } from "../lib/export";
 import { type Plan, createPlanStore, decodePlan, encodePlan, planFromHash } from "../lib/plans";
-import { type ImportedPoint, type PackageFile, buildDataPackage, importPoints } from "../lib/tak";
+import { type ImportedPoint, type PackageFile, MAX_IMPORT_BYTES, buildDataPackage, importPoints } from "../lib/tak";
 
 const storage = {
   getItem: (key: string) => {
@@ -206,6 +206,10 @@ export function createPlanCard(o: PlanBarOptions): HTMLElement {
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files?.[0];
     if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      status("That file is over 20 MB, too large to import.");
+      return;
+    }
     status("Reading…");
     try {
       const points = await importPoints(file.name, new Uint8Array(await file.arrayBuffer()));

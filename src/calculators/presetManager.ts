@@ -1,10 +1,11 @@
+import { escapeHtml } from "../lib/html";
 import { rfIcon } from "../ui/rfIcons";
 // Radio presets: stored on this device, and the dialog to make, edit, delete,
 // import and export them. The app ships no presets; each user enters the
 // numbers for the radios they know. Each tab keeps its own list: a mesh radio
 // and a coverage site radio are different things to plan with.
 
-import { RATE_UNITS, type RadioPreset, cleanPreset, cleanPresets, newPresetId, samePreset } from "../lib/radioPresets";
+import { MAX_PRESETS, RATE_UNITS, type RadioPreset, cleanPreset, cleanPresets, newPresetId, samePreset } from "../lib/radioPresets";
 import { frequencyUnits, powerUnits } from "../lib/units";
 import { downloadFile } from "./planBar";
 
@@ -49,7 +50,6 @@ export function adoptPreset(p: RadioPreset, scope: PresetScope): string {
   return added.id;
 }
 
-const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const options = (list: readonly string[]) => list.map((u) => `<option>${u}</option>`).join("");
 
 const template = (scope: PresetScope) => `
@@ -206,7 +206,11 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
 
   el("addRate").addEventListener("click", () => rateRow());
   el("cancel").addEventListener("click", showList);
-  el("new").addEventListener("click", () => showEditor(undefined));
+  // Presets past the limit would be dropped the next time the list loads, so a
+  // new one is refused while the list is full rather than saved and lost.
+  const FULL = `Up to ${MAX_PRESETS} presets. Delete one first.`;
+  const isFull = () => loadPresets(scope).length >= MAX_PRESETS;
+  el("new").addEventListener("click", () => (isFull() ? setStatus(FULL) : showEditor(undefined)));
   el("list").addEventListener("click", (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>("button");
     if (!t) return;
@@ -216,7 +220,10 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
     const edit = list.find((p) => p.id === t.dataset.edit);
     if (edit) showEditor(edit);
     const copy = list.find((p) => p.id === t.dataset.copy);
-    if (copy) showEditor({ ...copy, id: newPresetId(), name: `${copy.name} copy`.slice(0, 40) });
+    if (copy) {
+      if (isFull()) setStatus(FULL);
+      else showEditor({ ...copy, id: newPresetId(), name: `${copy.name} copy`.slice(0, 40) });
+    }
   });
   el("delete").addEventListener("click", () => {
     if (!editing || !confirm(`Delete the preset "${editing.name}"?`)) return;
@@ -252,7 +259,12 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
     const list = loadPresets(scope);
     const at = list.findIndex((p) => p.id === preset.id);
     if (at >= 0) list[at] = preset;
-    else list.push(preset);
+    else if (list.length >= MAX_PRESETS) {
+      // Only reachable when another tab filled the list while this editor was open.
+      showList();
+      setStatus(FULL);
+      return;
+    } else list.push(preset);
     savePresets(list, scope);
     setStatus(`Saved "${preset.name}".`);
     showList();
@@ -270,6 +282,11 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
     const file = el<HTMLInputElement>("file").files?.[0];
     el<HTMLInputElement>("file").value = "";
     if (!file) return;
+    // A preset file is a few kilobytes; anything far larger isn't one.
+    if (file.size > 1024 * 1024) {
+      setStatus("That file is too large to be a presets file.");
+      return;
+    }
     try {
       const data = JSON.parse(await file.text());
       const incoming = cleanPresets(Array.isArray(data) ? data : data?.radioPresets);
@@ -279,13 +296,19 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
       }
       const list = loadPresets(scope);
       let added = 0;
+      let left = 0;
       for (const p of incoming) {
         if (list.some((q) => samePreset(q, p))) continue;
+        if (list.length >= MAX_PRESETS) {
+          left++;
+          continue;
+        }
         list.push({ ...p, id: list.some((q) => q.id === p.id) ? newPresetId() : p.id });
         added++;
       }
       savePresets(list, scope);
-      setStatus(added ? `Imported ${added} preset${added === 1 ? "" : "s"}.` : "Those presets are already here.");
+      const didntFit = left ? ` ${left} didn't fit (up to ${MAX_PRESETS}).` : "";
+      setStatus(added ? `Imported ${added} preset${added === 1 ? "" : "s"}.${didntFit}` : left ? `No room for more presets (up to ${MAX_PRESETS}). Delete one first.` : "Those presets are already here.");
       renderList();
     } catch {
       setStatus("That file couldn't be read as presets.");

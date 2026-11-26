@@ -2,6 +2,7 @@
 // layers and elevation come from, and how each works. Opened from the top bar,
 // beside Settings.
 
+import { escapeHtml } from "../lib/html";
 import type { Calculator } from ".";
 import { PANE_ICONS } from "./mapFirst";
 
@@ -178,7 +179,6 @@ const SECTIONS: Section[] = [
   },
 ];
 
-const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 export const aboutCalculator: Calculator = {
   id: "about",

@@ -1,3 +1,4 @@
+import { escapeHtml } from "../lib/html";
 import { rfIcon } from "../ui/rfIcons";
 // Mesh Analysis: drop nodes on a map and see every node-to-node link over
 // real terrain with identical radios, plus whether the mesh holds together.
@@ -273,8 +274,6 @@ function loadState(settingDefaults: Record<string, string>): { settings: Record<
   }
 }
 
-/** Node names are user text: safe inside markup. */
-const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 const fmt = (v: number, digits = 1) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");

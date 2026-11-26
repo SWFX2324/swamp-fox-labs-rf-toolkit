@@ -3,11 +3,11 @@
 // and FEC to use, and how carefully to point. HTML and SVG strings, coloured by
 // CSS so they follow the theme.
 
+import { escapeHtml } from "../lib/html";
 import { type Modcod, GOOD_MARGIN_DB, allModcods, bitsPerSymbolNet } from "../lib/satLink";
 
 const fmt = (v: number, digits = 1) =>
   `${v < 0 ? "−" : ""}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 /**
  * Rough rain loss on one leg, dB, for light, moderate and heavy rain at moderate
@@ -98,8 +98,8 @@ export function modcodList(v: ModcodView): string {
       const [word, cls] = ratingOf(mg);
       const speed = (v.symbolRate * bitsPerSymbolNet(m)) / 1e6;
       const sel = m.name === v.selected;
-      return `<button type="button" class="mc-row ${cls}${sel ? " sel" : ""}" data-modcod="${esc(m.name)}" role="option" aria-selected="${sel}">
-        <span class="mc-name">${esc(m.name)}</span>
+      return `<button type="button" class="mc-row ${cls}${sel ? " sel" : ""}" data-modcod="${escapeHtml(m.name)}" role="option" aria-selected="${sel}">
+        <span class="mc-name">${escapeHtml(m.name)}</span>
         <span class="mc-speed"><span class="mc-bar" style="width:${((bitsPerSymbolNet(m) / fastest) * 100).toFixed(1)}%"></span><span class="mc-mbps">${fmt(speed, 2)} Mbps</span></span>
         <span class="mc-spare">${mg >= 0 ? `+${fmt(mg)}` : fmt(mg)} dB</span>
         <span class="pill ${cls}">${word}</span>

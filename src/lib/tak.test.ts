@@ -5,8 +5,12 @@ import { buildKml, buildZip, crc32 } from "./export";
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
 const now = new Date("2026-01-01T00:00:00Z");
 
-/** A one-file zip with the file deflated, as TAK clients and Google Earth write them. */
-async function deflatedZip(name: string, content: string): Promise<Uint8Array> {
+/**
+ * A one-file zip with the file deflated, as TAK clients and Google Earth write
+ * them. statedSize overrides the size the zip claims for the file, to build a
+ * file that lies about how large it expands.
+ */
+async function deflatedZip(name: string, content: string, statedSize?: number): Promise<Uint8Array> {
   const data = new TextEncoder().encode(content);
   const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("deflate-raw"));
   const packed = new Uint8Array(await new Response(stream).arrayBuffer());
@@ -17,7 +21,7 @@ async function deflatedZip(name: string, content: string): Promise<Uint8Array> {
   lv.setUint16(8, 8, true);
   lv.setUint32(14, crc32(data), true);
   lv.setUint32(18, packed.length, true);
-  lv.setUint32(22, data.length, true);
+  lv.setUint32(22, statedSize ?? data.length, true);
   lv.setUint16(26, n.length, true);
   const central = new Uint8Array(46);
   const cv = new DataView(central.buffer);
@@ -25,7 +29,7 @@ async function deflatedZip(name: string, content: string): Promise<Uint8Array> {
   cv.setUint16(10, 8, true);
   cv.setUint32(16, crc32(data), true);
   cv.setUint32(20, packed.length, true);
-  cv.setUint32(24, data.length, true);
+  cv.setUint32(24, statedSize ?? data.length, true);
   cv.setUint16(28, n.length, true);
   cv.setUint32(42, 0, true);
   const end = new Uint8Array(22);
@@ -99,6 +103,21 @@ describe("importing points", () => {
     expect(await importPoints("plan.kmz", kmz)).toEqual([{ name: "North", lat: 35.33, lon: -80.8 }]);
     // A stored KMZ, as this app writes, reads too.
     expect(await importPoints("plan.kmz", buildZip([{ name: "doc.kml", data: new TextEncoder().encode(kml) }]))).toHaveLength(1);
+  });
+
+  it("stops decompressing a file that expands past the size it states", async () => {
+    // 2 MB of KML that compresses to a few kilobytes, claiming to be 1 KB.
+    const big = buildKml("Plan", [{ name: "North", lat: 35.33, lon: -80.8 }]) + " ".repeat(2_000_000);
+    const bomb = await deflatedZip("doc.kml", big, 1024);
+    expect(await readZip(bomb)).toEqual([]);
+    expect(await importPoints("plan.kmz", bomb)).toEqual([]);
+    // The same file stating its true size reads normally.
+    expect(await importPoints("plan.kmz", await deflatedZip("doc.kml", big))).toHaveLength(1);
+  });
+
+  it("skips a character reference that isn't a valid character instead of failing the file", () => {
+    const kml = "<Placemark><name>Hill&#99999999; top</name><Point><coordinates>-80.5,35.5,0</coordinates></Point></Placemark>";
+    expect(pointsFromKml(kml)).toEqual([{ name: "Hill top", lat: 35.5, lon: -80.5 }]);
   });
 
   it("ignores files that aren't map data", async () => {

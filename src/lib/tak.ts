@@ -77,13 +77,25 @@ export interface ImportedPoint extends LatLon {
   name: string;
 }
 
-const MAX_FILE = 20 * 1024 * 1024;
+/** The largest file the import accepts. Callers check this before reading the file into memory. */
+export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
 const MAX_ENTRY = 20 * 1024 * 1024;
 const MAX_ENTRIES = 500;
 const MAX_POINTS = 200;
+/**
+ * The most one import may decompress in total, across every file in a package
+ * and any package inside it. Without it, a small crafted file could expand to
+ * gigabytes and crash the page.
+ */
+const MAX_INFLATED_TOTAL = 40 * 1024 * 1024;
+
+/** What is left of an import's decompression allowance, shared by nested packages. */
+interface InflateBudget {
+  bytesLeft: number;
+}
 
 /** The files in a zip (stored or deflated), or undefined if it isn't one. */
-export async function readZip(bytes: Uint8Array): Promise<PackageFile[] | undefined> {
+export async function readZip(bytes: Uint8Array, budget: InflateBudget = { bytesLeft: MAX_INFLATED_TOTAL }): Promise<PackageFile[] | undefined> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   // The end-of-central-directory record is in the last 64 KB.
   let end = -1;
@@ -109,34 +121,62 @@ export async function readZip(bytes: Uint8Array): Promise<PackageFile[] | undefi
     const local = view.getUint32(at + 42, true);
     const name = decoder.decode(bytes.subarray(at + 46, at + 46 + nameLen));
     at += 46 + nameLen + extraLen + commentLen;
-    if (name.endsWith("/") || size > MAX_ENTRY || local + 30 > bytes.length) continue;
+    if (name.endsWith("/") || size > MAX_ENTRY || size > budget.bytesLeft || local + 30 > bytes.length) continue;
     const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
     const raw = bytes.subarray(start, start + compressed);
-    if (method === 0) files.push({ name, data: raw.slice() });
-    else if (method === 8) {
-      const data = await inflate(raw, size);
-      if (data) files.push({ name, data });
-    }
+    let data: Uint8Array | undefined;
+    if (method === 0) data = raw.slice();
+    else if (method === 8) data = await inflate(raw, size);
+    if (!data) continue;
+    budget.bytesLeft -= data.length;
+    files.push({ name, data });
   }
   return files;
 }
 
+/**
+ * Decompresses one zip entry. The entry states its own size, and decompression
+ * stops as soon as the output passes it (with a little slack), so a file that
+ * lies about its size can't fill memory. Undefined for a bad or oversized entry.
+ */
 async function inflate(raw: Uint8Array, expected: number): Promise<Uint8Array | undefined> {
+  const limit = Math.max(expected, 1) * 1.01 + 16;
   try {
     const stream = new Blob([raw as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-    const out = new Uint8Array(await new Response(stream).arrayBuffer());
-    return out.length <= Math.max(expected, 1) * 1.01 + 16 ? out : undefined;
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > limit) {
+        await reader.cancel();
+        return undefined;
+      }
+      chunks.push(value);
+    }
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const c of chunks) {
+      out.set(c, at);
+      at += c.length;
+    }
+    return out;
   } catch {
     return undefined;
   }
 }
 
+/** The character for a numeric XML reference, or nothing when the number isn't a valid character. */
+const fromCodePoint = (code: number) => (Number.isInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "");
+
 /** XML text with the five standard entities and numeric ones decoded. */
 function unescapeXml(s: string): string {
   return s
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(Number.parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => fromCodePoint(Number.parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => fromCodePoint(Number(d)))
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
@@ -190,8 +230,8 @@ export function pointsFromCot(xml: string): ImportedPoint[] {
  * the KML, KMZ and CoT files inside it). Points that repeat are kept once.
  */
 export async function importPoints(name: string, bytes: Uint8Array): Promise<ImportedPoint[]> {
-  if (bytes.length > MAX_FILE) return [];
-  const points = await pointsIn(name, bytes, 0);
+  if (bytes.length > MAX_IMPORT_BYTES) return [];
+  const points = await pointsIn(name, bytes, 0, { bytesLeft: MAX_INFLATED_TOTAL });
   const seen = new Set<string>();
   return points
     .filter((p) => {
@@ -203,14 +243,14 @@ export async function importPoints(name: string, bytes: Uint8Array): Promise<Imp
     .slice(0, MAX_POINTS);
 }
 
-async function pointsIn(name: string, bytes: Uint8Array, depth: number): Promise<ImportedPoint[]> {
+async function pointsIn(name: string, bytes: Uint8Array, depth: number, budget: InflateBudget): Promise<ImportedPoint[]> {
   const isZip = bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
   if (isZip) {
     if (depth > 1) return [];
-    const files = (await readZip(bytes)) ?? [];
+    const files = (await readZip(bytes, budget)) ?? [];
     const found: ImportedPoint[] = [];
     for (const f of files) {
-      if (/\.(kml|kmz|cot|xml|zip)$/i.test(f.name) && !/manifest\.xml$/i.test(f.name)) found.push(...(await pointsIn(f.name, f.data, depth + 1)));
+      if (/\.(kml|kmz|cot|xml|zip)$/i.test(f.name) && !/manifest\.xml$/i.test(f.name)) found.push(...(await pointsIn(f.name, f.data, depth + 1, budget)));
     }
     return found;
   }

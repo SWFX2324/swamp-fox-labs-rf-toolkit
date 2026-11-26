@@ -37,7 +37,8 @@ export interface RadioPreset {
   sharedChannel: boolean;
 }
 
-const MAX_PRESETS = 40;
+/** The most presets kept per tool; loading drops any beyond it, so saving and importing stop here. */
+export const MAX_PRESETS = 40;
 const MAX_RATES = 16;
 const MAX_TEXT = 40;
 const MAX_NUMBER_TEXT = 12;

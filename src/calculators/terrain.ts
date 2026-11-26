@@ -2,6 +2,7 @@
 // (and an optional relay between them), the elevation profile between them,
 // and how well the path clears it.
 
+import { escapeHtml } from "../lib/html";
 import * as L from "leaflet";
 import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView, DATA_ATTRIBUTION } from "./mapKit";
 import type { EditField, Link3D, Point3D } from "../lib/scene3d";
@@ -9,7 +10,7 @@ import { type RelaySurface, hopMarginDb, topCandidates } from "../lib/relay";
 import { type RelayFinderInputs, findRelay, surfaceImage } from "./relayFinder";
 import { type ExportPoint, buildKml, buildZip } from "../lib/export";
 import { IMPORT_ACCEPT, NO_POINTS, SHARE_ICONS, downloadFile } from "./planBar";
-import { buildDataPackage, importPoints } from "../lib/tak";
+import { MAX_IMPORT_BYTES, buildDataPackage, importPoints } from "../lib/tak";
 import { drawLinkLine, linkLegend } from "./linkLine";
 import { type LinkQuality, linkLineLabels, linkLineStyle } from "../lib/linkLines";
 import { locateButton, locateMe } from "./locate";
@@ -941,6 +942,10 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files?.[0];
     if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      setStatus("That file is over 20 MB, too large to import.", true);
+      return;
+    }
     setStatus("Reading…");
     let points: Awaited<ReturnType<typeof importPoints>>;
     try {
@@ -1250,7 +1255,7 @@ export function drawProfile(
   }), last];
   const relayLabels = antennas
     .slice(1, -1)
-    .map((q, i) => `<text class="end-label relay-label" x="${x(q.distanceM)}" y="${Math.max(pad.t + 10, y(q.losM) - 8)}" text-anchor="middle">${escapeXml(names[i + 1] ?? "Relay")}</text>`)
+    .map((q, i) => `<text class="end-label relay-label" x="${x(q.distanceM)}" y="${Math.max(pad.t + 10, y(q.losM) - 8)}" text-anchor="middle">${escapeHtml(names[i + 1] ?? "Relay")}</text>`)
     .join("");
 
   const hLabel = (m: number) => `${fmt(fromMetres(m, p.heightUnit), 0)} ${p.heightUnit}`;
@@ -1268,8 +1273,8 @@ export function drawProfile(
       ${antennas.map(mast).join("")}
       ${hits}
       ${xTicks.map((d, i) => `<text class="axis" x="${x(d)}" y="${H - 8}" text-anchor="${["start", "middle", "end"][i]}">${dLabel(d)}${i === 2 ? ` ${p.distUnit}` : ""}</text>`).join("")}
-      <text class="end-label" x="${x(0) + 4}" y="${y(first.losM) - 6}">${escapeXml(names[0])}</text>
-      <text class="end-label" x="${x(total) - 4}" y="${y(last.losM) - 6}" text-anchor="end">${escapeXml(names[names.length - 1])}</text>
+      <text class="end-label" x="${x(0) + 4}" y="${y(first.losM) - 6}">${escapeHtml(names[0])}</text>
+      <text class="end-label" x="${x(total) - 4}" y="${y(last.losM) - 6}" text-anchor="end">${escapeHtml(names[names.length - 1])}</text>
       ${relayLabels}
       <line class="crosshair" x1="0" x2="0" y1="${pad.t}" y2="${H - pad.b}" style="display:none"/>
     </svg>
@@ -1280,9 +1285,4 @@ export function drawProfile(
       <span class="key"><span class="ln dash zone60-key"></span>60% line</span>
       <span class="key"><span class="sw terrain-key"></span>Terrain + earth curve</span>
     </div>`;
-}
-
-/** Names are user text: make them safe inside SVG markup. */
-function escapeXml(text: string): string {
-  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }

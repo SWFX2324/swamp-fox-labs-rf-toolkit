@@ -1,3 +1,4 @@
+import { escapeHtml } from "../lib/html";
 import { rfIcon } from "../ui/rfIcons";
 // Coverage Analysis: shade the area one or more sites can reach, over terrain,
 // on the map. With several sites, each point is shaded for the site that
@@ -346,7 +347,6 @@ function loadExtras(): ExtraSite[] {
   }
 }
 
-const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** One site's radio and antenna, ready for the math. */
 interface SiteSpec {
