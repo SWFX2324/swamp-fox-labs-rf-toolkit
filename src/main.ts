@@ -7,6 +7,12 @@ import { THEME_EVENT, isDarkTheme } from "./calculators/theme";
 import { type CoordFormat, getCoordFormat, setCoordFormat } from "./lib/coords";
 import { COORD_EVENT } from "./calculators/settings";
 
+// The dev branch's build lives under /beta/: mark it in the header.
+if (import.meta.env.BASE_URL.endsWith("/beta/")) {
+  document.querySelector(".brand")?.insertAdjacentHTML("beforeend", '<span class="beta-badge">Beta</span>');
+  document.title = document.title.replace("RF Toolkit", "RF Toolkit Beta");
+}
+
 registerSW({ immediate: true });
 
 const app = document.querySelector<HTMLElement>("#app")!;

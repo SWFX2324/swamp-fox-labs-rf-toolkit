@@ -1566,3 +1566,6 @@ main:has(.map-first) { max-width: none; }
 .tool-text { container-type: inline-size; }
 .tool-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: min(15px, 6cqi); }
 @media (max-width: 420px) { .tool-art { width: 48px; height: 48px; } }
+
+/* The dev branch's build, at /beta/. */
+.beta-badge { margin-left: 2px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #10140e; background: var(--warning); }

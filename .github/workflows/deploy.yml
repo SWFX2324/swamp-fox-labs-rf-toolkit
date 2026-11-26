@@ -1,8 +1,14 @@
 name: Test and deploy
 
+# Two channels on one GitHub Pages site:
+# - main: the stable release, at /swamp-fox-labs-rf-toolkit/
+# - dev:  the development build, at /swamp-fox-labs-rf-toolkit/beta/
+# A push to either branch tests that branch, then builds both and deploys them
+# together, since a Pages site is one artifact.
+
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
 
@@ -16,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,14 +33,47 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/main'
+
+  build-site:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
-          path: dist
+          ref: main
+          path: stable
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: beta
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            stable/package-lock.json
+            beta/package-lock.json
+      - name: Build the stable site (main)
+        working-directory: stable
+        run: npm ci && npm run build
+      - name: Build the beta site (dev)
+        working-directory: beta
+        run: npm ci && npm run build
+        env:
+          BASE_PATH: /swamp-fox-labs-rf-toolkit/beta/
+      - name: Put the beta under the stable site
+        run: |
+          mkdir -p site
+          cp -r stable/dist/. site/
+          mkdir -p site/beta
+          cp -r beta/dist/. site/beta/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
 
   deploy:
-    if: github.ref == 'refs/heads/main'
-    needs: build
+    needs: build-site
     runs-on: ubuntu-latest
     environment:
       name: github-pages

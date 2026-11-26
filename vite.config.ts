@@ -2,8 +2,14 @@ import { defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
 
 // GitHub Pages serves the site from /<repo>/, so assets need that base path.
+// The dev branch builds the same app under /<repo>/beta/ (BASE_PATH set by the
+// deploy workflow), installable on its own as "RF Toolkit Beta".
+const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
+const base = env.BASE_PATH ?? "/swamp-fox-labs-rf-toolkit/";
+const beta = base.endsWith("/beta/");
+
 export default defineConfig({
-  base: "/swamp-fox-labs-rf-toolkit/",
+  base,
   // The 3D view is one large chunk (MapLibre), loaded only when opened.
   build: { chunkSizeWarningLimit: 1200 },
   plugins: [
@@ -11,8 +17,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon-fox-32.png", "brand-fox.png", "apple-touch-icon-dark.png", "icon-fox-192.png", "icon-fox-512.png", "icon-maskable-dark-512.png"],
       manifest: {
-        name: "RF Toolkit",
-        short_name: "RF Toolkit",
+        name: beta ? "RF Toolkit Beta" : "RF Toolkit",
+        short_name: beta ? "RF Beta" : "RF Toolkit",
         description: "Practical RF calculators for planning radio links in the field.",
         theme_color: "#111110",
         background_color: "#111110",
@@ -28,6 +34,9 @@ export default defineConfig({
         // App shell plus the bundled SVGs (the topographic page background) and the
         // 3D view with its MapLibre worker (.mjs), so it all works offline.
         globPatterns: ["**/*.{js,mjs,css,html,svg,webp}"],
+        // The stable site's service worker covers the whole repo path, so it
+        // leaves the beta's pages to the network (and the beta's own worker).
+        navigateFallbackDenylist: beta ? [] : [/\/beta\//],
         // Keep map tiles the user has looked at, so the map background still
         // shows offline. Stale-while-revalidate refreshes them when online.
         // OpenStreetMap tiles are never downloaded in bulk (per its tile usage
