@@ -11,13 +11,18 @@ const WGS84_E2 = WGS84_F * (2 - WGS84_F);
 /** Geostationary orbit radius from the earth's centre, metres. */
 export const GEO_RADIUS_M = 42_164_170;
 
+// A position or direction as x, y and z in earth-centred coordinates (metres for
+// a position): x points to 0° latitude 0° longitude, y to 0° latitude 90° east,
+// and z to the North Pole.
 type Vec = [number, number, number];
-const rad = (d: number) => (d * Math.PI) / 180;
-const deg = (r: number) => (r * 180) / Math.PI;
-const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const sub = (a: Vec, b: Vec): Vec => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const scale = (a: Vec, s: number): Vec => [a[0] * s, a[1] * s, a[2] * s];
-const norm = (a: Vec) => Math.sqrt(dot(a, a));
+// Small vector helpers for the geometry below.
+const rad = (d: number) => (d * Math.PI) / 180; // Degrees to radians.
+const deg = (r: number) => (r * 180) / Math.PI; // Radians to degrees.
+const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; // How far two vectors point the same way.
+const sub = (a: Vec, b: Vec): Vec => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; // The vector from b to a.
+const scale = (a: Vec, s: number): Vec => [a[0] * s, a[1] * s, a[2] * s]; // A vector stretched by a number.
+const norm = (a: Vec) => Math.sqrt(dot(a, a)); // A vector's length.
+// The vector at right angles to both a and b, by the right-hand rule.
 const cross = (a: Vec, b: Vec): Vec => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
 export interface GroundSite {
@@ -41,6 +46,11 @@ export interface LookAngles {
   rangeM: number;
 }
 
+/**
+ * Converts a site's latitude, longitude and height to earth-centred x, y and z
+ * in metres, on the WGS84 ellipsoid that GPS uses. The earth is slightly
+ * flattened at the poles, which is what the WGS84_E2 terms account for.
+ */
 function siteEcef({ lat, lon, heightM = 0 }: GroundSite): Vec {
   const phi = rad(lat);
   const lambda = rad(lon);
@@ -52,6 +62,11 @@ function siteEcef({ lat, lon, heightM = 0 }: GroundSite): Vec {
   ];
 }
 
+/**
+ * Where to point a dish at a geostationary satellite from a ground site: the
+ * azimuth from true north, the elevation above the horizon, the feed skew for
+ * linear polarization, and the distance to the satellite.
+ */
 export function lookAngles(site: GroundSite, satLonDeg: number): LookAngles {
   const phi = rad(site.lat);
   const lambda = rad(site.lon);
@@ -74,11 +89,13 @@ export function lookAngles(site: GroundSite, satLonDeg: number): LookAngles {
   // own vertical (local up) to that axis. By the right-hand rule a positive
   // angle about the line of sight is clockwise to someone looking along it.
   const axis: Vec = [0, 0, 1];
+  // A vector with its part along the line of sight removed, as seen looking along it.
   const project = (v: Vec) => sub(v, scale(los, dot(v, los)));
   const upP = project(up);
   const axisP = project(axis);
   let skew = deg(Math.atan2(dot(cross(upP, axisP), los), dot(upP, axisP)));
-  // Polarization is a line, not an arrow: fold into (−90°, 90°]. South of the
+  // Polarization is a line, not an arrow, so an angle and the same angle plus 180°
+  // mean the same thing. Fold the skew into the range above −90° and up to 90°. South of the
   // equator the axis points "down" the view, which this turns around.
   if (skew > 90) skew -= 180;
   else if (skew <= -90) skew += 180;
@@ -117,6 +134,7 @@ export function parseOrbitalSlot(text: string): number | undefined {
   return lon;
 }
 
+/** An orbital slot as people write it, like "101.0° W", from degrees east (west negative). */
 export function formatOrbitalSlot(lonEast: number): string {
   const v = Math.abs(lonEast).toFixed(1);
   return lonEast === 0 ? "0.0°" : `${v}° ${lonEast < 0 ? "W" : "E"}`;

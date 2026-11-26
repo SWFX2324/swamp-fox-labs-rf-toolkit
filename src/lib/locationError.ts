@@ -10,6 +10,10 @@ export const LOCATION_UNSUPPORTED = `This browser can't share its location. ${FA
 const PERMISSION_DENIED = 1;
 const TIMEOUT = 3;
 
+/**
+ * The message to show when finding the location fails, for the browser's error
+ * code, with a hint about Windows settings when the device runs Windows.
+ */
 export function locationErrorMessage(code: number, windows: boolean): string {
   const problem =
     code === PERMISSION_DENIED ? "Location is blocked. Allow it for this site in your browser, and check that location is on in your device's settings."

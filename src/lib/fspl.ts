@@ -2,7 +2,7 @@
 // with clear line of sight and no obstructions, reflections or atmospheric
 // absorption. Real links lose more; treat this as the best case.
 //
-//   FSPL = 20·log10(4·π·d·f / c)  dB
+//   FSPL = 20 * log10(4 * π * d * f / c)  dB
 
 import { SPEED_OF_LIGHT } from "./units";
 

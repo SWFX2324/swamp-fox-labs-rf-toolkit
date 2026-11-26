@@ -88,6 +88,7 @@ const template = `
   </div>
 `;
 
+/** The saved inputs over the defaults, so a field added since still gets its default. */
 function loadState(): Record<string, string> {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -97,6 +98,7 @@ function loadState(): Record<string, string> {
   }
 }
 
+/** Remembers the inputs. */
 function saveState(state: Record<string, string>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -105,6 +107,7 @@ function saveState(state: Record<string, string>): void {
   }
 }
 
+/** A length in metres to three decimal places, or in centimetres below a metre. */
 const metric = (m: number) =>
   m >= 1 ? `${m.toFixed(3)} m` : `${(m * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })} cm`;
 
@@ -112,15 +115,19 @@ export const antennaLengthCalculator: Calculator = {
   id: "antenna",
   title: "Antenna Planning Tool",
   shortTitle: "Antenna",
+  // Builds the page and recalculates the element lengths, diagram and pattern on every change.
   render() {
     const form = document.createElement("form");
     form.className = "calculator antenna-length map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
+    // A field in the form by its name.
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
+    // A result element by its data-out name.
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
 
+    // Puts saved or default values into the form's fields.
     const fill = (values: Record<string, string>) => {
       // Skip names that no longer exist, such as a renamed field in old saved state.
       for (const [name, value] of Object.entries(values)) {
@@ -132,6 +139,7 @@ export const antennaLengthCalculator: Calculator = {
     const pattern = createPattern3d();
     out("patterns").replaceWith(pattern.element);
 
+    // Reads the inputs, saves them, and redraws every result, or shows what to fix when an input isn't usable.
     const update = () => {
       const state: Record<string, string> = {};
       for (const name of Object.keys(defaults)) state[name] = field(name).value;

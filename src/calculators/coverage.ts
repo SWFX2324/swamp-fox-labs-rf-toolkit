@@ -105,6 +105,7 @@ const detailLevels: Record<string, { radials: number; steps: number; label: stri
   fine: { radials: 240, steps: 160, label: "Fine (1.5° steps)" },
 };
 
+/** A labelled number box with its unit. */
 function numberField(label: string, name: string, unit: string, attrs = ""): string {
   return `
     <label>${label}
@@ -282,6 +283,7 @@ function currentDefaults(): Record<string, string> {
   };
 }
 
+/** The saved inputs, checked against the defaults (see tabValues), or the defaults when nothing usable is stored. */
 function loadState(defaults: Record<string, string>): Record<string, string> {
   try {
     return tabValues(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"), defaults, legacyDefaults);
@@ -290,10 +292,11 @@ function loadState(defaults: Record<string, string>): Record<string, string> {
   }
 }
 
+/** A number to the given decimal places, with a true minus sign for negatives. */
 const fmt = (v: number, digits = 1) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
-/** "#0ca30c" or "rgb(...)" from a CSS custom property, as [r, g, b]. */
+/** A colour from the page's CSS variables (such as --good) as red, green and blue, so the canvas uses the theme's colours. */
 function cssColor(name: string): [number, number, number] {
   const probe = document.createElement("span");
   probe.style.color = `var(${name})`;
@@ -324,11 +327,13 @@ const SITES_KEY = "rf-toolkit:coverage-sites";
 /** Sites beyond Site A. Each adds its own terrain run. */
 const MAX_EXTRA_SITES = 4;
 
+/** The extra sites from untrusted data, validated the same way a share link's nodes are, at most MAX_EXTRA_SITES. */
 function cleanExtras(raw: unknown): ExtraSite[] {
   const nodes = sanitizePlan({ settings: {}, nodes: raw }, [])?.nodes ?? [];
   return nodes.slice(0, MAX_EXTRA_SITES).map(toExtra);
 }
 
+/** An extra site from a plan's node, with Omni and an aim of 0 where the node has none. */
 const toExtra = (n: PlanNode): ExtraSite => ({
   name: n.name,
   lat: n.lat,
@@ -339,6 +344,7 @@ const toExtra = (n: PlanNode): ExtraSite => ({
   preset: n.preset ?? "",
 });
 
+/** The extra sites saved on this device, or none when storage can't be read. */
 function loadExtras(): ExtraSite[] {
   try {
     return cleanExtras(JSON.parse(localStorage.getItem(SITES_KEY) ?? "[]"));
@@ -382,6 +388,8 @@ export const coverageCalculator: Calculator = {
   id: "coverage",
   title: "VHF/UHF Coverage Analysis",
   shortTitle: "Coverage",
+  // Builds the Coverage Analysis page: the sites and radios, the map, and the
+  // coverage results. Changes mark the map out of date until Map coverage runs again.
   render() {
     const form = document.createElement("form");
     const defaults = currentDefaults();
@@ -390,14 +398,18 @@ export const coverageCalculator: Calculator = {
     bindTreeField(form, "heightUnit");
     form.addEventListener("submit", (e) => e.preventDefault());
 
+    // A field in the form by its name.
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
+    // A result element by its data-out name.
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
+    // A field's value as a number (NaN when blank or not a number).
     const num = (name: string) => Number.parseFloat(field(name).value);
 
     // Radio presets: the user's own, from this device. Site B uses Site A's
     // radio unless another is picked, or user-defined numbers.
     const fillPresetOptions = () => {
       const presets = loadPresets("coverage");
+      // Refills one preset dropdown, keeping its choice when that preset still exists.
       const fill = (name: string, first: HTMLOptionElement[], last: HTMLOptionElement[] = []) => {
         const select = field(name) as HTMLSelectElement;
         const keep = select.value;
@@ -408,7 +420,9 @@ export const coverageCalculator: Calculator = {
       fill("rxPreset", [new Option("Same as Site A", "")], [new Option("User defined", "custom")]);
     };
     fillPresetOptions();
+    // The preset chosen for Site A, if any.
     const sitePreset = (): RadioPreset | undefined => loadPresets("coverage").find((p) => p.id === field("sitePreset").value);
+    // Site B's preset: its own, Site A's when it says Same as Site A, or none for User defined.
     const rxPreset = (): RadioPreset | undefined => {
       const v = field("rxPreset").value;
       if (v === "custom") return undefined;
@@ -418,6 +432,7 @@ export const coverageCalculator: Calculator = {
     const rungs = () => ladder(rxPreset(), deratedSensitivity);
     /** Site A's rate ladder, for Site B reaching it. */
     const siteRungs = () => ladder(sitePreset(), deratedSensitivity);
+    // The weakest signal any rate on a ladder decodes at, which sets the receiver's sensitivity.
     const slowest = (r: Rung[]) => Math.min(...r.map((x) => x.sensDbm));
     /** Site B's sensitivity: its ladder's slowest rate, or the field. */
     const sensitivity = () => {
@@ -443,6 +458,7 @@ export const coverageCalculator: Calculator = {
     // The next map tap places a new site.
     let placing = false;
 
+    // Remembers the inputs that differ from the defaults, and the extra sites.
     const save = () => {
       const state: Record<string, string> = {};
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
@@ -453,16 +469,24 @@ export const coverageCalculator: Calculator = {
         // Storage blocked: settings just won't be remembered.
       }
     };
+    // Shows a message under the site box, in warning colours when warn is set.
     const setStatus = (text: string, warn = false) => {
       out("status").textContent = text;
       out("status").classList.toggle("warn", warn);
     };
+    // The height unit chosen for antenna heights.
     const heightUnit = () => asDistanceUnit(field("heightUnit").value);
+    // The coverage radius in metres.
     const radiusM = () => toMetres(num("radius"), asDistanceUnit(field("radiusUnit").value));
+    // Site A's position, or undefined when its box doesn't hold a valid location.
     const site = () => parseCoordinates(field("site").value);
+    // Site A's typed name, or "Site A".
     const siteName = () => field("siteName").value.trim() || "Site A";
+    // An extra site's fixed label: Site A2, Site A3 and so on.
     const extraLabel = (i: number) => `Site A${i + 2}`;
+    // An extra site's typed name, or its label when it has none.
     const extraName = (i: number) => extras[i]?.name.trim() || extraLabel(i);
+    // Site A's antenna pattern, gain and aim.
     const txBeam = () => beam(field("txPattern").value, num("txGain") || 0, num("txAzimuth"), num("txTilt"));
 
     /** Every placed site's radio and antenna, Site A first. */
@@ -481,6 +505,7 @@ export const coverageCalculator: Calculator = {
         rungs: siteRungs(),
       };
       const presets = loadPresets("coverage");
+      // A typed number, or undefined when blank.
       const val = (v?: string) => {
         const x = Number.parseFloat(v ?? "");
         return Number.isFinite(x) ? x : undefined;
@@ -507,6 +532,7 @@ export const coverageCalculator: Calculator = {
         }),
       ];
     };
+    // Where every placed site is, Site A first.
     const siteLocations = (): LatLon[] => {
       const a = site();
       return a ? [a, ...extras.map((e) => ({ lat: e.lat, lon: e.lon }))] : [];
@@ -524,9 +550,12 @@ export const coverageCalculator: Calculator = {
     let lastOverlay: { url: string; bounds: OverlayBounds } | undefined;
     let runWhenReady = false;
 
+    // True when Environment is Auto (from the land cover map).
     const autoCover = () => field("environment").value === AUTO_ENVIRONMENT;
+    // What the terrain was sampled for: when this changes, the map has to run again.
     const sampleKey = () =>
       `${field("site").value}|${extras.map((e) => `${e.lat.toFixed(6)},${e.lon.toFixed(6)}`).join(";")}|${radiusM()}|${field("detail").value}|${autoCover()}`;
+    // True when every site's coverage is worked out for the current sites and radius.
     const mapped = () => runs.length > 0 && runs.every((r) => r.margins) && sampledFor === sampleKey();
 
     // Pins, circles and aim lines for every site.
@@ -579,15 +608,18 @@ export const coverageCalculator: Calculator = {
       }
     };
 
+    // Shows the aim fields only for an antenna that isn't omni.
     const syncPattern = () => {
       form.querySelector<HTMLElement>('[data-show="txAim"]')!.hidden = field("txPattern").value === "omni";
     };
 
+    // Each site's samples and margins, for the shading and the tap readout.
     const siteMargins = (): SiteMargins[] => runs.map((r) => ({ samples: r.samples, margins: r.margins! }));
 
     // Field readings aren't on this page: nothing taken from the map taps, and no correction.
     const readingsCard = { correctionDb: () => 0, refresh: () => {}, takeMapTap: (_p: LatLon) => false };
 
+    // Draws the coverage shading over the map, as one image covering every site.
     const drawOverlay = () => {
       overlay?.remove();
       overlay = undefined;
@@ -663,6 +695,8 @@ export const coverageCalculator: Calculator = {
       note.hidden = !text;
     };
 
+    // Works out the margins from the sampled terrain and the current radios, and
+    // redraws the shading and the results. Quick, so it runs on every change.
     const recompute = () => {
       const ready = runs.length > 0 && sampledFor === sampleKey();
       out("stale").hidden = runs.length === 0 || ready;
@@ -684,6 +718,7 @@ export const coverageCalculator: Calculator = {
       const rxGainDbi = num("rxGain") || 0;
       const rxCableLossDb = num("rxCable") || 0;
       if (!(freqHz > 0) || !Number.isFinite(rxSens)) return;
+      // An environment with the typed tree height applied.
       const trees = (e: Environment) => withFormTrees(form, "heightUnit", e);
       // Where the land-cover map has no data yet, the Settings fallback stands in.
       const env = trees(autoCover() ? fallbackEnvironment() : findEnvironment(field("environment").value));
@@ -704,6 +739,7 @@ export const coverageCalculator: Calculator = {
         const siteEnv = lc ? trees(lc.site.environment) : env;
         const clutterKey = JSON.stringify([freqHz, rxH, field("treeHeight").value, heightUnit()]);
         if (lc && run.clutter?.key !== clutterKey) {
+          // The environment at one sample point, from the land cover map.
           const at = (rr: number, k: number) => trees(lc.points[rr][k].environment);
           run.clutter = {
             key: clutterKey,
@@ -779,6 +815,8 @@ export const coverageCalculator: Calculator = {
       readingsCard.refresh();
     };
 
+    // Map coverage: loads terrain (and land cover when Auto) around every site,
+    // samples it along radials, then works out the coverage.
     const run = async () => {
       const p = site();
       const r = radiusM();
@@ -856,6 +894,7 @@ export const coverageCalculator: Calculator = {
       setStatus("");
     };
 
+    // Saves and redraws after any input changes.
     const inputsChanged = () => {
       save();
       syncPattern();
@@ -881,9 +920,10 @@ export const coverageCalculator: Calculator = {
               <label>Antenna pattern<select data-k="antenna">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select></label>
               <label data-k="aimRow">Antenna points<span class="input-unit"><input data-k="aim" type="number" inputmode="decimal" step="any" min="0" max="360" /><span class="unit">° true</span></span></label>
             </div>`;
+          // An element of this site's row by its data-k name.
           const q = <T extends HTMLElement>(k: string) => row.querySelector<T>(`[data-k="${k}"]`)!;
           row.querySelector("b")!.textContent = extraLabel(i);
-          q("remove").setAttribute("aria-label", `Remove ${extraName(i)}`); // user text, as an attribute
+          q("remove").setAttribute("aria-label", `Remove ${extraName(i)}`); // User text, so set as an attribute.
           const name = q<HTMLInputElement>("name");
           name.value = e.name;
           name.placeholder = extraLabel(i);
@@ -921,6 +961,7 @@ export const coverageCalculator: Calculator = {
             inputsChanged();
             placeSites(true);
           });
+          // Keeps a site field and its saved value in step as it changes.
           const live = (input: HTMLInputElement | HTMLSelectElement, set: (v: string) => void) =>
             input.addEventListener(input instanceof HTMLSelectElement ? "change" : "input", () => {
               set(input.value);
@@ -975,6 +1016,7 @@ export const coverageCalculator: Calculator = {
       inputsChanged();
     };
 
+    // Creates the map once the page is on screen; tapping it places sites or reads the coverage there.
     const initMap = () => {
       if (map || !form.isConnected) return;
       const p = site();
@@ -994,6 +1036,7 @@ export const coverageCalculator: Calculator = {
       const shown = (name: string) => !field(name).closest("label")!.hidden;
       // What the 3D view's editor shows for Site A, by field name.
       const siteFields = (p: LatLon): EditField[] => {
+        // One editable field for the 3D view's editor, with its current value.
         const f = (key: string, label: string, unit?: string, type: EditField["type"] = "number"): EditField => ({ key, label, value: field(key).value, unit, type });
         const fields = [
           f("siteName", "Name", undefined, "text"),
@@ -1097,6 +1140,7 @@ export const coverageCalculator: Calculator = {
           const spec = specs[best.index];
           // With a rate ladder, the fastest rate that keeps the fade margin there.
           const fade = num("fade") || 0;
+          // A margin in words, with the fastest rate it holds when the radio has a rate ladder.
           const words = (m: number, ladderHere: Rung[]) => {
             const held = ladderHere.length ? rateAt(m + slowest(ladderHere), ladderHere, fade) : undefined;
             const rateText = held?.solid ? `, holds ${formatRate(held.solid.kbps)}${held.any && held.any.kbps > held.solid.kbps ? ` (${formatRate(held.any.kbps)} under the fade margin)` : ""}` : held?.any ? `, ${formatRate(held.any.kbps)} under the fade margin` : "";
@@ -1150,14 +1194,17 @@ export const coverageCalculator: Calculator = {
       else window.removeEventListener("rf-toolkit:theme", onTheme);
     };
     window.addEventListener("rf-toolkit:theme", onTheme);
+    // Waits until the page is on screen, since the map needs its real size.
     const waitForPage = () => (form.isConnected ? initMap() : setTimeout(waitForPage, 50));
     setTimeout(waitForPage, 0);
 
-    // Presets fill the fields they cover, and those fields are hidden: edit
-    // the preset under Manage presets. Fields a preset leaves blank stay.
+    // Presets fill the fields they cover, and those fields are hidden (edit them
+    // under Manage presets). Frequency is filled but left editable, so one preset
+    // can be planned on another channel. Fields a preset leaves blank stay as typed.
     const applyPresets = () => {
       const s = sitePreset();
       const r = rxPreset();
+      // Fills a field when the preset has a value for it.
       const set = (name: string, v?: string) => {
         if (v) field(name).value = v;
       };
@@ -1177,6 +1224,7 @@ export const coverageCalculator: Calculator = {
         set("rxPowerUnit", r.powerUnit);
         set("sens", r.sens);
       }
+      // Hides or shows a field's label.
       const hide = (name: string, hidden: boolean) => (field(name).closest("label")!.hidden = hidden);
       hide("power", !!s?.power);
       hide("txGain", !!s?.gain);
@@ -1188,6 +1236,7 @@ export const coverageCalculator: Calculator = {
       hide("rxPower", !!r?.power);
     };
     for (const name of ["sitePreset", "rxPreset"]) field(name).addEventListener("change", applyPresets);
+    // Uses a preset just picked or saved in the preset manager, for Site A.
     const pickSaved = (id: string) => {
       fillPresetOptions();
       field("sitePreset").value = id;
@@ -1260,6 +1309,7 @@ export const coverageCalculator: Calculator = {
       createPlanCard({
         toolId: "coverage",
         settingNames: Object.keys(defaults),
+        // The plan to share or save: settings, extra sites and the presets they use.
         getPlan: () => {
           const settings: Record<string, string> = {};
           for (const name of Object.keys(defaults)) settings[name] = field(name).value;
@@ -1279,6 +1329,7 @@ export const coverageCalculator: Calculator = {
           }));
           return { settings, ...(site ? { preset: site } : {}), ...(others.length ? { nodePresets: others } : {}), ...(nodes.length ? { nodes } : {}) };
         },
+        // Opens a plan: its settings, sites and presets, then maps its coverage.
         applyPlan: (plan) => {
           // The plan's presets join this device's (once), pointed at their ids here.
           const ids = new Map<string, string>();
@@ -1307,6 +1358,7 @@ export const coverageCalculator: Calculator = {
           if (map) void run();
           else runWhenReady = true;
         },
+        // The coverage as a KMZ: the shading image over the map, with the sites.
         buildExport: (name) => {
           if (!mapped() || !lastOverlay) return "Run the coverage analysis first.";
           const points = siteSpecs().map((s) => ({ name: s.name, lat: s.at.lat, lon: s.at.lon }));
@@ -1319,6 +1371,7 @@ export const coverageCalculator: Calculator = {
           ]);
           return { name: fileName(name, "kmz"), data: new Uint8Array(kmz) };
         },
+        // The sites, as markers for a TAK data package.
         markers: () => siteSpecs().map((s) => ({ name: s.name, lat: s.at.lat, lon: s.at.lon, description: "Coverage site, from RF Toolkit" })),
         onImport: (points) => {
           // An empty Site A takes the first point; the rest become more sites.

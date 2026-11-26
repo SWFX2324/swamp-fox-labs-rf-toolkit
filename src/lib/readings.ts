@@ -37,6 +37,11 @@ export interface ErrorStats {
   rmsDb: number;
 }
 
+/**
+ * Summary figures for a set of prediction errors (measured minus predicted, dB):
+ * how many, the average, the spread from reading to reading, and the overall
+ * typical size of the error.
+ */
 export function errorStats(errors: number[]): ErrorStats {
   const n = errors.length;
   if (!n) return { count: 0, meanDb: 0, sdDb: 0, rmsDb: 0 };
@@ -58,11 +63,14 @@ export function statsByCover(rows: { cover?: string; errorDb: number }[]): { cov
     .sort((a, b) => b.stats.count - a.stats.count || a.cover.localeCompare(b.cover));
 }
 
+/** True when a reading was taken from this site, within SAME_SITE_M of it. */
 export function sameSite(r: Reading, site: LatLon): boolean {
   return distanceBetweenM(r.site, site) <= SAME_SITE_M;
 }
 
+/** True for a real, finite number. */
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/** True for an object with a latitude and longitude that are numbers inside their valid ranges. */
 const validPoint = (p: unknown): boolean =>
   typeof p === "object" && p !== null && finite((p as LatLon).lat) && finite((p as LatLon).lon) && Math.abs((p as LatLon).lat) <= 90 && Math.abs((p as LatLon).lon) <= 180;
 
@@ -89,10 +97,12 @@ export function loadReadings(storage: Pick<StorageLike, "getItem">): Reading[] {
   }
 }
 
+/** Stores the readings, keeping only the most recent MAX_READINGS. */
 export function saveReadings(storage: Pick<StorageLike, "setItem">, readings: Reading[]): void {
   storage.setItem(READINGS_KEY, JSON.stringify(readings.slice(-MAX_READINGS)));
 }
 
+/** One CSV cell, quoted when it holds a comma, quote or line break. */
 const csvCell = (v: string | number) => {
   const s = String(v);
   // Quote anything with separators, and defuse cells a spreadsheet would run as a formula.

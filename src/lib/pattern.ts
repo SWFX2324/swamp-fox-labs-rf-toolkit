@@ -8,7 +8,7 @@
 //
 // φ_3dB and θ_3dB are the half-power beamwidths. Where a datasheet isn't to
 // hand, the vertical (and for "Directional" the horizontal) beamwidth comes
-// from the gain by Kraus's rule, G ≈ 32 400 / (φ_3dB θ_3dB) in degrees, so a
+// from the gain by Kraus's rule, G is about 32 400 / (φ_3dB * θ_3dB) in degrees, so a
 // higher-gain antenna has a narrower beam, as real ones do.
 
 export type PatternId = "omni" | "sector120" | "sector90" | "sector60" | "directional";
@@ -30,11 +30,12 @@ export const patterns: AntennaPattern[] = [
   { id: "directional", name: "Directional (Yagi, panel or dish)", hBeamwidthDeg: 0, frontToBackDb: 20 },
 ];
 
+/** The antenna pattern with this id, or Omni when it is missing or unknown. */
 export function findPattern(id: string | undefined): AntennaPattern {
   return patterns.find((p) => p.id === id) ?? patterns[0];
 }
 
-/** Kraus's beam area: G (linear) × φ × θ ≈ 32 400 square degrees. */
+/** Kraus's beam area: G (linear) * φ * θ is about 32 400 square degrees. */
 const BEAM_AREA_DEG2 = 32_400;
 /** Vertical sidelobe floor for omni antennas, dB. */
 const OMNI_VERTICAL_FLOOR_DB = 20;
@@ -90,7 +91,7 @@ export function patternLossDb(b: Beam, bearingDeg: number, elevationDeg: number)
 
 /**
  * Elevation angle from one antenna top to another, degrees, allowing for the
- * earth's curve with an effective radius of k × 6371 km.
+ * earth's curve with an effective radius of k times 6371 km.
  */
 export function elevationAngleDeg(fromTopM: number, toTopM: number, distanceM: number, k = 4 / 3): number {
   if (!(distanceM > 0)) return 0;

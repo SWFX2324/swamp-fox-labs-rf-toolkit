@@ -55,6 +55,12 @@ export interface MeshLink {
   pathHeightsM: [number, number];
 }
 
+/**
+ * One link between two mesh nodes, worked out in both directions since each end
+ * may have its own radio. The weaker direction rates the link: Good when it
+ * keeps the fade margin, Marginal when it still connects, otherwise Won't
+ * connect. Terrain loss and the clearance verdict are added when a profile is given.
+ */
 export function meshLink(
   radio: MeshRadio,
   distanceM: number,
@@ -83,6 +89,7 @@ export function meshLink(
   }
   // The same path both ways; only the radios at each end swap roles.
   const [ra, rb] = radios ?? [radio, radio];
+  // The budget from one end to the other, with the losses that are the same either way.
   const oneWay = (tx: EndRadio, rx: EndRadio, txH: number, rxH: number) =>
     linkBudget({
       freqHz: radio.freqHz,
@@ -131,6 +138,7 @@ export function pairs(n: number): [number, number][] {
 /** Groups of nodes that can reach each other over the given links. */
 export function connectedGroups(n: number, links: [number, number][]): number[][] {
   const parent = Array.from({ length: n }, (_, i) => i);
+  // The group a node belongs to, shortening the chain to its group's root as it goes (union-find).
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
   for (const [a, b] of links) parent[find(a)] = find(b);
   const groups = new Map<number, number[]>();

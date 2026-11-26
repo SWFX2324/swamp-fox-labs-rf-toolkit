@@ -12,7 +12,7 @@
 import { wavelengthM } from "./fspl";
 import { EARTH_RADIUS_M, STANDARD_K } from "./horizon";
 
-/** Knife-edge loss J(ν), equation 31; zero for ν ≤ −0.78. */
+/** Knife-edge loss J(ν), equation 31; zero for ν at or below −0.78. */
 export function knifeEdgeLossDb(nu: number): number {
   if (nu <= -0.78) return 0;
   return 6.9 + 20 * Math.log10(Math.sqrt((nu - 0.1) ** 2 + 1) + nu - 0.1);
@@ -37,10 +37,15 @@ export interface DiffractionResult {
   nu: number;
   /** Distance of the Bullington point from TX, metres. */
   pointM: number;
-  /** True when terrain cuts the line of sight (Stim ≥ Str). */
+  /** True when terrain cuts the line of sight (Stim at least Str). */
   transHorizon: boolean;
 }
 
+/**
+ * The diffraction loss over terrain for a profile, by the Bullington method
+ * described at the top of this file. Throws for fewer than three samples or a
+ * distance or frequency that isn't above zero.
+ */
 export function bullingtonLoss(i: DiffractionInputs): DiffractionResult {
   const n = i.elevationsM.length;
   if (n < 3) throw new RangeError("A profile needs at least three elevation samples");
@@ -58,6 +63,9 @@ export function bullingtonLoss(i: DiffractionInputs): DiffractionResult {
     return { di, h: h + 500 * ce * di * (d - di) };
   });
 
+  // The diffraction parameter (ν) for an obstacle of this height at di km from TX:
+  // how far it rises above the straight line between the antennas, scaled by the
+  // size of the Fresnel zone at that point. Higher means more loss.
   const nuAt = (height: number, di: number) =>
     (height - (hts * (d - di) + hrs * di) / d) * Math.sqrt((0.002 * d) / (lambda * di * (d - di)));
 

@@ -10,6 +10,7 @@ const H = 250;
 
 type Anchor = "start" | "middle" | "end";
 
+/** A length in metres to two decimal places, or in centimetres below a metre. */
 const metric = (m: number) => (m >= 1 ? `${m.toFixed(2)} m` : `${(m * 100).toFixed(1)} cm`);
 
 /** A length on a rounded tag: feet and inches, then metric, kept inside the drawing. */
@@ -40,10 +41,13 @@ function part(x: number, y: number, text: string, anchor: Anchor = "middle", lea
 const dim = (x1: number, y1: number, x2: number, y2: number) =>
   `<line class="dim" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-start="url(#arr)" marker-end="url(#arr)"/>`;
 
+/** A wire, drawn along an SVG path. */
 const wire = (d: string) => `<path class="wire" d="${d}"/>`;
 /** Coax: a thick jacket with a thin core showing down the middle. */
 const coax = (d: string) => `<path class="coax" d="${d}"/><path class="coax-core-line" d="${d}"/>`;
+/** A small insulator centred on a point. */
 const insulator = (x: number, y: number) => `<rect class="insulator" x="${x - 5}" y="${y - 4}" width="10" height="8" rx="3"/>`;
+/** The feed point: a small box where the coax connects. */
 const feed = (x: number, y: number, w = 14, h = 10) =>
   `<rect class="feed" x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="3"/>`;
 
@@ -74,6 +78,7 @@ function dipole([leg, total]: ElementLength[], ladderLine = false): string {
   ].join("");
 }
 
+/** An end-fed half-wave: the radiator, the matching transformer at the fed end, and a short counterpoise. */
 function efhw([radiator, counterpoise]: ElementLength[]): string {
   return [
     wire("M92 110 H375"),
@@ -93,6 +98,7 @@ function efhw([radiator, counterpoise]: ElementLength[]): string {
   ].join("");
 }
 
+/** A vertical over radials (a ground plane), with a loading coil at the base for the 5/8-wave version. */
 function vertical([radiator, radials]: ElementLength[], withCoil: boolean): string {
   const base = 170;
   const top = 26;
@@ -119,6 +125,7 @@ function vertical([radiator, radials]: ElementLength[], withCoil: boolean): stri
   ].join("");
 }
 
+/** A full-wave loop, drawn both as a square (a quad) and as a triangle (a delta), with the total wire length. */
 function loop([total, square, triangle]: ElementLength[]): string {
   return [
     wire("M50 50 H170 V170 H50 Z"),
@@ -139,6 +146,7 @@ function loop([total, square, triangle]: ElementLength[]): string {
   ].join("");
 }
 
+/** A J-pole: the long radiator, the short matching stub beside it, and where the coax taps on. */
 function jpole([long, short, tap]: ElementLength[]): string {
   const x = 220;
   const xs = 250;
@@ -166,7 +174,9 @@ function jpole([long, short, tap]: ElementLength[]): string {
   ].join("");
 }
 
+/** Quarter-wave and half-wave coax stubs, measured inside the coax. */
 function coaxStub([quarter, half]: ElementLength[]): string {
+  // One stub: a connector and a length of coax with its core showing.
   const stub = (y: number, x2: number) =>
     `<rect class="connector" x="40" y="${y - 9}" width="22" height="18" rx="3"/>` +
     `<rect class="coax-body" x="62" y="${y - 6}" width="${x2 - 62}" height="12" rx="6"/>` +
@@ -186,6 +196,7 @@ function coaxStub([quarter, half]: ElementLength[]): string {
   ].join("");
 }
 
+/** The drawing for an antenna design, with its lengths on tags, or nothing for a design without one. */
 export function drawAntenna(designId: string, lengths: ElementLength[]): string {
   const body =
     designId === "dipole" ? dipole(lengths)

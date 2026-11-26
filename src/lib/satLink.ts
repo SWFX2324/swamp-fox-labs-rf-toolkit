@@ -13,17 +13,17 @@ export const BOLTZMANN_DBW = -228.6;
 const MEDIUM_TEMP_K = 275;
 const T0 = 290;
 
-/** Parabolic dish gain, dBi: η · (π D f / c)². */
+/** Parabolic dish gain in dBi, from efficiency * (pi * diameter * frequency / c)^2, where c is the speed of light. */
 export function dishGainDbi(diameterM: number, freqHz: number, efficiency: number): number {
   return 10 * Math.log10(efficiency * ((Math.PI * diameterM * freqHz) / SPEED_OF_LIGHT) ** 2);
 }
 
-/** Half-power beamwidth, degrees (≈ 70 λ / D). */
+/** Half-power beamwidth in degrees: about 70 times the wavelength divided by the dish diameter. */
 export function beamwidthDeg(diameterM: number, freqHz: number): number {
   return (70 * wavelengthM(freqHz)) / diameterM;
 }
 
-/** Gain lost to a pointing error, dB: 12 (error / beamwidth)². */
+/** Gain lost to a pointing error in dB: 12 * (error / beamwidth)^2. */
 export function pointingLossDb(errorDeg: number, beamwidth: number): number {
   return 12 * (errorDeg / beamwidth) ** 2;
 }
@@ -64,12 +64,13 @@ export interface Modcod {
   esn0: number;
 }
 
+/** Builds one DVB-S2 modulation and FEC entry from its modulation, bits per symbol, code rate as "n/d", and required Es/N0. */
 const mc = (mod: string, bits: number, rate: string, esn0: number): Modcod => {
   const [n, d] = rate.split("/").map(Number);
   return { name: `${mod} ${rate}`, mod, rate, family: "DVB-S2", bitsPerSymbol: bits, codeRate: n / d, outerRate: 1, esn0 };
 };
 
-/** Information bits per symbol: modulation × FEC × any outer code. */
+/** Information bits per symbol: the modulation's bits per symbol, times the FEC rate, times any outer code rate. */
 export const bitsPerSymbolNet = (m: Modcod) => m.bitsPerSymbol * m.codeRate * m.outerRate;
 
 export const dvbs2Modcods: Modcod[] = [
@@ -110,6 +111,7 @@ export const dvbs2Modcods: Modcod[] = [
  */
 const DVBS_EBN0: [string, number][] = [["1/2", 4.5], ["2/3", 5.0], ["3/4", 5.5], ["5/6", 6.0], ["7/8", 6.4]];
 const RS = 188 / 204;
+/** The DVB-S entries for one modulation (BPSK or QPSK), one per FEC rate in DVBS_EBN0. */
 const legacy = (mod: "BPSK" | "QPSK", bits: number): Modcod[] =>
   DVBS_EBN0.map(([rate, ebn0]) => {
     const [n, d] = rate.split("/").map(Number);
@@ -135,9 +137,9 @@ export const allModcods: Modcod[] = [...dvbs2Modcods, ...legacyModcods];
  * A small terminal in a star network: it talks through the satellite to a
  * gateway, where the network lives, in two directions with their own carriers.
  *
- * - Return: terminal → satellite → gateway. The terminal's uplink nearly always
+ * - Return: terminal to satellite to gateway. The terminal's uplink nearly always
  *   limits it; the gateway's large dish hears well.
- * - Forward: gateway → satellite → terminal. The terminal's downlink nearly
+ * - Forward: gateway to satellite to terminal. The terminal's downlink nearly
  *   always limits it; the gateway transmits strongly.
  *
  * The gateway is taken at the same range as the terminal, in clear sky: its
@@ -197,6 +199,12 @@ export interface StarLinkResult {
   fwd: DirectionResult;
 }
 
+/**
+ * One direction of the link (return or forward) from its uplink and downlink
+ * C/N0: the combined C/N0, the Es/N0 at the carrier's symbol rate, the Es/N0
+ * the modulation and FEC need (plus implementation loss), the margin between
+ * them, and the data rate the carrier carries.
+ */
 function direction(cn0Up: number, cn0Down: number, carrier: { symbolRate: number; modcod: Modcod }, implLossDb: number): DirectionResult {
   const cn0Total = combineCn0(cn0Up, cn0Down);
   const esn0 = cn0Total - 10 * Math.log10(carrier.symbolRate);
@@ -212,6 +220,12 @@ function direction(cn0Up: number, cn0Down: number, carrier: { symbolRate: number
   };
 }
 
+/**
+ * The full link budget for a terminal in a star network: the terminal's own
+ * figures (gain, beamwidth, pointing loss, EIRP, G/T) and both directions
+ * through the satellite. Rain at your site is applied to your uplink and your
+ * downlink; the gateway's own legs are taken in clear sky.
+ */
 export function starLinkBudget(i: StarLinkInputs): StarLinkResult {
   const txGain = dishGainDbi(i.dishM, i.uplinkHz, i.efficiency);
   const rxGain = dishGainDbi(i.dishM, i.downlinkHz, i.efficiency);
@@ -260,6 +274,7 @@ export const GOOD_MARGIN_DB = 3;
  * (where rain also adds sky noise, which counts). 0 when it's already short.
  */
 export function fadeHeadroomDb(i: StarLinkInputs, dir: "ret" | "fwd"): number {
+  // The direction's margin with this much extra rain loss at your site.
   const marginWith = (extra: number) =>
     starLinkBudget(dir === "ret" ? { ...i, uplinkLossDb: i.uplinkLossDb + extra } : { ...i, downlinkLossDb: i.downlinkLossDb + extra })[dir].marginDb;
   if (marginWith(0) <= 0) return 0;

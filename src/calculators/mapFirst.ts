@@ -36,6 +36,7 @@ const BAND_GROUPS: [string, number, number][] = [
   ["VHF", 30, 300],
   ["UHF", 300, Infinity],
 ];
+/** The band preset buttons, grouped into HF, VHF and UHF rows. */
 export const bandButtons = (presets: { label: string; mhz: number }[]) => `
       <div class="band-groups" role="group" aria-label="Band presets">
         ${BAND_GROUPS.map(
@@ -60,6 +61,7 @@ export const sideToggles = (rightName: string) => `
   <button type="button" class="side-toggle" data-side="left" aria-expanded="true" aria-label="Hide the settings pane">${rfIcon("chevronLeft")}</button>
   <button type="button" class="side-toggle" data-side="right" aria-expanded="true" aria-label="Hide the ${rightName}">${rfIcon("chevronRight")}</button>`;
 
+/** A remembered set of open or closed flags from storage, or none when missing or unreadable. */
 const readJson = (key: string): Record<string, boolean> => {
   try {
     return (JSON.parse(localStorage.getItem(key) ?? "null") as Record<string, boolean> | null) ?? {};
@@ -67,6 +69,7 @@ const readJson = (key: string): Record<string, boolean> => {
     return {};
   }
 };
+/** Remembers a value in storage, quietly doing nothing when storage is blocked. */
 const writeJson = (key: string, value: unknown) => {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -105,6 +108,7 @@ export function setupMapFirst(form: HTMLElement, o: MapFirstOptions): void {
   }
 
   const sides = readJson(o.sidesKey);
+  // Shows or hides each side pane to match what is remembered, and labels its fold-away tab to match.
   const syncSides = () => {
     for (const side of ["left", "right"]) {
       const closed = !!sides[side];
@@ -127,6 +131,9 @@ export function setupMapFirst(form: HTMLElement, o: MapFirstOptions): void {
   // in the gap between them, and the taskbar drops its labels when that gap
   // is too narrow for them.
   const floating = window.matchMedia("(min-width: 1100px)");
+  // Centres the taskbar between the floating panes and switches it to icons only
+  // when the gap is too narrow for its labels. Below the floating width it sits
+  // in its normal place.
   const fitTaskbar = () => {
     const bar = form.querySelector<HTMLElement>(".map-taskbar");
     if (!shell.isConnected) return;
@@ -178,6 +185,7 @@ export function setupMapFirst(form: HTMLElement, o: MapFirstOptions): void {
  */
 export function fitStage(form: HTMLElement): void {
   const shell = form.querySelector<HTMLElement>(".lb-shell")!;
+  // Sets the page's top edge so it fills the window below the header.
   const fit = () => {
     if (!shell.isConnected) return;
     shell.style.setProperty("--lb-top", `${Math.max(0, shell.getBoundingClientRect().top + window.scrollY)}px`);

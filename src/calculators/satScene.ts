@@ -1,7 +1,7 @@
 // The Satellite Link picture: a small portable terminal and a gateway on the
 // ground, the satellite in a night sky between them, and the two directions
-// through it: return (terminal → satellite → gateway) and forward (gateway →
-// satellite → terminal). Only what an operator reads first: each direction's
+// through it: return (terminal to satellite to gateway) and forward (gateway to
+// satellite to terminal). Only what an operator reads first: each direction's
 // margin and rating, and which one is weaker.
 //
 // Drawn as one SVG so the art and the text scale together. Two layouts: wide
@@ -63,12 +63,14 @@ const NARROW: Layout = {
   label: 12,
 };
 
+/** A number to the given decimal places, with a true minus sign for negatives. */
 const fmt = (v: number, digits = 1) =>
   `${v < 0 ? "−" : ""}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 
 /** Fixed pseudo-random stars, so the sky doesn't shimmer between redraws. */
 function stars(w: number, h: number, n: number): string {
   let seed = 7;
+  // A simple repeatable random number from 0 to 1 (the same sequence every time).
   const rnd = () => {
     seed = (seed * 9301 + 49297) % 233280;
     return seed / 233280;
@@ -153,6 +155,7 @@ function gateway(x: number, y: number, s: number, tilt: number): string {
 
 /** A geostationary communications satellite: bus, two solar wings, a dish toward Earth. */
 function satellite(x: number, y: number, s: number): string {
+  // The grid lines of one solar wing, starting at x0.
   const cells = (x0: number) => {
     let g = "";
     for (let i = 1; i < 5; i++) g += `<line x1="${x0 + i * 14}" y1="-15" x2="${x0 + i * 14}" y2="15"/>`;
@@ -209,6 +212,11 @@ export function fitReadoutPanel(svg: SVGSVGElement): void {
   edge.setAttribute("d", `M${x} ${y + t} V${y} H${x + t} M${x + w - t} ${y} H${x + w} V${y + t} M${x + w} ${y + h - t} V${y + h} H${x + w - t} M${x + t} ${y + h} H${x} V${y + h - t}`);
 }
 
+/**
+ * The scene for the Satellite Link page as SVG: your terminal, the satellite
+ * and the gateway, the return and forward paths coloured by how each one rates,
+ * and a readout of both margins. Returns the SVG and its width to height ratio.
+ */
 export function satScene(i: SceneInput): { svg: string; ratio: string } {
   const L = i.wide ? WIDE : NARROW;
   const { w, h } = L;
@@ -228,7 +236,9 @@ export function satScene(i: SceneInput): { svg: string; ratio: string } {
     const px = -dy / len;
     const py = dx / len;
     const mid = { x: (ground.x + sat.x) / 2, y: (ground.y + sat.y) / 2 };
+    // One arc from a point to another, pushed to one side of the straight line and bowed out.
     const arc = (from: Pt, to: Pt, side: number) => {
+      // A point moved a little to one side of the line.
       const o = (p: Pt) => ({ x: p.x + px * 5 * side, y: p.y + py * 5 * side });
       const a = o(from);
       const b = o(to);
@@ -245,10 +255,12 @@ export function satScene(i: SceneInput): { svg: string; ratio: string } {
   const retDown = right.arc(satR, gwFeed, 1);
   const fwdUp = right.arc(gwFeed, satR, -1);
 
+  // The CSS classes for a direction's paths: its colour, plus marginal or fail when it isn't good.
   const pathCls = (dir: "ret" | "fwd") => {
     const v = i[dir];
     return `ss-path ss-${dir}${v.ratingCls === "s-good" ? "" : v.ratingCls === "s-marginal" ? " marginal" : " fail"}`;
   };
+  // A direction's arcs, each drawn twice: a soft glow underneath and the moving flow on top.
   const paths = (dir: "ret" | "fwd", ds: string[]) =>
     ds.map((d) => `<path class="${pathCls(dir)} ss-glow" d="${d}"/>`).join("") + ds.map((d) => `<path class="${pathCls(dir)} ss-flow" d="${d}"/>`).join("");
 
@@ -261,6 +273,7 @@ export function satScene(i: SceneInput): { svg: string; ratio: string } {
 
   const r = L.readout;
   const different = Math.abs(i.ret.marginDb - i.fwd.marginDb) >= 0.5;
+  // One direction's readout: its name (marked WEAKER when it is), its margin and its rating.
   const block = (dir: "ret" | "fwd", y: number) => {
     const v = i[dir];
     const weaker = different && i.weaker === dir;

@@ -7,6 +7,7 @@ import { IMAGERY_CACHE, LAND_COVER_CACHE, type OfflinePlan, type OfflineTile, TE
 
 const CONCURRENT = 4;
 
+/** A size in bytes as whole megabytes, at least 1 MB. */
 const formatMb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1e6))} MB`;
 
 /** Store one tile unless it's already kept. False means it couldn't be fetched. */
@@ -24,6 +25,7 @@ async function saveTiles(tiles: OfflineTile[], signal: AbortSignal, onProgress: 
   const queue = [...tiles];
   let done = 0;
   let failed = 0;
+  // Saves tiles from the shared queue until it is empty or the download is stopped.
   const worker = async () => {
     while (queue.length && !signal.aborted) {
       const tile = queue.shift()!;
@@ -82,6 +84,7 @@ export function addOfflineControl(map: L.Map, slot?: HTMLElement, makeButton?: (
   }
 
   const Control = L.Control.extend({
+    // Builds the corner button for maps without a taskbar.
     onAdd() {
       const root = L.DomUtil.create("div", "offline-control");
       const bar = L.DomUtil.create("div", "leaflet-bar recenter-control", root);
@@ -116,6 +119,7 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
       <button type="button" class="secondary" data-role="close">Close</button>
     </div>
     <p class="offline-stored"><span data-role="stored"></span> <button type="button" class="link" data-role="clear">Clear saved tiles</button></p>`;
+  // An element of the panel by its data-role name.
   const part = <T extends HTMLElement>(role: string) => panel.querySelector<T>(`[data-role="${role}"]`)!;
   const text = part("text");
   const status = part("status");
@@ -126,6 +130,8 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
   let running: AbortController | null = null;
   let plan: OfflinePlan | null = null;
 
+  // Plans what saving the current view would take and says how big it is, or
+  // that the view is too big to save. Left alone while a download runs.
   const describe = () => {
     if (running) return;
     const b = map.getBounds();
@@ -136,10 +142,13 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
       : `Downloads about ${formatMb(plan.estimatedBytes)} of terrain, land cover and satellite imagery for everything on screen. OpenStreetMap doesn't allow saving street maps.`;
   };
 
+  // Shows how much tile storage this device holds now.
   const refreshStored = async () => {
     stored.textContent = await storedText();
   };
 
+  // On a map with a taskbar, opens the panel just above it, centred on the
+  // Download button and kept inside the map.
   const placeOverTaskbar = () => {
     const bar = button.closest<HTMLElement>(".map-taskbar");
     if (!bar) return;
@@ -155,6 +164,7 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
     panel.style.left = `${centre - half}px`;
   };
 
+  // Opens or closes the panel. Opening it re-plans the current view.
   const open = (show: boolean) => {
     panel.hidden = !show;
     button.setAttribute("aria-expanded", String(show));
@@ -165,6 +175,7 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
     void refreshStored();
   };
 
+  // Puts the buttons back after a download ends, stopped or not.
   const finish = () => {
     running = null;
     save.hidden = false;
@@ -173,6 +184,7 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
     void refreshStored();
   };
 
+  // Downloads every tile in the plan, showing progress, then says how it went.
   const start = async () => {
     if (!plan || plan.tooBig) return;
     const { tiles, imageryMaxZoom } = plan;

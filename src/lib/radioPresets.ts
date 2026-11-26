@@ -43,7 +43,12 @@ const MAX_RATES = 16;
 const MAX_TEXT = 40;
 const MAX_NUMBER_TEXT = 12;
 
+/** The value as text cut to max characters, or undefined when it isn't text at all. */
 const str = (v: unknown, max = MAX_NUMBER_TEXT) => (typeof v === "string" ? v.slice(0, max) : undefined);
+/**
+ * A number field as typed (kept as text so it shows back exactly as entered),
+ * or undefined when it isn't a number. A blank field is allowed and stays blank.
+ */
 const numText = (v: unknown) => {
   const s = str(v);
   return s !== undefined && (s === "" || Number.isFinite(Number(s))) ? s : undefined;
@@ -80,6 +85,7 @@ export function cleanPreset(raw: unknown): RadioPreset | undefined {
   return out;
 }
 
+/** A new preset id from the time and a random part, unique enough for one device's list. */
 export function newPresetId(): string {
   return `p-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
 }
@@ -99,6 +105,7 @@ export function cleanPresets(raw: unknown): RadioPreset[] {
 
 /** Two presets that say the same thing, ignoring their ids. */
 export function samePreset(a: RadioPreset, b: RadioPreset): boolean {
+  // The preset as JSON without its id, so two copies of the same radio compare equal.
   const strip = ({ id: _id, ...rest }: RadioPreset) => JSON.stringify(rest);
   return strip(a) === strip(b);
 }
@@ -154,8 +161,9 @@ export interface Route {
  * with the rate it holds) and at most `maxHops` hops.
  *
  * On a shared channel every hop takes turns on the air, so a message's time on
- * the air adds up hop by hop: throughput is 1 / Σ(1/rate). Otherwise relays
- * forward at once and the slowest hop sets the pace: throughput is min(rate).
+ * the air adds up hop by hop: throughput is 1 divided by the sum of 1/rate over
+ * the hops. Otherwise relays forward at once and the slowest hop sets the pace:
+ * throughput is the lowest hop rate.
  * Both ignore protocol overhead and other traffic, so real throughput is lower.
  */
 export function bestRoutes(
@@ -165,11 +173,14 @@ export function bestRoutes(
   sharedChannel = true,
 ): (Route | undefined)[][] {
   const hopsAllowed = Math.max(1, Math.min(maxHops, Math.max(1, n - 1)));
-  // Bellman-Ford limited to k edges: best[k][s][t] after k rounds.
-  // Shared channel: minimise total airtime per kbit (Σ 1/rate).
-  // Separate channels: maximise the bottleneck rate.
+  // Bellman-Ford search, one round per hop allowed: after round k, each node's
+  // best route from the start node using at most k hops is known.
+  // Shared channel: the score is the total airtime per kbit, the sum of 1/rate, kept as low as possible.
+  // Separate channels: the score is the slowest hop's rate, kept as high as possible.
   type Cell = { score: number; hops: number } | undefined;
+  // True when score x beats score y: lower airtime on a shared channel, a faster slowest hop otherwise.
   const better = (x: number, y: number) => (sharedChannel ? x < y : x > y);
+  // A route's score after one more hop at the given rate.
   const combine = (path: number, edge: number) => (sharedChannel ? path + 1 / edge : Math.min(path, edge));
   const start = sharedChannel ? 0 : Number.POSITIVE_INFINITY;
   const result: (Route | undefined)[][] = [];

@@ -12,6 +12,11 @@ export function locateButton(attrs: string, label = "Use my location", cls = "un
   return `<button type="button" class="secondary ${cls} locate-btn" ${attrs} title="${label}" aria-label="${label}">${CROSSHAIR_ICON}</button>`;
 }
 
+/**
+ * Asks the browser for the device's location. Reports progress and any failure
+ * through setStatus (in plain words, with likely causes), and passes the
+ * position to onFound when it arrives.
+ */
 export function locateMe(setStatus: (text: string, warn?: boolean) => void, onFound: (p: LatLon) => void): void {
   if (!navigator.geolocation) {
     setStatus(LOCATION_UNSUPPORTED, true);

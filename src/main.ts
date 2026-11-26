@@ -19,6 +19,11 @@ const app = document.querySelector<HTMLElement>("#app")!;
 const toolNav = document.querySelector<HTMLElement>("#toolNav")!;
 const toolName = document.querySelector<HTMLElement>("#toolName")!;
 
+/**
+ * Shows the page the address names after the "#", or the home page of tool
+ * cards when it names none (or a tool that no longer exists), and updates the
+ * header and the tab title to match. Runs on load and whenever the address changes.
+ */
 function show(): void {
   // A share link looks like "#mesh?plan=…"; the page reads the plan itself.
   const id = location.hash.slice(1).split("?")[0];
@@ -36,6 +41,7 @@ function show(): void {
 
 // Coordinate display format, shared by every page with a location box.
 const coordToggle = document.querySelector<HTMLElement>("#coordToggle")!;
+// Shows which coordinate format is chosen on the header switch.
 const markFormat = () => {
   for (const button of coordToggle.querySelectorAll<HTMLButtonElement>("button")) {
     button.setAttribute("aria-pressed", String(button.dataset.format === getCoordFormat()));
@@ -59,6 +65,9 @@ const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
 const SUN = rfIcon("sun");
 const MOON = rfIcon("moon");
 const isDark = isDarkTheme;
+// Brings the header's theme button and the browser's toolbar colour in line with
+// the current light or dark theme, and tells the open page, so its map can switch
+// to that theme's default layer and the antenna pattern can redraw in its colours.
 const markTheme = () => {
   const dark = isDark();
   // The icon shows the theme a press switches to.

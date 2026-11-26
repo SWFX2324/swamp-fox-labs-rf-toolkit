@@ -21,11 +21,15 @@ const CACHE_KEY = "rf-toolkit:profile-cache-v2";
 const SAVED_KEY = "rf-toolkit:saved-paths";
 export const CACHE_LIMIT = 20;
 
-/** Pins rounded to ~1 m identify a profile. */
+/**
+ * The cache key for a path between two pins. Coordinates are rounded to about
+ * a metre, so a pin nudged by less than that still finds its saved profile.
+ */
 export function pathKey(tx: LatLon, rx: LatLon): string {
   return `${formatLatLon(tx)} > ${formatLatLon(rx)}`;
 }
 
+/** A stored list, or an empty one when it is missing, damaged or not a list. */
 function read<T>(storage: StorageLike, key: string): T[] {
   try {
     const value = JSON.parse(storage.getItem(key) ?? "[]");
@@ -35,6 +39,7 @@ function read<T>(storage: StorageLike, key: string): T[] {
   }
 }
 
+/** Stores a value as JSON. False when storage refused it. */
 function write(storage: StorageLike, key: string, value: unknown): boolean {
   try {
     storage.setItem(key, JSON.stringify(value));
@@ -44,6 +49,10 @@ function write(storage: StorageLike, key: string, value: unknown): boolean {
   }
 }
 
+/**
+ * Terrain profiles kept on the device: an automatic cache of the most recent
+ * paths and the paths the user saved by name, so a path opens without a connection.
+ */
 export function createPathStore(storage: StorageLike) {
   type CacheEntry = { key: string; elevationsM: number[] };
 
@@ -62,6 +71,7 @@ export function createPathStore(storage: StorageLike) {
       write(storage, CACHE_KEY, [{ key, elevationsM }, ...rest].slice(0, CACHE_LIMIT));
     },
 
+    /** Every path the user saved, sorted by name. */
     saved(): SavedPath[] {
       return read<SavedPath>(storage, SAVED_KEY);
     },
@@ -73,6 +83,7 @@ export function createPathStore(storage: StorageLike) {
       return write(storage, SAVED_KEY, next);
     },
 
+    /** Deletes the saved path with that name. */
     remove(name: string): void {
       write(storage, SAVED_KEY, read<SavedPath>(storage, SAVED_KEY).filter((p) => p.name !== name));
     },

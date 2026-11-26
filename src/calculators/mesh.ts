@@ -84,6 +84,7 @@ const NODE_RADIO_FIELDS = [
   { key: "cable", label: "Cable loss", shared: "cable", unit: "dB" },
   { key: "sens", label: "RX sensitivity", shared: "sens", unit: "dBm" },
 ] as const;
+/** True when a node has any of its own radio figures typed in, instead of the shared radio's. */
 const hasOwnRadio = (n: MeshNode) => NODE_RADIO_FIELDS.some((f) => (n[f.key] ?? "").trim() !== "");
 const RADIO_ICON = rfIcon("radio", "node-radio-icon");
 
@@ -111,6 +112,7 @@ const statusText: Record<MeshLinkStatus, [string, string]> = {
   fail: ["Won't connect", "s-fail"],
 };
 
+/** A labelled number box with its unit. */
 function numberField(label: string, name: string, unit: string, attrs = ""): string {
   return `
     <label>${label}
@@ -262,6 +264,7 @@ function currentSettingDefaults(): Record<string, string> {
   };
 }
 
+/** The saved plan: settings checked against the defaults (see tabValues) and nodes with real coordinates, at most MAX_NODES. */
 function loadState(settingDefaults: Record<string, string>): { settings: Record<string, string>; nodes: MeshNode[] } {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -275,6 +278,7 @@ function loadState(settingDefaults: Record<string, string>): { settings: Record<
 }
 
 
+/** A number to the given decimal places, with a true minus sign for negatives. */
 const fmt = (v: number, digits = 1) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
@@ -282,6 +286,8 @@ export const meshCalculator: Calculator = {
   id: "mesh",
   title: "MANET Mesh Planner",
   shortTitle: "Mesh",
+  // Builds the Mesh Planner page: the nodes and radio settings, the map, and the
+  // link and route results, all recalculated on every change.
   render() {
     const form = document.createElement("form");
     const settingDefaults = currentSettingDefaults();
@@ -291,11 +297,15 @@ export const meshCalculator: Calculator = {
     form.querySelector('[data-out="legend"]')!.replaceWith(linkLegend());
     form.addEventListener("submit", (e) => e.preventDefault());
 
+    // A field in the form by its name.
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
+    // A result element by its data-out name.
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
+    // A field's value as a number (NaN when blank or not a number).
     const num = (name: string) => Number.parseFloat(field(name).value);
 
     const store = createPathStore({
+      // Reads stored terrain, or nothing when storage is blocked.
       getItem: (k) => {
         try {
           return localStorage.getItem(k);
@@ -303,6 +313,7 @@ export const meshCalculator: Calculator = {
           return null;
         }
       },
+      // Stores terrain; the path store handles a refusal.
       setItem: (k, v) => localStorage.setItem(k, v),
     });
 
@@ -315,17 +326,22 @@ export const meshCalculator: Calculator = {
       select.value = [...select.options].some((o) => o.value === keep) ? keep : "";
     };
     fillPresetOptions();
+    // The radio preset chosen for the net, if any.
     const activePreset = (): RadioPreset | undefined => loadPresets("mesh").find((p) => p.id === field("preset").value);
+    // True when the chosen preset has a rate ladder, which then sets the sensitivity.
     const ladderActive = () => ladder(activePreset()).length > 0;
 
     const state = loadState(settingDefaults);
     let nodes = state.nodes;
+    // What a node is called in results and exports: its name, or its number when it has none.
+    const nodeName = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
     for (const [name, value] of Object.entries(state.settings)) {
       const el = form.elements.namedItem(name);
       if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
     }
     field("addLoc").setAttribute("placeholder", coordPlaceholder());
 
+    // Remembers the settings that differ from the defaults, and the nodes.
     const save = () => {
       const settings: Record<string, string> = {};
       for (const name of Object.keys(settingDefaults)) settings[name] = field(name).value;
@@ -335,6 +351,7 @@ export const meshCalculator: Calculator = {
         // Storage blocked: the plan just won't be remembered.
       }
     };
+    // Shows a message under the node list, in warning colours when warn is set.
     const setStatus = (text: string, warn = false) => {
       out("status").textContent = text;
       out("status").classList.toggle("warn", warn);
@@ -353,6 +370,7 @@ export const meshCalculator: Calculator = {
     // Nodes whose own-radio row is open, so it stays open when the list redraws.
     const openRadios = new WeakSet<MeshNode>();
 
+    // A node's antenna height in metres: its own, or the shared height when it has none.
     const heightM = (n: MeshNode) =>
       toMetres(Number.parseFloat(n.height) || Number.parseFloat(field("height").value) || 0, asDistanceUnit(field("heightUnit").value));
 
@@ -366,6 +384,7 @@ export const meshCalculator: Calculator = {
       return patternLossDb(b, bearingDeg(from, to), elevationAngleDeg(fromTop, toTop, distanceM, k));
     };
 
+    // Redraws the node list, each row with its name, height, antenna and own-radio fields.
     const renderNodes = () => {
       out("nodeCount").textContent = `${nodes.length} of ${MAX_NODES} nodes`;
       const body = out("nodes");
@@ -471,12 +490,14 @@ export const meshCalculator: Calculator = {
             recompute();
           });
           const radioBtn = tr.querySelector<HTMLButtonElement>(".node-radio-btn")!;
+          // Opens or closes this node's own-radio row, and remembers it across redraws.
           const showRadio = (open: boolean) => {
             sub.hidden = !open;
             radioBtn.setAttribute("aria-expanded", String(open));
             if (open) openRadios.add(n);
             else openRadios.delete(n);
           };
+          // Highlights the radio button when the node has its own radio or a different preset.
           const markOwn = () => radioBtn.classList.toggle("on", nodeMode(n) !== "");
           showRadio(openRadios.has(n));
           markOwn();
@@ -535,9 +556,8 @@ export const meshCalculator: Calculator = {
       }
       const a = nodes[r.a];
       const b = nodes[r.b];
-      const name = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
       dock.hidden = false;
-      out("dockLink").textContent = `${name(r.a)} ↔ ${name(r.b)}`;
+      out("dockLink").textContent = `${nodeName(r.a)} ↔ ${nodeName(r.b)}`;
       if (map) selLine = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { className: "mesh-link-selected", interactive: false }).addTo(map);
       const distUnit: DistanceUnit = asDistanceUnit(getSettings().distanceUnit, "mi");
       const heightUnit = asDistanceUnit(field("heightUnit").value);
@@ -557,7 +577,7 @@ export const meshCalculator: Calculator = {
         });
         const docked = !dock.classList.contains("inline");
         chart.hidden = false;
-        chart.innerHTML = drawProfile([result], { distUnit, heightUnit }, chart.clientWidth || 600, [name(r.a), name(r.b)], docked ? 150 : undefined, false, [r.link.status]);
+        chart.innerHTML = drawProfile([result], { distUnit, heightUnit }, chart.clientWidth || 600, [nodeName(r.a), nodeName(r.b)], docked ? 150 : undefined, false, [r.link.status]);
         note.hidden = true;
         const [words, cls] = LOS_WORDS[result.status];
         pill.hidden = false;
@@ -584,12 +604,14 @@ export const meshCalculator: Calculator = {
       syncDock();
     };
 
+    // Leaves room under the map for the profile while it is docked there.
     function syncDock() {
       const dock = out("profileDock");
       const docked = !dock.hidden && !dock.classList.contains("inline");
       form.querySelector(".lb-shell")!.classList.toggle("has-dock", docked);
     }
 
+    // Redraws every node's pin and name on the map; dragging a pin moves the node.
     const drawMarkers = () => {
       clearControl?.setVisible(nodes.length > 0);
       if (!map) return;
@@ -602,7 +624,7 @@ export const meshCalculator: Calculator = {
         }).addTo(map!);
         // The name beside the pin, as on the other maps; an unnamed node by its number.
         const tag = document.createElement("span");
-        tag.textContent = n.name.trim() || `Node ${idx + 1}`; // user text
+        tag.textContent = nodeName(idx); // User text, so set as text.
         m.bindTooltip(tag, { permanent: true, direction: "right", offset: [8, -16], className: "pin-name" });
         m.on("dragend", () => {
           const p = m.getLatLng();
@@ -616,6 +638,8 @@ export const meshCalculator: Calculator = {
 
     // Land cover at every node, when Environment is "Auto (satellite map)".
     let cover: { key: string; points?: LandCoverPoint[]; error?: string } | undefined;
+    // The land cover at every node when Environment is Auto, read once per set
+    // of positions, with a note while it loads or when it can't be read.
     const nodeCover = (): { points?: LandCoverPoint[]; note: string } => {
       const key = JSON.stringify(nodes.map((n) => [n.lat, n.lon]));
       if (cover?.key !== key) {
@@ -646,6 +670,8 @@ export const meshCalculator: Calculator = {
       }
     };
 
+    // Works out every link and route from the current nodes and settings, and
+    // redraws the map lines, the tables and the summary.
     const recompute = () => {
       for (const l of lines) l.remove();
       lines = [];
@@ -753,9 +779,6 @@ export const meshCalculator: Calculator = {
 
       const pill = out("pill");
       const split = out("split");
-      // A named node goes by its name; an unnamed one by its number.
-      const label = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
-      const ref = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
       if (solidGroups.length === 1) {
         pill.className = "pill s-good";
         pill.textContent = "Good mesh";
@@ -769,7 +792,7 @@ export const meshCalculator: Calculator = {
         pill.className = "pill s-fail";
         pill.textContent = `Split into ${groups.length} groups`;
         split.hidden = false;
-        const named = groups.map((g) => (g.length === 1 ? `${ref(g[0])} on its own` : g.map(ref).join(", ")));
+        const named = groups.map((g) => (g.length === 1 ? `${nodeName(g[0])} on its own` : g.map(nodeName).join(", ")));
         split.textContent = `The mesh splits into ${groups.length} groups that can't reach each other: ${named.join("; ")}. A relay between groups, or taller antennas, would join them.`;
       }
       out("up").textContent = `${up.length} of ${results.length}`;
@@ -784,7 +807,7 @@ export const meshCalculator: Calculator = {
           pill.className = "pill s-fail";
           pill.textContent = "Past the hop limit";
         }
-        const shown = tooFar.slice(0, 3).map(([a, b]) => `${label(a)} and ${label(b)} (${hops[a][b]} hops)`);
+        const shown = tooFar.slice(0, 3).map(([a, b]) => `${nodeName(a)} and ${nodeName(b)} (${hops[a][b]} hops)`);
         hopNote.textContent = `Past the preset's hop limit of ${limit}: ${shown.join(", ")}${tooFar.length > 3 ? `, and ${tooFar.length - 3} more pairs` : ""}. Messages between them run out of hops before they arrive. A relay node that shortens the route, or taller antennas for longer hops, would bring them in.`;
       }
 
@@ -797,13 +820,13 @@ export const meshCalculator: Calculator = {
         out("thru").textContent = missing.length ? "—" : formatRate(slowest.route!.kbps);
         out("thruSub").textContent = missing.length
           ? `${missing.length} pair${missing.length === 1 ? " has" : "s have"} no route that keeps the fade margin${limit ? " within the hop limit" : ""}`
-          : `${label(slowest.a)} and ${label(slowest.b)}, ${slowest.route!.hops} hop${slowest.route!.hops === 1 ? "" : "s"}`;
+          : `${nodeName(slowest.a)} and ${nodeName(slowest.b)}, ${slowest.route!.hops} hop${slowest.route!.hops === 1 ? "" : "s"}`;
         const rows = [...all].sort((x, y) => (x.route?.kbps ?? -1) - (y.route?.kbps ?? -1));
         const body = out("routes") as HTMLTableSectionElement;
         body.innerHTML = rows
           .map((p) => `<tr><td></td><td class="num mono">${p.route ? p.route.hops : "—"}</td><td class="num mono">${p.route ? formatRate(p.route.kbps) : "No good route"}</td></tr>`)
           .join("");
-        rows.forEach((p, i) => (body.rows[i].cells[0].textContent = `${label(p.a)} ↔ ${label(p.b)}`));
+        rows.forEach((p, i) => (body.rows[i].cells[0].textContent = `${nodeName(p.a)} ↔ ${nodeName(p.b)}`));
         out("routesNote").textContent = `Every hop keeps your fade margin at the rate used. ${
           preset?.sharedChannel ?? true ? "Relays share one channel, so each hop's time on the air adds up." : "Relays forward at once, so the slowest hop sets the pace."
         } Protocol overhead and other traffic aren't counted, so expect less in practice.`;
@@ -826,7 +849,7 @@ export const meshCalculator: Calculator = {
             <td class="num mono">${terrainCell}</td>
             <td class="num"><span class="mono">${fmt(r.link.marginDb)} dB</span> <span class="pill ${cls}">${text}</span>${
               Math.abs(r.link.marginAbDb - r.link.marginBaDb) >= 0.5
-                ? `<span class="weaker">${escapeHtml(r.link.marginBaDb < r.link.marginAbDb ? `${label(r.b)} → ${label(r.a)}` : `${label(r.a)} → ${label(r.b)}`)} is the weaker way; the other is ${fmt(Math.max(r.link.marginAbDb, r.link.marginBaDb))} dB</span>`
+                ? `<span class="weaker">${escapeHtml(r.link.marginBaDb < r.link.marginAbDb ? `${nodeName(r.b)} → ${nodeName(r.a)}` : `${nodeName(r.a)} → ${nodeName(r.b)}`)} is the weaker way; the other is ${fmt(Math.max(r.link.marginAbDb, r.link.marginBaDb))} dB</span>`
                 : ""
             }${(() => {
               const rate = rateOf.get(r);
@@ -842,7 +865,7 @@ export const meshCalculator: Calculator = {
       [...results]
         .sort((x, y) => y.link.marginDb - x.link.marginDb)
         .forEach((r, idx) => {
-          (out("links") as HTMLTableSectionElement).rows[idx].querySelector(".link-name")!.textContent = `${label(r.a)} ↔ ${label(r.b)}`;
+          (out("links") as HTMLTableSectionElement).rows[idx].querySelector(".link-name")!.textContent = `${nodeName(r.a)} ↔ ${nodeName(r.b)}`;
         });
 
       if (map) {
@@ -852,6 +875,8 @@ export const meshCalculator: Calculator = {
       view3d?.refresh();
     };
 
+    // Fetches terrain for every pair of nodes that doesn't have it yet (from the
+    // device first, then the internet), recalculating as each arrives.
     const loadTerrain = async () => {
       loading?.abort();
       const controller = new AbortController();
@@ -897,6 +922,8 @@ export const meshCalculator: Calculator = {
       recompute();
     };
 
+    // Saves and redraws after nodes are added, moved or removed. fit zooms the
+    // map to show every node.
     const nodesChanged = (fit = true) => {
       save();
       renderNodes();
@@ -906,6 +933,7 @@ export const meshCalculator: Calculator = {
       void loadTerrain();
     };
 
+    // Adds a node at a point, up to MAX_NODES.
     const addNode = (p: LatLon) => {
       if (nodes.length >= MAX_NODES) {
         setStatus(`The planner takes up to ${MAX_NODES} nodes.`, true);
@@ -916,6 +944,7 @@ export const meshCalculator: Calculator = {
       nodesChanged(false);
     };
 
+    // Creates the map once the page is on screen; tapping it adds a node.
     const initMap = () => {
       if (map || !form.isConnected) return;
       map = createMap(out("map"), (m) => {
@@ -953,7 +982,7 @@ export const meshCalculator: Calculator = {
       ];
       view3d = add3DControl(map, () => ({
         title: "MANET Mesh Planner",
-        points: nodes.map((n, i) => ({ lat: n.lat, lon: n.lon, label: nodeLabel(i), heightM: heightM(n), fields: nodeFields(n) })),
+        points: nodes.map((n, i) => ({ lat: n.lat, lon: n.lon, label: nodeName(i), heightM: heightM(n), fields: nodeFields(n) })),
         links: lastLinks
           .filter((r) => r.a < nodes.length && r.b < nodes.length)
           .map((r) => ({ a: r.a, b: r.b, style: linkLineStyle(r.link.status, r.link.profile) })),
@@ -995,6 +1024,7 @@ export const meshCalculator: Calculator = {
       drawMarkers();
       recompute();
     };
+    // Waits until the page is on screen, since the map needs its real size.
     const waitForPage = () => (form.isConnected ? initMap() : setTimeout(waitForPage, 50));
     setTimeout(waitForPage, 0);
 
@@ -1015,6 +1045,7 @@ export const meshCalculator: Calculator = {
         map?.setView([p.lat, p.lon], Math.max(map.getZoom(), 12));
       });
     });
+    // Removes every node (Clear map).
     const clearNodes = () => {
       // The button has already asked for a second tap.
       nodes = [];
@@ -1060,6 +1091,7 @@ export const meshCalculator: Calculator = {
       renderNodes();
     };
     field("preset").addEventListener("change", () => applyPreset(activePreset()));
+    // Uses a preset just picked or saved in the preset manager.
     const pickSaved = (id: string) => {
       fillPresetOptions();
       field("preset").value = id;
@@ -1091,11 +1123,11 @@ export const meshCalculator: Calculator = {
     renderNodes();
     recompute();
     if (nodes.length >= 2) void loadTerrain();
-    const nodeLabel = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
     form.querySelector('[data-slot="share"]')!.append(
       createPlanCard({
         toolId: "mesh",
         settingNames: Object.keys(settingDefaults),
+        // The plan to share or save: settings, nodes and the presets they use.
         getPlan: () => {
           const settings: Record<string, string> = {};
           for (const name of Object.keys(settingDefaults)) settings[name] = field(name).value;
@@ -1104,6 +1136,7 @@ export const meshCalculator: Calculator = {
           const nodePresets = loadPresets("mesh").filter((p) => used.has(p.id));
           return { settings, nodes: nodes.map((n) => ({ ...n })), ...(preset ? { preset } : {}), ...(nodePresets.length ? { nodePresets } : {}) };
         },
+        // Opens a plan: its settings, nodes and presets.
         applyPlan: (plan) => {
           // A plan's preset joins this device's presets (once), so its ladder and hop limit apply here too.
           const settingsHere = { ...plan.settings, preset: plan.preset ? adoptPreset(plan.preset, "mesh") : "" };
@@ -1115,15 +1148,16 @@ export const meshCalculator: Calculator = {
           nodes = (plan.nodes ?? []).map((n) => ({ ...n, ...(n.preset && n.preset !== "custom" ? { preset: ids.get(n.preset) ?? "" } : {}) }));
           nodesChanged();
         },
+        // The mesh as a KMZ: each node and each link line, rated.
         buildExport: (name) => {
           if (!nodes.length) return "Add some nodes first.";
           const kml = buildKml(
             name,
-            nodes.map((n, i) => ({ name: nodeLabel(i), lat: n.lat, lon: n.lon })),
+            nodes.map((n, i) => ({ name: nodeName(i), lat: n.lat, lon: n.lon })),
             lastLinks
               .filter((r) => r.a < nodes.length && r.b < nodes.length)
               .map((r) => ({
-                name: `${nodeLabel(r.a)} to ${nodeLabel(r.b)}`,
+                name: `${nodeName(r.a)} to ${nodeName(r.b)}`,
                 from: nodes[r.a],
                 to: nodes[r.b],
                 status: linkLineStyle(r.link.status, r.link.profile),
@@ -1137,7 +1171,8 @@ export const meshCalculator: Calculator = {
           ]);
           return { name: fileName(name, "kmz"), data: new Uint8Array(kmz) };
         },
-        markers: () => nodes.map((n, i) => ({ name: nodeLabel(i), lat: n.lat, lon: n.lon, description: "Mesh node, from RF Toolkit" })),
+        // The nodes, as markers for a TAK data package.
+        markers: () => nodes.map((n, i) => ({ name: nodeName(i), lat: n.lat, lon: n.lon, description: "Mesh node, from RF Toolkit" })),
         onImport: (points) => {
           const room = MAX_NODES - nodes.length;
           const added = points.slice(0, room);
@@ -1152,6 +1187,7 @@ export const meshCalculator: Calculator = {
     enhanceFields(form, meshGuide, settingDefaults);
     moveModeBar(form);
     setupMapFirst(form, { panesKey: PANES_KEY, sidesKey: SIDES_KEY, rightName: "mesh results" });
+    // Opens the profile for a link tapped in the table, or closes it on a second tap.
     const pickRow = (tr: HTMLTableRowElement | null) => {
       if (!tr?.dataset.a) return;
       const a = nodes[Number(tr.dataset.a)];
@@ -1167,6 +1203,7 @@ export const meshCalculator: Calculator = {
     const showLinkOnMap = (a: MeshNode, b: MeshNode) => {
       if (!map) return;
       const box = map.getContainer().getBoundingClientRect();
+      // The box a floating pane covers on the map, or nothing when it isn't floating there.
       const covered = (el: HTMLElement | null) =>
         el && el.offsetWidth && getComputedStyle(el).position === "absolute" ? el.getBoundingClientRect() : undefined;
       const left = covered(form.querySelector<HTMLElement>(".lb-left"));
@@ -1195,6 +1232,7 @@ export const meshCalculator: Calculator = {
     const shell = form.querySelector<HTMLElement>(".lb-shell")!;
     const dock = out("profileDock");
     const wide = window.matchMedia("(min-width: 1300px)");
+    // Moves the profile between the dock under the map (wide screens) and the Mesh card (narrower).
     const placeDock = () => {
       if (wide.matches) shell.append(dock);
       else out("results").append(dock);

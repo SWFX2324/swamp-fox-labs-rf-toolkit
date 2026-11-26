@@ -191,6 +191,7 @@ const cleanName = (s: string) =>
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 40);
+/** True when a latitude and longitude are real numbers inside their valid ranges. */
 const validPoint = (lat: number, lon: number) => Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
 
 /** Named points (Placemarks with a Point) from KML. Lines and areas are skipped. */
@@ -243,6 +244,11 @@ export async function importPoints(name: string, bytes: Uint8Array): Promise<Imp
     .slice(0, MAX_POINTS);
 }
 
+/**
+ * The points in one file: from a zip (a KMZ or TAK data package), the points in
+ * every map file inside it, one level of nesting deep; otherwise KML or CoT by
+ * its content. Files of any other kind give no points.
+ */
 async function pointsIn(name: string, bytes: Uint8Array, depth: number, budget: InflateBudget): Promise<ImportedPoint[]> {
   const isZip = bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
   if (isZip) {

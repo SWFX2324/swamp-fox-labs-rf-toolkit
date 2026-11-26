@@ -33,6 +33,7 @@ export interface ReadingsCard {
 }
 
 const storage = {
+  // Reads a stored value, or nothing when storage is blocked.
   getItem: (k: string) => {
     try {
       return localStorage.getItem(k);
@@ -40,6 +41,7 @@ const storage = {
       return null;
     }
   },
+  // Stores a value, quietly doing nothing when storage is blocked.
   setItem: (k: string, v: string) => {
     try {
       localStorage.setItem(k, v);
@@ -49,8 +51,10 @@ const storage = {
   },
 };
 
+/** A number to the given decimal places, with a true minus sign for negatives. */
 const fmt = (v: number, digits = 1) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
+/** A number with a plus sign in front when it is positive. */
 const signed = (v: number) => `${v > 0 ? "+" : ""}${fmt(v)}`;
 
 const template = `
@@ -94,10 +98,16 @@ const template = `
   <details class="about"><summary>About field readings</summary><p>Error is measured minus predicted: positive means the signal was stronger than the map expected, negative weaker. An average error near 0 dB with a spread of 6–8 dB is typical for a good propagation model. A steady offset usually means a setting is off (antenna gain, cable loss, the radio's real sensitivity, or the Environment); correcting the map shifts every point by the average. Take readings in the open, standing still, and average a few seconds of RSSI: one reading can swing 10 dB from fading alone. The prediction comes from the nearest point the map checked.</p></details>
 `;
 
+/**
+ * The field readings card: log a measured signal at your location or a spot
+ * tapped on the map, list the readings for this site against the map's
+ * prediction, and optionally correct the map by the average error.
+ */
 export function createReadingsCard(host: ReadingsHost): ReadingsCard {
   const card = document.createElement("section");
   card.className = "card readings-card";
   card.innerHTML = template;
+  // An element of the card by its data-r name.
   const el = <T extends HTMLElement = HTMLElement>(name: string) => card.querySelector<T>(`[data-r="${name}"]`)!;
   const dbm = card.querySelector<HTMLInputElement>('input[name="readingDbm"]')!;
   const note = card.querySelector<HTMLInputElement>('input[name="readingNote"]')!;
@@ -114,24 +124,29 @@ export function createReadingsCard(host: ReadingsHost): ReadingsCard {
   let markers: L.LayerGroup | undefined;
   let lastCorrection = 0;
 
+  // Shows a message on the card, in warning colours when warn is set.
   const setStatus = (text: string, warn = false) => {
     el("status").textContent = text;
     el("status").classList.toggle("warn", warn);
   };
+  // Turns "pick a spot on the map" on or off, and says what to do while it is on.
   const setPicking = (on: boolean) => {
     picking = on;
     el("pick").textContent = on ? "Cancel" : "Pick on map";
     if (on) setStatus("Tap the spot on the map where you took the reading.");
   };
 
+  // The readings taken from the current site.
   const mine = () => {
     const site = host.site();
     return site ? readings.filter((r) => sameSite(r, site)) : [];
   };
 
+  // The correction to apply: the average error, when correction is on and there are enough readings; otherwise 0.
   const correctionFor = (rows: { errorDb: number }[]) =>
     correct.checked && rows.length >= MIN_FOR_CORRECTION ? errorStats(rows.map((r) => r.errorDb)).meanDb : 0;
 
+  // Redraws the readings table and the error summary, and tells the page when the correction changes.
   const refresh = () => {
     const here = mine();
     const rows = here.map((reading, i) => {
@@ -204,6 +219,8 @@ export function createReadingsCard(host: ReadingsHost): ReadingsCard {
     }
   };
 
+  // Logs a reading at a point: checks the typed signal, stores it with the site
+  // and the land cover there, and says how it compares with the map.
   const log = (p: LatLon) => {
     const measured = Number.parseFloat(dbm.value);
     const site = host.site();
@@ -268,7 +285,9 @@ export function createReadingsCard(host: ReadingsHost): ReadingsCard {
   return {
     element: card,
     refresh,
+    // The correction now applied to the map, in dB.
     correctionDb: () => lastCorrection,
+    /** Takes a map tap as the reading's spot while picking is on; false when it isn't, so the page handles the tap. */
     takeMapTap(p) {
       if (!picking) return false;
       setPicking(false);

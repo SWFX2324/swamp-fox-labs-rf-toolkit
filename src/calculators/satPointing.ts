@@ -88,6 +88,7 @@ const template = `
   </div>
 `;
 
+/** The saved inputs over the defaults, so a field added since still gets its default. */
 function loadState(): Record<string, string> {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -97,6 +98,7 @@ function loadState(): Record<string, string> {
   }
 }
 
+/** Remembers the inputs. */
 function saveState(state: Record<string, string>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -105,9 +107,12 @@ function saveState(state: Record<string, string>): void {
   }
 }
 
+/** A number to the given decimal places, with a true minus sign for negatives. */
 const fmt = (v: number, digits = 1) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
+/** An angle in degrees to one decimal place. */
 const angle = (v: number) => `${fmt(v)}°`;
+/** An angle with a plus or minus sign in front, for the feed skew. */
 const signedAngle = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmt(Math.abs(v))}°`;
 
 /** Compass rose with the azimuth, and a quarter circle with the elevation. */
@@ -115,6 +120,7 @@ function drawPointing(azTrue: number, declination: number, elevation: number): s
   const cx = 80;
   const cy = 80;
   const r = 62;
+  // The point at a bearing and distance from the rose's centre (0° at the top, clockwise).
   const at = (bearing: number, radius: number) => {
     const a = ((bearing - 90) * Math.PI) / 180;
     return [cx + radius * Math.cos(a), cy + radius * Math.sin(a)];
@@ -167,14 +173,18 @@ export const satPointingCalculator: Calculator = {
   id: "sat",
   title: "Terminal Pointing Tool",
   shortTitle: "Pointing",
+  // Builds the page: the map, the inputs, and the pointing results that follow every change.
   render() {
     const form = document.createElement("form");
     form.className = "calculator sat-pointing map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
+    // A field in the form by its name.
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
+    // A result element by its data-out name.
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
+    // Puts saved or default values into the form's fields.
     const fill = (values: Record<string, string>) => {
       // Skip names that no longer exist, such as a renamed field in old saved state.
       for (const [name, value] of Object.entries(values)) {
@@ -184,7 +194,7 @@ export const satPointingCalculator: Calculator = {
     };
     fill(loadState());
     field("site").placeholder = coordPlaceholder();
-    // Show a saved location in the current lat/lon or MGRS format.
+    // Show a saved location in the current format, latitude and longitude or MGRS.
     const savedSite = parseCoordinates(field("site").value);
     if (savedSite) field("site").value = formatCoordinates(savedSite);
 
@@ -193,11 +203,14 @@ export const satPointingCalculator: Calculator = {
     let marker: L.Marker | undefined;
     let bearing: L.Polyline | undefined;
 
+    // Shows a message under the location box, in warning colours when warn is set.
     const setStatus = (text: string, warn = false) => {
       out("status").textContent = text;
       out("status").classList.toggle("warn", warn);
     };
 
+    // Puts the terminal's pin at the site (dragging it moves the site) with a line
+    // along the azimuth, or clears both when there is no site. recenter moves the map to the pin.
     const placeOnMap = (site: LatLon | undefined, azTrue: number | undefined, recenter: boolean) => {
       clearControl?.setVisible(!!site);
       if (!map) return;
@@ -235,6 +248,7 @@ export const satPointingCalculator: Calculator = {
     };
 
     let lastSiteText = "";
+    // Reads the inputs, saves them, and redraws the pointing results and the map.
     const update = () => {
       const state: Record<string, string> = {};
       for (const name of Object.keys(defaults)) state[name] = field(name).value;
@@ -324,6 +338,8 @@ export const satPointingCalculator: Calculator = {
       out("rangeSub").textContent = `${Math.round(look.rangeM / 1000).toLocaleString()} km · ${fmt(oneWayMs, 0)} ms one way · about ${fmt(oneWayMs * 4, 0)} ms for a request and reply through the satellite`;
     };
 
+    // Creates the map once the page is on screen: tapping it sets the site, and
+    // Clear map removes the site and the bearing line.
     const initMap = () => {
       if (map || !form.isConnected) return;
       map = createMap(out("map"), (m) => {
@@ -346,6 +362,7 @@ export const satPointingCalculator: Calculator = {
       lastSiteText = "";
       update();
     };
+    // Waits until the page is on screen, since the map needs its real size.
     const waitForPage = () => (form.isConnected ? initMap() : setTimeout(waitForPage, 50));
     setTimeout(waitForPage, 0);
 

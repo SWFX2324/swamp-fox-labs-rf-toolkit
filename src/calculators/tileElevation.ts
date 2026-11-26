@@ -9,6 +9,11 @@ import { ElevationGrid, type TileId, decodeTile, pathHeights, tileUrl, tilesForP
 // Decoded tiles, kept for this page load.
 const decoded = new Map<string, Float32Array>();
 
+/**
+ * One terrain tile's heights: downloaded, drawn onto a canvas to read its pixel
+ * colours, and decoded. Kept for the rest of the page load, so each tile is
+ * decoded once. Throws when the download fails.
+ */
 export async function loadTile(tile: TileId, signal?: AbortSignal): Promise<Float32Array> {
   const key = `${tile.z}/${tile.x}/${tile.y}`;
   const cached = decoded.get(key);
@@ -34,6 +39,8 @@ export async function loadTiles(
 ): Promise<void> {
   const queue = [...tiles];
   let done = 0;
+  // Takes tiles off the shared queue until it is empty. Four of these run at
+  // once, so downloads overlap without flooding the connection.
   const worker = async () => {
     while (queue.length) {
       const t = queue.shift()!;

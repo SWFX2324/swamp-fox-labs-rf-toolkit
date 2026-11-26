@@ -1,6 +1,6 @@
 // Coax attenuation. Matched-line loss per 100 ft follows
 //
-//   loss = k1·√f + k2·f   (f in MHz)
+//   loss = k1 * sqrt(f) + k2 * f   (f in MHz)
 //
 // where k1 is conductor loss and k2 is dielectric loss. This ignores the extra
 // loss from a high SWR, so it is the best case for a well-matched antenna.
@@ -22,7 +22,7 @@ export interface Cable {
 
 // LMR coefficients are as published in the Times Microwave Communications Coax
 // Selection Guide. The RG figures are least-squares fits to the typical
-// attenuation in that guide's table from 30 to 900 MHz (within ~0.3 dB).
+// attenuation in that guide's table from 30 to 900 MHz (within about 0.3 dB).
 // Actual RG cable varies a lot by manufacturer. LMR velocity factors are from
 // the same guide; RG-58 and RG-213 are solid PE (0.66) and RG-8X is a typical
 // foam figure.
@@ -43,6 +43,7 @@ export const cables: Cable[] = [
   { id: "rg-213", name: "RG-213", k1: 0.20474, k2: 0.00204, maxMHz: 1000, vf: 0.66 },
 ];
 
+/** The cable with this id, or undefined when there's none. */
 export function findCable(id: string): Cable | undefined {
   return cables.find((c) => c.id === id);
 }
@@ -64,7 +65,7 @@ export function cableLossDb(cable: Cable, freqHz: number, lengthM: number): numb
 /**
  * Total line loss with a mismatched load (ARRL Antenna Book):
  *
- *   loss = 10·log10[(a² − |Γ|²) / (a·(1 − |Γ|²))],  a = 10^(matched/10)
+ *   loss = 10 * log10[(a^2 - |Γ|^2) / (a * (1 - |Γ|^2))],  where a = 10^(matched / 10)
  *
  * where Γ is the reflection coefficient at the antenna end. Reflected power
  * crosses the line twice, so a high SWR costs more in lossy coax.
@@ -84,6 +85,7 @@ export function swrAtInput(matchedLossDb: number, swrAtLoad: number): number {
   return (1 + gamma) / (1 - gamma);
 }
 
+/** The reflection coefficient magnitude for an SWR: 0 for a perfect match, 1 for an open or short (infinite SWR). */
 function reflectionCoefficient(swr: number): number {
   if (!(swr >= 1)) throw new RangeError("SWR must be 1 or more");
   return Number.isFinite(swr) ? (swr - 1) / (swr + 1) : 1;

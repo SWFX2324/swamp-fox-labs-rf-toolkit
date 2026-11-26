@@ -28,6 +28,7 @@ const CARDS: Record<string, { icon: string; blurb: string }> = {
 
 const ARROW = rfIcon("chevronRight");
 
+/** The home page: a card for each tool, with its picture, name and a one-line description. */
 export function renderHome(): HTMLElement {
   const page = document.createElement("div");
   page.className = "home";

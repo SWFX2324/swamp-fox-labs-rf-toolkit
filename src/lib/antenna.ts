@@ -2,11 +2,11 @@
 // wavelength, times a factor for how much shorter (or longer) a real
 // conductor resonates:
 //
-//   length = fraction × (c / f) × factor
+//   length = fraction * (c / f) * factor
 //
 // The default factors reproduce the familiar ARRL rules of thumb:
-//   0.95  → 468/f ft for a half-wave dipole, 234/f ft for a quarter wave
-//   1.02  → 1005/f ft for a full-wave loop
+//   0.95 gives 468/f ft for a half-wave dipole, 234/f ft for a quarter wave
+//   1.02 gives 1005/f ft for a full-wave loop
 // They depend on conductor thickness and surroundings, so cut a little long
 // and trim to resonance.
 
@@ -144,6 +144,7 @@ export const designs: AntennaDesign[] = [
   },
 ];
 
+/** The antenna design with this id, or undefined when there's none. */
 export function findDesign(id: string): AntennaDesign | undefined {
   return designs.find((d) => d.id === id);
 }
@@ -155,6 +156,12 @@ export interface ElementLength {
   note?: string;
 }
 
+/**
+ * The cut length of each element of a design at a frequency. Each element is a
+ * fraction of the wavelength, times the velocity or end-effect factor unless
+ * the element is marked as not scaled. Throws for a frequency or factor that
+ * isn't above zero, which the page checks first.
+ */
 export function elementLengths(design: AntennaDesign, freqHz: number, factor: number): ElementLength[] {
   if (!(freqHz > 0)) throw new RangeError("Frequency must be above zero");
   if (!(factor > 0)) throw new RangeError("The factor must be above zero");

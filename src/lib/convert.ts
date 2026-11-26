@@ -1,13 +1,15 @@
 // Everyday RF conversions: power units, S-meter, antenna gain references,
 // mismatch figures and decibel ratios.
 
-/** Signal into a 50 Ω receiver input. */
+/** The receiver's input impedance in ohms, used to turn a power into a voltage and back. */
 export const RX_IMPEDANCE = 50;
 
+/** Converts dBm to dBW. One watt is 1000 milliwatts, so a dBW figure is 30 dB lower. */
 export function dbmToDbw(dbm: number): number {
   return dbm - 30;
 }
 
+/** Converts dBW to dBm, the reverse of dbmToDbw. */
 export function dbwToDbm(dbw: number): number {
   return dbw + 30;
 }
@@ -17,6 +19,7 @@ export function dbmToMicrovolts(dbm: number, ohms = RX_IMPEDANCE): number {
   return Math.sqrt(10 ** (dbm / 10) * 1e-3 * ohms) * 1e6;
 }
 
+/** The power in dBm that a given RMS voltage in microvolts delivers into the receiver input. */
 export function microvoltsToDbm(uv: number, ohms = RX_IMPEDANCE): number {
   return 10 * Math.log10(((uv * 1e-6) ** 2 / ohms) / 1e-3);
 }
@@ -40,14 +43,17 @@ export function dbdToDbi(dbd: number): number {
   return dbd + 2.15;
 }
 
+/** Gain over a half-wave dipole from gain over an isotropic radiator. A dipole has 2.15 dB of gain over isotropic. */
 export function dbiToDbd(dbi: number): number {
   return dbi - 2.15;
 }
 
+/** The reflection coefficient magnitude (0 for a perfect match, 1 for total reflection) for a standing wave ratio. */
 export function swrToGamma(swr: number): number {
   return (swr - 1) / (swr + 1);
 }
 
+/** The standing wave ratio for a reflection coefficient magnitude. Total reflection gives an infinite SWR. */
 export function gammaToSwr(gamma: number): number {
   return gamma >= 1 ? Number.POSITIVE_INFINITY : (1 + gamma) / (1 - gamma);
 }
@@ -57,6 +63,7 @@ export function gammaToReturnLoss(gamma: number): number {
   return -20 * Math.log10(gamma);
 }
 
+/** The reflection coefficient magnitude for a return loss in dB, the reverse of gammaToReturnLoss. */
 export function returnLossToGamma(rlDb: number): number {
   return 10 ** (-rlDb / 20);
 }
@@ -66,10 +73,12 @@ export function mismatchLossDb(gamma: number): number {
   return -10 * Math.log10(1 - gamma * gamma);
 }
 
+/** The power ratio a decibel figure stands for: 3 dB is about double, 10 dB is ten times. */
 export function dbToPowerRatio(db: number): number {
   return 10 ** (db / 10);
 }
 
+/** The voltage ratio a decibel figure stands for: 6 dB is about double, 20 dB is ten times. */
 export function dbToVoltageRatio(db: number): number {
   return 10 ** (db / 20);
 }

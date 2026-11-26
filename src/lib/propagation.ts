@@ -68,6 +68,7 @@ const MDVAR = 12;
 export const ITM_MIN_HZ = 20e6;
 export const ITM_MAX_HZ = 20e9;
 
+/** A percentage kept between 0.1 and 99.9, the range the model accepts, or the fallback when it isn't a number. */
 const clampPercent = (p: number, fallback: number) => (Number.isFinite(p) ? Math.min(99.9, Math.max(0.1, p)) : fallback);
 
 /** Read settings from strings (a form or a saved plan), falling back to the defaults. */
@@ -142,8 +143,10 @@ export function terrainLoss(path: ProfiledPath, s: ModelSettings): TerrainLoss {
  * settings' reliability. Clamped to 0.1–99.9%.
  */
 export function timeAvailable(itm: ItmP2PResult, s: ModelSettings, marginDb: number): number {
+  // The path's loss at a given percent of the time, at the settings' confidence.
   const lossAt = (t: number) => lossAtPercentages(itm, t, 50, s.confidence);
   const base = lossAt(s.reliability);
+  // The margin at a given percent of the time: the margin at the settings' reliability, less the extra loss.
   const marginAt = (t: number) => marginDb - (lossAt(t) - base);
   if (marginAt(99.9) >= 0) return 99.9;
   if (marginAt(0.1) < 0) return 0.1;

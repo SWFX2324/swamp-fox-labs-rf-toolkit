@@ -1,7 +1,7 @@
 // A 3D view of an antenna's idealized radiation pattern (lib/antennaPattern.ts),
 // drawn like antenna modelling software: a wireframe mesh whose distance from
 // the centre is the field strength, each line coloured by dB from red at the
-// peak to dark blue at −30 dB, with X/Y/Z axes, a ground grid and the antenna
+// peak to dark blue at −30 dB, with X, Y and Z axes, a ground grid and the antenna
 // in the scene. Drag to turn it.
 
 import { toDb } from "../lib/antennaPattern";
@@ -71,6 +71,8 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
   let phase = 0;
   let frame = 0;
 
+  // Works out the pattern's surface for the current antenna: a point for every
+  // angle step, as far from the centre as the field is strong, with its level in dB.
   const build = () => {
     grid = [];
     if (!scene) return;
@@ -99,6 +101,8 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
     );
   };
 
+  // Draws one frame: the ground grid, the waves, the pattern mesh, the axes and
+  // the antenna, sorted so nearer parts cover farther ones, then the labels.
   const draw = () => {
     const w = wrap.clientWidth;
     if (!w) return;
@@ -121,6 +125,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
     const sp = Math.sin((pitch * Math.PI) / 180);
     // World (z up) to screen, turned and tilted; depth grows toward the viewer.
     type P3 = { x: number; y: number; z: number };
+    // A point in the scene to its place on screen, and how near the viewer it is.
     const project = (q: P3) => {
       const x1 = q.x * cy - q.y * sy;
       const y1 = q.x * sy + q.y * cy;
@@ -133,11 +138,13 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
     // Everything goes into one list and is drawn back to front, so the mesh,
     // grid, axes and antenna overlap properly as it turns.
     const prims: { depth: number; paint: () => void }[] = [];
+    // Queues one line to be drawn in depth order.
     const line = (p: P3, q: P3, colour: string, width: number, alpha = 1) => {
       const a = project(p);
       const b = project(q);
       prims.push({
         depth: (a.depth + b.depth) / 2,
+        // Draws this line when its turn comes in depth order.
         paint: () => {
           ctx.globalAlpha = alpha;
           ctx.strokeStyle = colour;
@@ -168,6 +175,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
       const RINGS = 5;
       const MAX = 1.25;
       const STEP = 4;
+      // How strong the antenna is in a direction, from 0 to 1 of its peak.
       const strength = (thetaDeg: number, phiDeg: number) => scene!.field(thetaDeg, phiDeg) / peakField;
       for (let k = 0; k < RINGS; k++) {
         const r = (((phase + k / RINGS) % 1) + 1) % 1 * MAX;
@@ -258,6 +266,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const backing = style.getPropertyValue("--card-2").trim() || "#222";
+    // A label on a small backing, kept inside the canvas.
     const tag = (at: { sx: number; sy: number }, colour: string, text: string) => {
       const tw = ctx.measureText(text).width + 10;
       // Kept inside the canvas.
@@ -283,6 +292,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
     draw();
     frame = requestAnimationFrame(tick);
   };
+  // Starts the wave animation if it should be running and isn't already.
   const animate = () => {
     if (!frame && waves && scene && !stillMotion.matches) frame = requestAnimationFrame(tick);
   };
@@ -307,7 +317,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
     pitch = Math.max(-85, Math.min(85, dragging.pitch + (e.clientY - dragging.y) * 0.4));
     draw();
   });
-  const stop = () => (dragging = undefined);
+  const stop = () => (dragging = undefined); // Ends a drag.
   canvas.addEventListener("pointerup", stop);
   canvas.addEventListener("pointercancel", stop);
   new ResizeObserver(() => draw()).observe(wrap);
@@ -315,6 +325,7 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
 
   return {
     element: wrap,
+    /** Shows the pattern for another antenna, or hides the view when given none. */
     show(next) {
       scene = next;
       wrap.hidden = !next;

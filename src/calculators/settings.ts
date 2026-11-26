@@ -1,5 +1,5 @@
-// The Settings tab: the defaults the Link Analysis, Mesh Analysis and Coverage
-// Map start from. Changing a field on a tab still overrides it there.
+// The Settings tab: the defaults the Link Analysis, Mesh Planner and Coverage
+// Analysis start from. Changing a field on a tab still overrides it there.
 
 import type { Calculator } from ".";
 import { type AppSettings, connectorsDb, fieldNumber, inUnit } from "../lib/appSettings";
@@ -13,6 +13,7 @@ import { getSettings, resetSettings, setSettings } from "./settingsStore";
 
 export const COORD_EVENT = "rf-toolkit:coord-format";
 
+/** A labelled number box with its unit. A unit of "height" shows the chosen height unit and follows it when it changes. */
 const numberField = (label: string, name: string, unit: string, attrs = "") => `
     <label>${label}
       <span class="input-unit">
@@ -21,6 +22,7 @@ const numberField = (label: string, name: string, unit: string, attrs = "") => `
       </span>
     </label>`;
 
+/** Dropdown options from a list of items with an id and a name. */
 const options = (items: readonly { id: string | number; name: string }[]) => items.map((i) => `<option value="${i.id}">${i.name}</option>`).join("");
 const [noEnv, ...envs] = environments;
 
@@ -115,14 +117,19 @@ export const settingsCalculator: Calculator = {
   title: "Settings",
   // Opened from the gear in the top bar, apart from the calculators.
   inTabBar: false,
+  // Builds the Settings page. Every change is checked and saved at once, and
+  // the summary at the side says in words what the settings mean.
   render() {
     const form = document.createElement("form");
     form.className = "calculator two-col settings";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
+    // A field in the form by its name.
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
+    // A field's value as a number (NaN when blank or not a number).
     const num = (name: string) => Number.parseFloat(field(name).value);
 
+    // Puts settings into the form, heights in the chosen unit.
     const fill = (s: AppSettings) => {
       for (const key of ["reliability", "confidence", "fadeMarginDb", "antennaGainDbi", "cableLossDb", "connectorLossDb", "connectorsPerEnd", "sensitivityDerateDb"] as const) {
         field(key).value = fieldNumber(s[key]);
@@ -136,6 +143,7 @@ export const settingsCalculator: Calculator = {
       for (const u of form.querySelectorAll("[data-height-unit]")) u.textContent = s.heightUnit;
     };
 
+    // Rewrites the summary of what the settings mean, one sentence per topic.
     const summarize = (s: AppSettings) => {
       const env = s.environment === "auto" ? "the land-cover map" : (environments.find((e) => e.id === s.environment)?.name ?? s.environment);
       const fallback = environments.find((e) => e.id === s.fallbackEnvironment)?.name ?? s.fallbackEnvironment;
@@ -156,13 +164,17 @@ export const settingsCalculator: Calculator = {
       );
     };
 
+    // The settings as the form now shows them. A number that is blank or out of
+    // its range keeps its current value instead of being saved.
     const read = (): AppSettings => {
       const current = getSettings();
       const unit = field("heightUnit").value as AppSettings["heightUnit"];
+      // A height field in metres. Default antenna height may be 0; anything else must be above 0.
       const metres = (name: string, fallback: number) => {
         const v = num(name);
         return v > 0 || (name === "defaultHeight" && v === 0) ? (unit === "ft" ? v * 0.3048 : v) : fallback;
       };
+      // A number field kept within min and max, or its current value when it isn't.
       const n = (name: keyof AppSettings, min: number, max: number) => {
         const v = num(name);
         return Number.isFinite(v) && v >= min && v <= max ? v : (current[name] as number);

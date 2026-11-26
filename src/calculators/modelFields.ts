@@ -13,11 +13,12 @@ export const globalK = (): number => parseKFactor(getSettings().kFactor);
 
 /**
  * The model for this tab: its reliability and confidence, with climate, ground
- * and polarization from Settings. Ground follows the tab's Environment (Open
- * Water → sea water, Desert or Urban → poor ground) unless Ground in Settings
+ * and polarization from Settings. Ground follows the tab's Environment (sea
+ * water for Open Water, poor ground for Desert or Urban) unless Ground in Settings
  * was changed from what its own Environment suggests.
  */
 export function readModel(form: HTMLFormElement): ModelSettings {
+  // The current value of a field in the form, or undefined when the form has no such field.
   const value = (name: string) => (form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)?.value;
   const s = getSettings();
   const env = value("environment");

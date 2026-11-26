@@ -12,7 +12,7 @@ export interface EditField {
   value: string;
   unit?: string;
   type: "text" | "number" | "select";
-  /** Shown in an empty field, e.g. the default it falls back to. */
+  /** Shown in an empty field, for example the default it falls back to. */
   placeholder?: string;
   /** The choices for a select. */
   options?: { value: string; label: string }[];
@@ -34,7 +34,7 @@ export interface Link3D {
 }
 
 export interface Scene3D {
-  /** Shown in the view's title, e.g. "Link Analysis". */
+  /** Shown in the view's title, for example "Link Analysis". */
   title: string;
   points: Point3D[];
   links: Link3D[];

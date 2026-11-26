@@ -28,18 +28,22 @@ export function asFrequencyUnit(value: string, fallback: FrequencyUnit = "MHz"):
   return (Object.keys(frequencyUnits) as FrequencyUnit[]).find((u) => u === value) ?? fallback;
 }
 
+/** The distance unit named by a page value, or the fallback when it isn't one. See asFrequencyUnit. */
 export function asDistanceUnit(value: string, fallback: DistanceUnit = "m"): DistanceUnit {
   return (Object.keys(distanceUnits) as DistanceUnit[]).find((u) => u === value) ?? fallback;
 }
 
+/** Converts a frequency in the given unit to hertz. */
 export function toHz(value: number, unit: FrequencyUnit): number {
   return value * frequencyUnits[unit];
 }
 
+/** Converts a distance in the given unit to metres. */
 export function toMetres(value: number, unit: DistanceUnit): number {
   return value * distanceUnits[unit];
 }
 
+/** Converts a distance in metres to the given unit. */
 export function fromMetres(metres: number, unit: DistanceUnit): number {
   return metres / distanceUnits[unit];
 }
@@ -58,18 +62,22 @@ export const powerUnits = ["W", "mW", "dBm"] as const;
 
 export type PowerUnit = (typeof powerUnits)[number];
 
+/** The power unit named by a page value, or the fallback when it isn't one. See asFrequencyUnit. */
 export function asPowerUnit(value: string, fallback: PowerUnit = "W"): PowerUnit {
   return powerUnits.find((u) => u === value) ?? fallback;
 }
 
+/** Converts watts to dBm, decibels relative to one milliwatt. */
 export function wattsToDbm(watts: number): number {
   return 10 * Math.log10(watts * 1000);
 }
 
+/** Converts dBm to watts. */
 export function dbmToWatts(dbm: number): number {
   return 10 ** (dbm / 10) / 1000;
 }
 
+/** Converts a power typed in watts, milliwatts or dBm to dBm, the unit the link maths uses. */
 export function toDbm(value: number, unit: PowerUnit): number {
   switch (unit) {
     case "dBm":

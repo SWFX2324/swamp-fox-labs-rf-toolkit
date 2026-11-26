@@ -59,10 +59,17 @@ export interface LinkResult {
   beyondHorizon: boolean;
 }
 
+/** Effective radiated power in dBm: transmit power, minus cable and other losses, plus antenna gain. */
 export function eirpDbm(i: Pick<LinkInputs, "txPowerDbm" | "txCableLossDb" | "txOtherLossDb" | "txGainDbi">): number {
   return i.txPowerDbm - i.txCableLossDb - i.txOtherLossDb + i.txGainDbi;
 }
 
+/**
+ * The link budget for one direction: what is sent, what the path takes away,
+ * what arrives, the margin over the receiver's sensitivity, and the longest
+ * range the budget and the radio horizon allow. The longest range leaves out
+ * terrain loss, which belongs to this exact path only.
+ */
 export function linkBudget(i: LinkInputs): LinkResult {
   const eirp = eirpDbm(i);
   const fspl = fsplDb(i.freqHz, i.distanceM);
@@ -97,6 +104,7 @@ export function linkBudget(i: LinkInputs): LinkResult {
  */
 export const FREE_SPACE_MIN_HZ = 30e6;
 
+/** True at frequencies where a line-of-sight model holds (30 MHz and up). */
 export function freeSpaceApplies(freqHz: number): boolean {
   return freqHz >= FREE_SPACE_MIN_HZ;
 }

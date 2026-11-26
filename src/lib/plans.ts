@@ -41,6 +41,11 @@ const MAX_ENCODED = 8000;
 const MAX_VALUE = 80;
 const MAX_NODES = 10;
 
+/**
+ * Packs a plan into text for a share link: JSON, then base64 with the URL-safe
+ * characters (- and _ instead of + and /) and no padding, so it fits in a link
+ * without escaping. Done byte by byte so names in any language survive.
+ */
 export function encodePlan(plan: Plan): string {
   const bytes = new TextEncoder().encode(JSON.stringify(plan));
   let binary = "";
@@ -60,6 +65,12 @@ export function decodePlan(encoded: string, settingNames: string[]): Plan | unde
   }
 }
 
+/**
+ * Rebuilds a plan from untrusted data (a share link or storage), keeping only
+ * what is valid: the tool's own setting names with short text values, up to
+ * MAX_NODES nodes with real coordinates, and presets that pass their own checks.
+ * Anything else is dropped rather than trusted.
+ */
 export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const { settings, nodes, preset, nodePresets } = raw as { settings?: unknown; nodes?: unknown; preset?: unknown; nodePresets?: unknown };
@@ -107,8 +118,14 @@ export interface SavedPlan extends Plan {
   savedAt: string;
 }
 
+/**
+ * The plans saved on this device for one tool, kept in storage under a key per
+ * tool. Every read is validated the same way a share link is, so a damaged or
+ * edited entry is skipped instead of breaking the page.
+ */
 export function createPlanStore(storage: StorageLike, toolId: string, settingNames: string[]) {
   const key = `rf-toolkit:plans:${toolId}`;
+  // Every saved plan for this tool, validated. Unreadable storage gives an empty list.
   const read = (): SavedPlan[] => {
     try {
       const value = JSON.parse(storage.getItem(key) ?? "[]");
@@ -121,6 +138,7 @@ export function createPlanStore(storage: StorageLike, toolId: string, settingNam
       return [];
     }
   };
+  // Stores the list. False when storage refused it, for example when it is full or blocked.
   const write = (plans: SavedPlan[]) => {
     try {
       storage.setItem(key, JSON.stringify(plans));
@@ -136,6 +154,7 @@ export function createPlanStore(storage: StorageLike, toolId: string, settingNam
       const rest = read().filter((p) => p.name !== name);
       return write([...rest, { ...plan, name, savedAt: now.toISOString() }].sort((a, b) => a.name.localeCompare(b.name)));
     },
+    /** Deletes the plan with that name. */
     remove(name: string): void {
       write(read().filter((p) => p.name !== name));
     },

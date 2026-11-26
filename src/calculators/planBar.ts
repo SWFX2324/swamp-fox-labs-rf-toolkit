@@ -11,6 +11,7 @@ import { type Plan, createPlanStore, decodePlan, encodePlan, planFromHash } from
 import { type ImportedPoint, type PackageFile, MAX_IMPORT_BYTES, buildDataPackage, importPoints } from "../lib/tak";
 
 const storage = {
+  // Reads a stored value, or nothing when storage is blocked.
   getItem: (key: string) => {
     try {
       return localStorage.getItem(key);
@@ -18,6 +19,7 @@ const storage = {
       return null;
     }
   },
+  // Stores a value; the plan store handles a refusal.
   setItem: (key: string, value: string) => localStorage.setItem(key, value),
 };
 
@@ -64,10 +66,12 @@ export const NO_POINTS = "No named points found in that file. Import reads point
 /** The bytes of a PNG data URL, for packing into a KMZ. */
 export const pngBytes = (dataUrl: string) => Uint8Array.from(atob(dataUrl.split(",")[1]), (c) => c.charCodeAt(0));
 
-export interface PlanBarOptions {
+export interface PlanCardOptions {
   toolId: string;
   settingNames: string[];
+  /** The page's current plan, to share or save. */
   getPlan(): Plan;
+  /** Opens a plan on the page, from a share link or the saved list. */
   applyPlan(plan: Plan): void;
   /** The export file (a KMZ), or a message if there's nothing to export yet. */
   buildExport(name: string): PackageFile | string;
@@ -82,7 +86,7 @@ export interface PlanBarOptions {
  * link, import from a file, and the saved plans, in the same plain style as
  * the Link Analysis Share card. Opens a plan arriving by share link, too.
  */
-export function createPlanCard(o: PlanBarOptions): HTMLElement {
+export function createPlanCard(o: PlanCardOptions): HTMLElement {
   const store = createPlanStore(storage, o.toolId, o.settingNames);
   const card = document.createElement("div");
   card.className = "plan-card";
@@ -105,14 +109,17 @@ export function createPlanCard(o: PlanBarOptions): HTMLElement {
       <button type="button" class="secondary" data-p="save">Save</button>
     </div>
     <p class="note plan-status" data-p="status" role="status"></p>`;
+  // An element of this card by its data-p name.
   const el = <T extends HTMLElement>(name: string) => card.querySelector<T>(`[data-p="${name}"]`)!;
   const nameInput = el<HTMLInputElement>("name");
+  // Shows a message under the card's controls.
   const status = (text: string) => {
     el("status").textContent = text;
   };
   // These controls aren't part of the plan, so keep them from recalculating it.
   for (const type of ["input", "change"]) card.addEventListener(type, (e) => e.stopPropagation());
 
+  // Redraws the list of saved plans, each with an Open button (its name) and a Delete button.
   const list = () => {
     const plans = store.list();
     // Names are user text, so they're set as text.
@@ -145,6 +152,7 @@ export function createPlanCard(o: PlanBarOptions): HTMLElement {
     );
   };
   list();
+  // Saves the current plan under the typed name, replacing any plan with that name.
   const save = () => {
     const name = nameInput.value.trim();
     if (!name) {
@@ -166,6 +174,8 @@ export function createPlanCard(o: PlanBarOptions): HTMLElement {
     save();
   });
 
+  // Downloads the plan as a TAK data package (a zip) or as a KMZ for Google Earth.
+  // The page builds the file; a message from it instead means there is nothing to export yet.
   const exportAs = (tak: boolean) => {
     const name = nameInput.value.trim() || o.toolId;
     const file = o.buildExport(name);

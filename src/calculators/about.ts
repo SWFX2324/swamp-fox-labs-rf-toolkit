@@ -185,6 +185,7 @@ export const aboutCalculator: Calculator = {
   title: "About",
   // Opened from the top bar beside Settings, apart from the tools.
   inTabBar: false,
+  // Builds the About page from SECTIONS: a card for each topic, with its text.
   render() {
     const page = document.createElement("div");
     page.className = "about-page";

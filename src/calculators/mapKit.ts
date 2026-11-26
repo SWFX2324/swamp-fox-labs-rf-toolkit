@@ -38,6 +38,7 @@ const BLANK_TILE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALA
 
 /** A label layer left blank over the US, where the USGS imagery already prints names. */
 const LabelsOutsideUs = L.TileLayer.extend({
+  // A blank tile inside the USGS area, Esri's label tile everywhere else.
   getTileUrl(this: L.TileLayer, coords: L.Coords) {
     return tileInUsgsArea(coords) ? BLANK_TILE : L.TileLayer.prototype.getTileUrl.call(this, coords);
   },
@@ -52,9 +53,12 @@ const LAYER_LABELS: Record<LayerName, string> = {
   Clarity: "ESRI Satellite",
 };
 
+/** Where the chosen map layer is kept: one choice for the light theme and one for the dark. */
 const themeKey = (dark: boolean) => `${LAYER_KEY}:${dark ? "dark" : "light"}`;
+/** True when a stored or clicked value is one of the map layer names. */
 const isLayerName = (v: string | null): v is LayerName => v === "Streets" || v === "Dark" || v === "Satellite" || v === "Clarity";
 
+/** The map layer to start on for this theme: the one the user chose, or the default. */
 function readLayer(dark: boolean): LayerName {
   try {
     const saved = localStorage.getItem(themeKey(dark));
@@ -70,6 +74,7 @@ function readLayer(dark: boolean): LayerName {
   return navigator.onLine === false ? "Satellite" : "Clarity";
 }
 
+/** Remembers the chosen map layer for the current theme. */
 function saveLayer(name: string): void {
   try {
     localStorage.setItem(themeKey(isDarkTheme()), name);
@@ -137,6 +142,7 @@ export function addClearControl(
     b.setAttribute("aria-label", `Clear ${what} from the map`);
     b.disabled = true;
     let armed: ReturnType<typeof setTimeout> | undefined;
+    // Puts the button back to "Clear map" after a second tap or a timeout.
     const disarm = () => {
       clearTimeout(armed);
       armed = undefined;
@@ -145,10 +151,10 @@ export function addClearControl(
       b.title = "Clear map";
     };
     b.addEventListener("click", () => {
-      // Every map: the first tap asks, a second tap within a few seconds clears.
+      // The first tap asks; a second tap within four seconds clears.
       const question = armed ? undefined : ask();
       if (question) {
-        // First tap: the button asks; a second tap within a few seconds clears.
+        // First tap: the button changes to ask for a second tap.
         b.classList.add("armed");
         label.textContent = "Tap again to clear";
         b.title = question;
@@ -160,6 +166,7 @@ export function addClearControl(
     });
     slot.append(b);
     return {
+      // Greys the button out when there's nothing to clear.
       setVisible(visible) {
         b.disabled = !visible;
         if (!visible) disarm();
@@ -168,6 +175,7 @@ export function addClearControl(
   }
   let button: HTMLButtonElement | undefined;
   const Control = L.Control.extend({
+    // Builds the corner button for maps without a taskbar, with the same two-tap clear.
     onAdd() {
       button = L.DomUtil.create("button", "map-clear");
       button.type = "button";
@@ -178,6 +186,7 @@ export function addClearControl(
       L.DomEvent.disableClickPropagation(button);
       let armed: ReturnType<typeof setTimeout> | undefined;
       const b = button;
+      // Puts the button back to "Clear map" after a second tap or a timeout.
       const disarm = () => {
         clearTimeout(armed);
         armed = undefined;
@@ -201,6 +210,7 @@ export function addClearControl(
   });
   new Control({ position: "bottomleft" }).addTo(map);
   return {
+    // Hides the button when there's nothing to clear.
     setVisible(visible) {
       if (button) button.hidden = !visible;
     },
@@ -276,6 +286,7 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     menu.setAttribute("role", "menu");
     const names: LayerName[] = ["Streets", "Dark", "Clarity", "Satellite"];
     menu.innerHTML = names.map((n) => `<button type="button" role="menuitemradio" data-layer="${n}">${LAYER_LABELS[n]}</button>`).join("");
+    // Opens or closes the layers menu.
     const open = (show: boolean) => {
       menu.hidden = !show;
       button.setAttribute("aria-expanded", String(show));
@@ -337,6 +348,7 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
   window.addEventListener("offline", onTheme);
 
   const Recenter = L.Control.extend({
+    // Builds the corner Recenter button for maps without a taskbar.
     onAdd() {
       const bar = L.DomUtil.create("div", "leaflet-bar recenter-control");
       const button = L.DomUtil.create("a", "", bar);
@@ -396,17 +408,19 @@ export interface Control3D {
 }
 
 /**
- * A "3D" button under the base-map button, top right (the left side fills up
- * with zoom, recenter and offline buttons, and on a phone it ran into Clear map). scene() describes what to show; the
- * 2D map's view is used when there are no points. The 3D view (and MapLibre)
- * loads only when pressed.
+ * A "3D mode" button: in the taskbar when the map has one, otherwise in the top
+ * right corner, clear of the zoom and Clear map buttons. scene() describes what
+ * to show; the 2D map's view is used when there are no points. The 3D view's
+ * code (and MapLibre) loads only when the button is pressed.
  */
 export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "zoom">): Control3D {
   let view: View3D | undefined;
+  // The scene with the 2D map's current centre and zoom added.
   const full = (): Scene3D => {
     const c = map.getCenter();
     return { ...scene(), center: { lat: c.lat, lon: c.lng }, zoom: map.getZoom() };
   };
+  // Loads the 3D view's code the first time, then opens it on the current scene.
   const open = () =>
     import("./view3d")
       .then((m) => {
@@ -420,12 +434,14 @@ export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "
     b.addEventListener("click", () => void open());
     slot.append(b);
     return {
+      // Updates an open 3D view after the page's points or results change.
       refresh() {
         if (view?.isOpen()) view.update(full());
       },
     };
   }
   const Control = L.Control.extend({
+    // Builds the corner "3D" button for maps without a taskbar.
     onAdd() {
       const bar = L.DomUtil.create("div", "leaflet-bar view3d-control");
       const button = L.DomUtil.create("a", "", bar);
@@ -448,6 +464,7 @@ export function add3DControl(map: L.Map, scene: () => Omit<Scene3D, "center" | "
   });
   new Control({ position: "topright" }).addTo(map);
   return {
+    // Updates an open 3D view after the page's points or results change.
     refresh() {
       if (view?.isOpen()) view.update(full());
     },

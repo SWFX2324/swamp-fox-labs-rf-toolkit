@@ -125,6 +125,7 @@ const template = `
   </div>
 `;
 
+/** The saved inputs, checked against the defaults (see tabValues), or the defaults when nothing usable is stored. */
 function loadState(): Record<string, string> {
   try {
     return tabValues(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"), defaults, legacyDefaults);
@@ -133,6 +134,7 @@ function loadState(): Record<string, string> {
   }
 }
 
+/** Remembers the inputs that differ from the defaults. */
 function saveState(state: Record<string, string>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tabStateToSave(state, defaults)));
@@ -141,9 +143,11 @@ function saveState(state: Record<string, string>): void {
   }
 }
 
+/** A number to the given decimal places, with a true minus sign for negatives. */
 const fmt = (v: number, digits = 2) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
+/** A power in W, mW or µW, whichever reads best. */
 function formatWatts(w: number): string {
   if (w >= 1) return `${fmt(w, w >= 100 ? 0 : 1)} W`;
   if (w >= 1e-3) return `${fmt(w * 1e3, 1)} mW`;
@@ -164,15 +168,20 @@ export const coaxLossCalculator: Calculator = {
   id: "coax",
   title: "Coaxial Attenuation Planning Tool",
   shortTitle: "Coax",
+  // Builds the page and recalculates the loss, delivered power and cable comparison on every change.
   render() {
     const form = document.createElement("form");
     form.className = "calculator coax-loss map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
+    // A field in the form by its name.
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
+    // A result element by its data-out name.
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
+    // A field's value as a number (NaN when blank or not a number).
     const num = (name: string) => Number.parseFloat(field(name).value);
+    // Puts saved or default values into the form's fields.
     const fill = (values: Record<string, string>) => {
       // Skip names that no longer exist, such as a renamed field in old saved state.
       for (const [name, value] of Object.entries(values)) {
@@ -182,6 +191,7 @@ export const coaxLossCalculator: Calculator = {
     };
     fill(loadState());
 
+    // Reads the inputs, saves them, and redraws every result.
     const update = () => {
       const state: Record<string, string> = {};
       for (const name of Object.keys(defaults)) state[name] = field(name).value;

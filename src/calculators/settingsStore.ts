@@ -5,6 +5,7 @@ import { type AppSettings, SETTINGS_EVENT, connectorsDb, defaultSettings, fieldN
 import { type Environment, findEnvironment } from "../lib/environment";
 
 const storage = {
+  // Reads a stored value, or nothing when storage is blocked.
   getItem: (k: string) => {
     try {
       return localStorage.getItem(k);
@@ -12,6 +13,7 @@ const storage = {
       return null;
     }
   },
+  // Stores a value, quietly doing nothing when storage is blocked.
   setItem: (k: string, v: string) => {
     try {
       localStorage.setItem(k, v);
@@ -23,17 +25,20 @@ const storage = {
 
 let cached: AppSettings | undefined;
 
+/** The current settings, read from storage the first time and kept after that. */
 export function getSettings(): AppSettings {
   cached ??= loadSettings(storage);
   return cached;
 }
 
+/** Saves new settings and tells every open page they changed. */
 export function setSettings(next: AppSettings): void {
   cached = next;
   saveSettings(storage, next);
   window.dispatchEvent(new Event(SETTINGS_EVENT));
 }
 
+/** Puts every setting back to its default. */
 export function resetSettings(): void {
   setSettings({ ...defaultSettings });
 }

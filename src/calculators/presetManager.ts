@@ -17,6 +17,7 @@ const SCOPE_NAMES: Record<PresetScope, string> = { mesh: "MANET Mesh Planner", c
 /** Fired on window when presets change (detail: the scope), so an open tab can refresh its list. */
 export const PRESETS_EVENT = "rf-toolkit:presets";
 
+/** The presets saved for a tool, checked one by one; an empty list when there are none or storage can't be read. */
 export function loadPresets(scope: PresetScope): RadioPreset[] {
   try {
     return cleanPresets(JSON.parse(localStorage.getItem(STORAGE_KEYS[scope]) ?? "[]"));
@@ -25,6 +26,7 @@ export function loadPresets(scope: PresetScope): RadioPreset[] {
   }
 }
 
+/** Stores a tool's presets and tells every open page they changed. */
 function savePresets(list: RadioPreset[], scope: PresetScope): void {
   try {
     localStorage.setItem(STORAGE_KEYS[scope], JSON.stringify(list));
@@ -50,8 +52,10 @@ export function adoptPreset(p: RadioPreset, scope: PresetScope): string {
   return added.id;
 }
 
+/** Dropdown options from a list of unit names. */
 const options = (list: readonly string[]) => list.map((u) => `<option>${u}</option>`).join("");
 
+/** The preset manager's markup: the list view and the editor form, for one tool. */
 const template = (scope: PresetScope) => `
   <div class="preset-head">
     <h2>Radio presets <span class="meta">${SCOPE_NAMES[scope]}</span></h2>
@@ -120,8 +124,10 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
   dialog.innerHTML = template(scope);
   // Hop limit and shared channel only mean something in a mesh.
   if (scope !== "mesh") for (const el of dialog.querySelectorAll<HTMLElement>("[data-mesh-only]")) el.hidden = true;
+  // An element of the dialog by its data-p name.
   const el = <T extends HTMLElement = HTMLElement>(name: string) => dialog.querySelector<T>(`[data-p="${name}"]`)!;
   const form = el<HTMLFormElement>("editor");
+  // A field in the editor form by its name.
   const input = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
   document.body.append(dialog);
   dialog.showModal();
@@ -129,10 +135,12 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
   // A form inside the page's form would otherwise send its events to the page.
   for (const type of ["input", "change", "submit"]) dialog.addEventListener(type, (e) => e.stopPropagation());
   el("close").addEventListener("click", () => dialog.close());
+  // Shows a message under the list.
   const setStatus = (text: string) => (el("status").textContent = text);
 
   let editing: RadioPreset | undefined;
 
+  // Redraws the list of presets, each with buttons to move it up or down, edit it or copy it.
   const renderList = () => {
     const list = loadPresets(scope);
     el("empty").hidden = list.length > 0;
@@ -165,6 +173,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
     el("list").querySelector<HTMLButtonElement>(`[data-${step < 0 ? "up" : "down"}="${id}"]:not([disabled])`)?.focus();
   };
 
+  // Adds one data rate and sensitivity row to the editor's rate list.
   const rateRow = (rate = "", sens = "") => {
     const row = document.createElement("div");
     row.className = "preset-rate";
@@ -176,6 +185,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
     el("rates").append(row);
   };
 
+  // Opens the editor for a preset, or empty for a new one, in place of the list.
   const showEditor = (p: RadioPreset | undefined) => {
     editing = p;
     el("listView").hidden = true;
@@ -198,6 +208,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
     el("delete").hidden = !p || !loadPresets(scope).some((q) => q.id === p.id);
     input("name").focus();
   };
+  // Closes the editor and shows the list again.
   const showList = () => {
     form.hidden = true;
     el("listView").hidden = false;
@@ -209,6 +220,7 @@ export function openPresetManager(scope: PresetScope, onPicked?: (id: string) =>
   // Presets past the limit would be dropped the next time the list loads, so a
   // new one is refused while the list is full rather than saved and lost.
   const FULL = `Up to ${MAX_PRESETS} presets. Delete one first.`;
+  // True when the tool already has the most presets it can keep.
   const isFull = () => loadPresets(scope).length >= MAX_PRESETS;
   el("new").addEventListener("click", () => (isFull() ? setStatus(FULL) : showEditor(undefined)));
   el("list").addEventListener("click", (e) => {

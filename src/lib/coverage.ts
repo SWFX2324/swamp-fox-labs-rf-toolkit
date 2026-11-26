@@ -22,6 +22,11 @@ export interface RadialSamples {
   elevations: Float32Array[];
 }
 
+/**
+ * Ground heights along evenly spaced lines (radials) running out from a site,
+ * like spokes of a wheel: `radials` lines, each sampled at `steps` points out
+ * to radiusM. The coverage map is worked out along these lines.
+ */
 export function sampleRadials(
   site: LatLon,
   radiusM: number,
@@ -44,6 +49,7 @@ export function sampleRadials(
   return { site, radiusM, stepM, bearings, elevations };
 }
 
+/** The height when it is real terrain, or the fallback for a gap (missing data comes back as NaN or a huge negative number). */
 const finiteOr = (v: number, fallback: number) => (Number.isFinite(v) && v > -1000 ? v : fallback);
 
 export interface CoverageRadio {
@@ -136,6 +142,11 @@ export interface CoverageStats {
   farthestSolidBearing: number;
 }
 
+/**
+ * How much of the circle has coverage: the share of its area that meets the
+ * fade margin, the share that connects with less, and the farthest point that
+ * meets the fade margin with its bearing.
+ */
 export function coverageStats(s: RadialSamples, margins: Float32Array[], fadeMarginDb: number): CoverageStats {
   let total = 0;
   let solid = 0;

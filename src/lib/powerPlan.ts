@@ -1,4 +1,4 @@
-// Power plan: each item's draw from its data plate (watts, or volts × amps),
+// Power plan: each item's draw from its data plate (watts, or volts times amps),
 // times how many of it, summed into the load a generator has to carry, and
 // the smallest standard generator size that carries it inside a planning limit.
 
@@ -10,7 +10,7 @@ export interface PowerItem {
   volts?: number;
   amps?: number;
   ac: boolean;
-  /** AC only: real power ÷ apparent power, 0–1. DC is always 1. */
+  /** AC only: real power divided by apparent power, from 0 to 1. DC is always 1. */
   powerFactor: number;
 }
 
@@ -21,6 +21,7 @@ export interface ItemLoad {
   va: number;
 }
 
+/** The value when it is a real, finite number, otherwise undefined. Used to read stored data safely. */
 const finite = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 
 /** An item read back from storage: known fields only, of the right types. */
@@ -42,8 +43,10 @@ export function cleanPowerItem(raw: unknown): PowerItem | undefined {
 export type EquipmentProfile = Omit<PowerItem, "qty">;
 export const MAX_PROFILES = 200;
 
+/** True when two equipment names match, ignoring case and spaces at either end. */
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
+/** Saved equipment read back from storage: valid, named entries only, at most MAX_PROFILES of them. */
 export function cleanProfiles(raw: unknown): EquipmentProfile[] {
   if (!Array.isArray(raw)) return [];
   return raw.slice(0, MAX_PROFILES).flatMap((p): EquipmentProfile[] => {
@@ -61,10 +64,12 @@ export function saveProfile(profiles: EquipmentProfile[], item: PowerItem): Equi
   return [...rest, profile].sort((a, b) => a.name.localeCompare(b.name)).slice(0, MAX_PROFILES);
 }
 
+/** The saved equipment without the item of that name (matched ignoring case). */
 export function removeProfile(profiles: EquipmentProfile[], name: string): EquipmentProfile[] {
   return profiles.filter((p) => !sameName(p.name, name));
 }
 
+/** True for a finite number above zero. A blank or zero field doesn't count as a value. */
 const positive = (v: number | undefined): v is number => v !== undefined && Number.isFinite(v) && v > 0;
 
 /** One item's draw, or undefined until it has watts or both volts and amps. */
@@ -85,6 +90,11 @@ export interface PlanTotals {
   counted: number;
 }
 
+/**
+ * The whole plan's real power (watts) and apparent power (VA), each item's
+ * draw times its quantity. Items with no usable figures, or a quantity of
+ * zero, are left out, and counted says how many were included.
+ */
 export function planTotals(items: PowerItem[]): PlanTotals {
   let watts = 0;
   let va = 0;
@@ -140,6 +150,7 @@ export function csvCell(value: string | number): string {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
+/** Rounds to the given number of decimal places and returns a number, not text. */
 const round = (v: number, digits = 0) => Number(v.toFixed(digits));
 
 /**

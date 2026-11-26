@@ -29,7 +29,9 @@ const MAX_ITEMS = 100;
 
 const defaults: Record<string, string> = { limit: "80" };
 
+/** An empty line for the plan: no name or figures, one of it, AC at a power factor of 1. */
 const blankItem = (): PowerItem => ({ name: "", qty: 1, ac: true, powerFactor: 1 });
+/** True for a line with no name and no figures typed yet. */
 const isBlank = (it: PowerItem) => !it.name.trim() && !it.watts && !it.volts && !it.amps;
 
 const BOOKMARK =
@@ -96,6 +98,7 @@ const template = `
   </div>
 `;
 
+/** The equipment saved on this device, checked item by item, or none when storage can't be read. */
 function loadEquipment(): EquipmentProfile[] {
   try {
     return cleanProfiles(JSON.parse(localStorage.getItem(EQUIPMENT_KEY) ?? "[]"));
@@ -104,6 +107,7 @@ function loadEquipment(): EquipmentProfile[] {
   }
 }
 
+/** The saved plan (its lines and loading limit), checked, with one empty line when there are none. */
 function loadState(): { settings: Record<string, string>; items: PowerItem[] } {
   try {
     const v = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -115,31 +119,39 @@ function loadState(): { settings: Record<string, string>; items: PowerItem[] } {
   }
 }
 
+/** A number to the given decimal places, grouped by thousands. */
 const fmt = (v: number, digits = 0) => v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+/** A power as markup: watts, or kW from 10 kW up, with the unit styled smaller. */
 const formatWatts = (w: number) => (w >= 10_000 ? `${fmt(w / 1000, 1)}<span class="unit">kW</span>` : `${fmt(w)}<span class="unit">W</span>`);
+/** A number as a field value, blank when there's none. */
 const inputValue = (v: number | undefined) => (v === undefined ? "" : String(v));
 
 export const powerPlanCalculator: Calculator = {
   id: "power",
   title: "Power Requirements Planning Tool",
   shortTitle: "Power",
+  // Builds the page: the equipment lines, the saved equipment picker, and the
+  // load and generator results that follow every change.
   render() {
     const form = document.createElement("form");
     form.className = "calculator power-plan map-first";
     form.innerHTML = template;
     form.addEventListener("submit", (e) => e.preventDefault());
 
+    // A result element by its data-out name.
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
     const limitInput = form.elements.namedItem("limit") as HTMLInputElement;
     const state = loadState();
     let items = state.items;
     limitInput.value = state.settings.limit;
 
+    // The loading limit as a fraction (0.8 for 80%), or the default when the box isn't between 1 and 100.
     const limit = () => {
       const v = Number.parseFloat(limitInput.value);
       return v > 0 && v <= 100 ? v / 100 : Number(defaults.limit) / 100;
     };
 
+    // Remembers the plan.
     const save = () => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ settings: { limit: limitInput.value }, items }));
@@ -168,6 +180,7 @@ export const powerPlanCalculator: Calculator = {
             <span class="power-total mono" data-f="total"></span>
             <button type="button" class="secondary icon-btn" data-f="keep" aria-label="Save item ${idx + 1} to your equipment" title="Save to your equipment">${BOOKMARK}</button>
             <button type="button" class="secondary icon-btn" data-f="remove" aria-label="Remove item ${idx + 1}" title="Remove">${rfIcon("close")}</button>`;
+          // One of this row's controls by its data-f name.
           const f = <T extends HTMLElement>(name: string) => row.querySelector<T>(`[data-f="${name}"]`)!;
           f<HTMLInputElement>("name").value = it.name;
           f<HTMLInputElement>("qty").value = String(it.qty);
@@ -182,8 +195,11 @@ export const powerPlanCalculator: Calculator = {
       form.querySelector<HTMLButtonElement>('[data-action="add"]')!.disabled = items.length >= MAX_ITEMS;
     };
 
+    // One line of the plan as the row's boxes now show it.
     const readRow = (row: HTMLElement): PowerItem => {
+      // A control's value by its data-f name.
       const v = (name: string) => row.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-f="${name}"]`)!.value;
+      // A control's value as a number, or undefined when blank.
       const n = (name: string) => {
         const x = Number.parseFloat(v(name));
         return Number.isFinite(x) ? x : undefined;
@@ -191,6 +207,7 @@ export const powerPlanCalculator: Calculator = {
       return { name: v("name"), qty: n("qty") ?? 0, volts: n("volts"), amps: n("amps"), watts: n("watts"), ac: v("ac") === "ac", powerFactor: n("pf") ?? 1 };
     };
 
+    // Reads every line, saves the plan, fills in each line's total, and redraws the load and generator results.
     const update = () => {
       items = [...out("items").querySelectorAll<HTMLElement>(".power-item")].map(readRow);
       save();
@@ -198,7 +215,7 @@ export const powerPlanCalculator: Calculator = {
       for (const row of out("items").querySelectorAll<HTMLElement>(".power-item")) {
         const it = items[Number(row.dataset.idx)];
         const load = itemLoad(it);
-        // Show what volts × amps works out to in the empty watts box.
+        // Show what volts times amps works out to in the empty watts box.
         const fromVa = itemLoad({ ...it, watts: undefined });
         row.querySelector<HTMLInputElement>('[data-f="watts"]')!.placeholder = fromVa ? fmt(fromVa.watts, fromVa.watts < 10 ? 1 : 0) : "W";
         row.querySelector<HTMLInputElement>('[data-f="pf"]')!.disabled = !it.ac;
@@ -212,6 +229,7 @@ export const powerPlanCalculator: Calculator = {
       out("results").hidden = !rec;
       if (!rec) return;
 
+      // A fraction as a whole percentage.
       const pct = (f: number) => `${fmt(f * 100)}%`;
       const lowPf = totals.va > totals.watts * 1.001;
       out("load").innerHTML = formatWatts(totals.watts);
@@ -231,9 +249,11 @@ export const powerPlanCalculator: Calculator = {
     // Saved equipment: data plate details kept on this device, to add again by name.
     let equipment = loadEquipment();
     const savedSelect = out("saved") as HTMLSelectElement;
+    // Shows a message under the saved equipment picker.
     const savedStatus = (text: string) => {
       out("savedStatus").textContent = text;
     };
+    // Stores the saved equipment. False when storage refused it.
     const storeEquipment = () => {
       try {
         localStorage.setItem(EQUIPMENT_KEY, JSON.stringify(equipment));
@@ -242,6 +262,7 @@ export const powerPlanCalculator: Calculator = {
         return false;
       }
     };
+    // Refills the saved equipment picker, keeping selected chosen, and hides it when there's nothing saved.
     const renderEquipment = (selected = "") => {
       savedSelect.replaceChildren(new Option("Saved equipment…", ""));
       // Option() sets names as text, so they can't become markup.
@@ -249,6 +270,8 @@ export const powerPlanCalculator: Calculator = {
       out("savedRow").hidden = !equipment.length;
     };
 
+    // Adds the chosen saved item to the plan as a new line (or into an empty last
+    // line) and puts the cursor in its quantity.
     const addFromEquipment = () => {
       const profile = equipment.find((p) => p.name === savedSelect.value);
       if (!profile) {

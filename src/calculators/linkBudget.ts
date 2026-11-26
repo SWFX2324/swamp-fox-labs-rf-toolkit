@@ -96,16 +96,19 @@ const qualityWords: Record<LinkQuality, string> = {
   fail: "Won't connect",
 };
 
+/** Dropdown options from a list of values, with one marked as chosen. */
 function options(values: readonly string[], selected: string): string {
   return values.map((v) => `<option${v === selected ? " selected" : ""}>${v}</option>`).join("");
 }
 
+/** The coax dropdown's options: None first (radio straight to the antenna), then every cable. */
 function cableOptions(): string {
   return [`<option value="none">None (direct)</option>`]
     .concat(cables.map((c) => `<option value="${c.id}">${c.name}</option>`))
     .join("");
 }
 
+/** A labelled number box with its unit. */
 function numberField(label: string, name: string, unit: string, attrs = ""): string {
   return `
     <label>${label}
@@ -116,6 +119,7 @@ function numberField(label: string, name: string, unit: string, attrs = ""): str
     </label>`;
 }
 
+/** A labelled number box with a unit dropdown beside it. */
 function unitField(label: string, name: string, units: readonly string[], unitName: string): string {
   return `
     <label>${label}
@@ -126,6 +130,7 @@ function unitField(label: string, name: string, units: readonly string[], unitNa
     </label>`;
 }
 
+/** The coax type and length fields for one end, with the note on the loss they add. */
 function cableFields(side: "tx" | "rx"): string {
   return `
     <label>Coax
@@ -332,6 +337,7 @@ function currentDefaults(): Record<string, string> {
   };
 }
 
+/** The saved inputs, checked against the defaults (see tabValues), or the defaults when nothing usable is stored. */
 function loadState(defaults: Record<string, string>): Record<string, string> {
   try {
     return tabValues(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"), defaults, legacyDefaults);
@@ -340,6 +346,7 @@ function loadState(defaults: Record<string, string>): Record<string, string> {
   }
 }
 
+/** Remembers the inputs. */
 function saveState(state: Record<string, string>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -348,11 +355,15 @@ function saveState(state: Record<string, string>): void {
   }
 }
 
+/** A number to the given decimal places, with a true minus sign for negatives. */
 const fmt = (value: number, digits = 2) =>
   value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
+/** A level in dBm as markup, with the unit styled smaller. */
 const dbm = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dBm</span>`;
+/** A figure in dB as markup, with the unit styled smaller. */
 const db = (value: number) => `${value < 0 ? "−" : ""}${fmt(Math.abs(value))}<span class="unit">dB</span>`;
 
+/** A power in W, mW or µW, whichever reads best. */
 function formatWatts(watts: number): string {
   if (watts >= 1) return `${fmt(watts, watts >= 100 ? 0 : 2)} W`;
   if (watts >= 1e-3) return `${fmt(watts * 1e3, 1)} mW`;
@@ -367,6 +378,7 @@ function availabilityText(percent: number, model: ModelSettings): string {
   return `Holds about ${fmt(percent, percent >= 99 ? 1 : 0)}% of the time${at}`;
 }
 
+/** A range in the chosen unit, or "Beyond 100,000" for one that large. */
 function formatRange(metres: number, unit: DistanceUnit): string {
   const value = fromMetres(metres, unit);
   return value >= 1e5 ? "Beyond 100,000" : fmt(value, value < 10 ? 2 : 1);
@@ -377,6 +389,8 @@ export const linkBudgetCalculator: Calculator = {
   aliases: ["fspl"],
   title: "VHF/UHF Link Analysis",
   shortTitle: "Link",
+  // Builds the Link Analysis page: the inputs, the map and terrain profile, and
+  // the link budget, all recalculated on every change.
   render() {
     const form = document.createElement("form");
     const defaults = currentDefaults();
@@ -385,11 +399,15 @@ export const linkBudgetCalculator: Calculator = {
     bindTreeField(form, "txHeightUnit");
     form.addEventListener("submit", (e) => e.preventDefault());
 
+    // A field in the form by its name.
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
+    // A result element by its data-out name.
     const out = (name: string) => form.querySelector<HTMLElement>(`[data-out="${name}"]`)!;
+    // A field's value as a number (NaN when blank or not a number).
     const num = (name: string) => Number.parseFloat(field(name).value);
 
     const state = loadState(defaults);
+    // Puts saved or default values into the form's fields.
     const fill = (values: Record<string, string>) => {
       for (const [name, value] of Object.entries(values)) {
         const el = form.elements.namedItem(name);
@@ -400,7 +418,9 @@ export const linkBudgetCalculator: Calculator = {
 
     // What each site shows in the 3D view's editor, by field name.
     const siteFields = (site: SiteId): EditField[] => {
+      // One editable field for the 3D view's editor, with its current value.
       const f = (key: string, label: string, unit?: string, type: "text" | "number" = "number"): EditField => ({ key, label, value: field(key).value, unit, type });
+      // The unit chosen in a unit dropdown.
       const unitOf = (name: string) => field(name).value;
       if (site === "tx")
         return [f("txName", "Name", undefined, "text"), f("txPower", "TX power", unitOf("txPowerUnit")), f("txSens", "Sensitivity", "dBm"), f("txGain", "Antenna gain", "dBi"), f("txHeight", "Antenna height", unitOf("txHeightUnit"))];
@@ -429,6 +449,7 @@ export const linkBudgetCalculator: Calculator = {
       names: () => ({ tx: field("txName").value, rx: field("rxName").value, relay: field("relayName").value }),
       fields: siteFields,
       edit: editSite,
+      // A share link holding the settings and the three sites.
       shareUrl: () => {
         const settings: Record<string, string> = {};
         for (const name of Object.keys(defaults)) settings[name] = field(name).value;
@@ -443,11 +464,14 @@ export const linkBudgetCalculator: Calculator = {
           : [];
         return `${location.origin}${location.pathname}#link?plan=${encodePlan({ settings, nodes })}`;
       },
+      // Sets a site's name from an imported file, as if typed.
       setName: (site, name) => {
         field(`${site}Name`).value = name;
         field(`${site}Name`).dispatchEvent(new Event("input", { bubbles: true }));
       },
+      // The radios for the relay finder, or why it can't run.
       finderInputs: () => finderInputs(),
+      // The fade margin wanted, for rating the relay finder's shading.
       fadeMarginDb: () => num("fadeMargin") || 0,
     });
     for (const name of ["txName", "rxName", "relayName"]) field(name).addEventListener("input", () => terrain.namesChanged());
@@ -471,8 +495,10 @@ export const linkBudgetCalculator: Calculator = {
     const wide = window.matchMedia("(min-width: 1300px)");
     const profileSwitch = terrain.parts.profile.querySelector<HTMLElement>(".profile-view");
     // Docked, the profile shows only while a path is being looked at: opened by
-    // tapping its line on the map or the card's Terrain profile button, closed with ✕.
+    // tapping its line on the map or the card's Terrain profile button, closed with its close button.
     let profileOpen = false;
+    // Shows the docked profile only on a wide screen, while it is open and both
+    // pins are down, and shows the button that opens it otherwise.
     const syncProfile = () => {
       const docked = wide.matches;
       const show = docked && profileOpen && !!terrain.pins();
@@ -481,6 +507,8 @@ export const linkBudgetCalculator: Calculator = {
       out("profileOpen").hidden = !docked || show || !terrain.pins();
       if (show) terrain.redraw();
     };
+    // Moves the profile between the dock under the map (wide screens) and its
+    // card in the left pane (narrower screens).
     const placeProfile = () => {
       const docked = wide.matches;
       terrainPane.hidden = docked;
@@ -493,6 +521,7 @@ export const linkBudgetCalculator: Calculator = {
       syncProfile();
       terrain.redraw();
     };
+    // Opens or closes the docked profile.
     const openProfile = (open: boolean) => {
       profileOpen = open;
       syncProfile();
@@ -540,6 +569,8 @@ export const linkBudgetCalculator: Calculator = {
 
     // Land cover at the two pins, when Environment is "Auto (satellite map)".
     let cover: { key: string; ends?: [LandCoverPoint, LandCoverPoint]; error?: string } | undefined;
+    // The land cover at both pins when Environment is Auto, read once per pin
+    // position, with a note while it loads or when it can't be read.
     const landCover = (): { ends?: [LandCoverPoint, LandCoverPoint]; note: string } => {
       const pins = terrain.pins();
       if (!pins) return { note: `Drop both pins in Terrain profile to read the land cover at each end. Until then ${fallbackEnvironment().name} is used (the land-cover fallback in Settings).` };
@@ -598,8 +629,11 @@ export const linkBudgetCalculator: Calculator = {
       }
     };
 
+    // A site's typed name, or Site A, Site B or Relay when it has none.
     const siteName = (site: SiteId) => field(`${site}Name`).value.trim() || { tx: "Site A", rx: "Site B", relay: "Relay" }[site];
+    // The relay's antenna height in metres.
     const relayHeightM = () => toMetres(num("relayHeight") || 0, asDistanceUnit(field("relayHeightUnit").value));
+    // The relay's transmit power in dBm.
     const relayPowerDbm = () => toDbm(num("relayPower"), asPowerUnit(field("relayPowerUnit").value));
 
     // The environment at each site: the land-cover map at TX and RX when
@@ -607,6 +641,7 @@ export const linkBudgetCalculator: Calculator = {
     const siteEnvironments = () => {
       const auto = field("environment").value === AUTO_ENVIRONMENT;
       const ends = auto ? landCover() : undefined;
+      // An environment with the typed tree height applied.
       const trees = (e: Environment) => withFormTrees(form, "txHeightUnit", e);
       const env = trees(auto ? fallbackEnvironment() : findEnvironment(field("environment").value));
       return { auto, ends, env, txEnv: trees(ends?.ends?.[0].environment ?? env), rxEnv: trees(ends?.ends?.[1].environment ?? env), relayEnv: env };
@@ -618,6 +653,7 @@ export const linkBudgetCalculator: Calculator = {
       const name = site === "tx" ? "txPower" : "rxPower";
       return toDbm(num(name), asPowerUnit(field(`${name}Unit`).value));
     };
+    // A site's receiver sensitivity in dBm, after the Settings derating.
     const siteSens = (site: SiteId): number =>
       deratedSensitivity(num(site === "relay" ? "relaySens" : site === "tx" ? "txSens" : "rxSens"));
 
@@ -675,6 +711,8 @@ export const linkBudgetCalculator: Calculator = {
       };
     };
 
+    // Reads every input, saves them, and redraws the link budget, the map's link
+    // line, the profile and the relay results.
     const update = () => {
       syncPaneTitles();
       syncProfile();
@@ -873,6 +911,7 @@ export const linkBudgetCalculator: Calculator = {
       // way, what arrives against what's needed.
       const from = escapeHtml(fromName);
       const to = escapeHtml(toName);
+      // A figure to one decimal place with a plus or minus sign.
       const step1 = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmt(Math.abs(v), 1)}`;
       const lineLoss = shown.txCableLossDb + shown.txOtherLossDb + shown.rxCableLossDb + shown.rxOtherLossDb;
       const pathParts: [string, number][] = [
@@ -948,6 +987,7 @@ export const linkBudgetCalculator: Calculator = {
             : site === "rx"
               ? { loss: inputs.rxCableLossDb + inputs.rxOtherLossDb, gain: inputs.rxGainDbi, h: rxHeightM, env: rxEnv }
               : { loss: relayCable, gain: relayGain, h: relayH, env: relayEnv };
+        // The budget one way between two sites, with each site's own radio and surroundings.
         const oneWay = (a: SiteId, b: SiteId, distanceM: number, terrainLossDb: number | undefined): Way => {
           const A = radio(a);
           const B = radio(b);
@@ -989,7 +1029,9 @@ export const linkBudgetCalculator: Calculator = {
       const wrap = out("relayResults");
       const table = wrap.querySelector<HTMLTableElement>("table")!;
       if (wrap.hidden || !wrap.clientWidth) return;
+      // True when the table fits its box without scrolling.
       const fits = () => table.scrollWidth <= wrap.clientWidth;
+      // Shrinks the table's text half a pixel at a time until it fits, but not below floor.
       const shrinkTo = (floor: number) => {
         while (!fits() && size > floor) {
           size -= 0.5;

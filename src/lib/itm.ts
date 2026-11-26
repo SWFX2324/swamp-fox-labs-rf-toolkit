@@ -77,6 +77,7 @@ const a_9000__meter = 9000e3;
 const THIRD = 1.0 / 3.0;
 const MODE__P2P = 0;
 
+// C's fdim: x minus y when x is larger, otherwise 0. The reference uses it to clamp at zero.
 const dim = (x: number, y: number) => (x > y ? x - y : 0);
 const fdim = dim;
 const trunc = Math.trunc;
@@ -88,11 +89,13 @@ interface Complex {
   re: number;
   im: number;
 }
-const cx = (re: number, im = 0): Complex => ({ re, im });
-const cAdd = (a: Complex, b: Complex): Complex => cx(a.re + b.re, a.im + b.im);
-const cSub = (a: Complex, b: Complex): Complex => cx(a.re - b.re, a.im - b.im);
-const cScale = (a: Complex, k: number): Complex => cx(a.re * k, a.im * k);
-const cAbs = (a: Complex) => Math.hypot(a.re, a.im);
+// Small complex-number helpers matching the C++ std::complex operations the reference uses.
+const cx = (re: number, im = 0): Complex => ({ re, im }); // A complex number from its real and imaginary parts.
+const cAdd = (a: Complex, b: Complex): Complex => cx(a.re + b.re, a.im + b.im); // Adds two complex numbers.
+const cSub = (a: Complex, b: Complex): Complex => cx(a.re - b.re, a.im - b.im); // Subtracts b from a.
+const cScale = (a: Complex, k: number): Complex => cx(a.re * k, a.im * k); // Multiplies by a real number.
+const cAbs = (a: Complex) => Math.hypot(a.re, a.im); // The magnitude (distance from zero).
+/** Divides one complex number by another. */
 function cDiv(a: Complex, b: Complex): Complex {
   const d = b.re * b.re + b.im * b.im;
   return cx((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d);
@@ -123,20 +126,27 @@ export function toPfl(elevationsM: ArrayLike<number>, distanceM: number): Float6
 // ---------------------------------------------------------------------------
 // Helper functions
 
+/** Free-space path loss in dB for a distance in metres and a frequency in MHz. */
 export function freeSpaceLoss(d__meter: number, f__mhz: number): number {
   return 32.45 + 20.0 * Math.log10(f__mhz) + 20.0 * Math.log10(d__meter / 1000.0);
 }
 
+/**
+ * The terrain irregularity seen over a distance. Over short distances only part
+ * of the path's full roughness (delta h) shows, rising toward all of it by about 50 km and beyond.
+ */
 function terrainRoughness(d__meter: number, delta_h__meter: number): number {
   // [ERL 79-ITS 67, Eqn 3], with distance in meters instead of kilometers
   return delta_h__meter * (1.0 - 0.8 * Math.exp(-d__meter / 50e3));
 }
 
+/** The RMS deviation of the terrain from a smooth surface, from its roughness (delta h). Rougher ground scatters reflections more. */
 function sigmaHFunction(delta_h__meter: number): number {
   // [ERL 79-ITS 67, Eqn 3.6a]
   return 0.78 * delta_h__meter * Math.exp(-0.5 * delta_h__meter ** 0.25);
 }
 
+/** Knife-edge diffraction loss in dB from the square of the diffraction parameter (v squared), by the reference's two-piece approximation. */
 function fresnelIntegral(v2: number): number {
   // v2 is v^2, so 5.76 is comparing v to 2.4
   if (v2 < 5.76) return 6.02 + 9.11 * Math.sqrt(v2) - 1.27 * v2; // [TN101v2, Eqn III.24b]
@@ -161,8 +171,14 @@ export function inverseCcdf(q: number): number {
   return Q_q;
 }
 
+/**
+ * Sets up what every later step shares: the surface refractivity at the path's
+ * height above sea level, the curvature of the effective earth (the real earth
+ * flattened a little by the air bending signals), and the ground's complex
+ * impedance for the polarization in use.
+ */
 function initializePointToPoint(f__mhz: number, h_sys__meter: number, N_0: number, pol: number, epsilon: number, sigma: number) {
-  // gamma_a is the curvature of the actual earth, ~1 / 6370 km
+  // gamma_a is the curvature of the actual earth, about 1 / 6370 km
   const gamma_a = 157e-9;
   // scale the refractivity based on the elevation above mean sea level
   const N_s = h_sys__meter === 0.0 ? N_0 : N_0 * Math.exp(-h_sys__meter / 9460.0); // [TN101, Eq 4.3]
@@ -175,6 +191,11 @@ function initializePointToPoint(f__mhz: number, h_sys__meter: number, N_0: numbe
   return { Z_g, gamma_e, N_s };
 }
 
+/**
+ * The horizon of each antenna along the profile: the angle above horizontal to
+ * the highest point it sees, and how far away that point is. On a clear path
+ * both horizons are the other antenna.
+ */
 function findHorizons(pfl: Pfl, a_e__meter: number, h__meter: [number, number]) {
   const np = trunc(pfl[0]);
   const xi = pfl[1];
@@ -209,6 +230,7 @@ function findHorizons(pfl: Pfl, a_e__meter: number, h__meter: [number, number]) 
   return { theta_hzn, d_hzn__meter };
 }
 
+/** The straight line that best fits the terrain between two distances, returned as its heights at the path's start and end. */
 function linearLeastSquaresFit(pfl: Pfl, d_start: number, d_end: number): [number, number] {
   const np = trunc(pfl[0]);
   let i_start = trunc(fdim(d_start / pfl[1], 0.0));
@@ -234,6 +256,13 @@ function linearLeastSquaresFit(pfl: Pfl, d_start: number, d_end: number): [numbe
   return [sum_y - scaled_sum_y * mid_shifted_end, sum_y + scaled_sum_y * (np - mid_shifted_end)];
 }
 
+/**
+ * The terrain's roughness (delta h) between two distances. A straight line is
+ * fitted through the terrain there; delta h is the gap between the point the
+ * terrain rises above that line only 10% of the time and the point it rises
+ * above 90% of the time. The result is scaled up to the roughness the whole
+ * terrain would show over a long distance (see terrainRoughness).
+ */
 function computeDeltaH(pfl: Pfl, d_start__meter: number, d_end__meter: number): number {
   const np = trunc(pfl[0]);
   let x_start = d_start__meter / pfl[1]; // index to start considering terrain points
@@ -282,6 +311,11 @@ function computeDeltaH(pfl: Pfl, d_start__meter: number, d_end__meter: number): 
   return delta_h_d__meter / (1.0 - 0.8 * Math.exp(-(d_end__meter - d_start__meter) / 50e3));
 }
 
+/**
+ * Pulls the figures ITM needs out of the profile: each antenna's horizon, the
+ * terrain's roughness, and each antenna's effective height above the terrain
+ * around it (which can be more or less than its height above the ground beneath it).
+ */
 function quickPfl(pfl: Pfl, gamma_e: number, h__meter: [number, number]) {
   const d__meter = pfl[0] * pfl[1];
   const np = trunc(pfl[0]);
@@ -331,6 +365,7 @@ function quickPfl(pfl: Pfl, gamma_e: number, h__meter: [number, number]) {
 // ---------------------------------------------------------------------------
 // Diffraction
 
+/** Diffraction loss with the path's two horizons treated as two sharp knife edges, in dB. */
 function knifeEdgeDiffraction(d__meter: number, f__mhz: number, a_e__meter: number, theta_los: number, d_hzn__meter: [number, number]): number {
   const d_ML__meter = d_hzn__meter[0] + d_hzn__meter[1];
   const theta_nlos = d__meter / a_e__meter - theta_los; // [Algorithm, Eqn 4.12]
@@ -341,6 +376,7 @@ function knifeEdgeDiffraction(d__meter: number, f__mhz: number, a_e__meter: numb
   return fresnelIntegral(v_1) + fresnelIntegral(v_2); // [TN101, Eqn I.1]
 }
 
+/** The height-gain term for smooth-earth diffraction: how much an antenna's height helps, in dB, by the reference's fitted curves. */
 function heightFunction(x__km: number, K: number): number {
   let result: number;
   if (x__km < 200.0) {
@@ -359,6 +395,7 @@ function heightFunction(x__km: number, K: number): number {
   return result;
 }
 
+/** Diffraction loss over a smooth, rounded earth (no individual ridges), in dB, by Vogler's three-radii method. */
 function smoothEarthDiffraction(
   d__meter: number,
   f__mhz: number,
@@ -398,6 +435,11 @@ function smoothEarthDiffraction(
   return G_x__db - F_x__db[0] - F_x__db[1] - 20; // [Algorithm, Eqn 4.20]
 }
 
+/**
+ * Diffraction loss for a path beyond line of sight: a blend of the knife-edge
+ * and smooth-earth results, weighted by how rough the terrain is, plus a clutter
+ * term for the ground near low antennas.
+ */
 function diffractionLoss(
   d__meter: number,
   d_hzn__meter: [number, number],
@@ -424,7 +466,7 @@ function diffractionLoss(
   const delta_h_d__meter = terrainRoughness(d__meter, delta_h__meter);
   let q = h__meter[0] * h__meter[1];
   const qk = h_e__meter[0] * h_e__meter[1] - q;
-  // For low antennas with known path parameters, C ~= 10 [ERL 79-ITS 67, page 3-8]
+  // For low antennas with known path parameters, C is about 10 [ERL 79-ITS 67, page 3-8]
   if (mode === MODE__P2P) q += 10.0;
   const term1 = Math.sqrt(1.0 + qk / q); // [ERL 79-ITS 67, Eqn 3.23]
   const d_ML__meter = d_hzn__meter[0] + d_hzn__meter[1];
@@ -438,6 +480,11 @@ function diffractionLoss(
 // ---------------------------------------------------------------------------
 // Line of sight
 
+/**
+ * Loss on a line-of-sight path: the direct ray and the ray reflected off the
+ * ground, which can add or cancel, blended toward the extended diffraction
+ * curve as the path nears its horizon.
+ */
 function lineOfSightLoss(
   d__meter: number,
   h_e__meter: [number, number],
@@ -479,6 +526,7 @@ function lineOfSightLoss(
 // ---------------------------------------------------------------------------
 // Troposcatter
 
+/** The attenuation function for troposcatter, from the scatter angle times distance, by the reference's three fitted pieces. */
 function fFunction(td: number): number {
   // constants from [Algorithm, 6.9]
   const a = [133.4, 104.6, 71.8];
@@ -488,6 +536,7 @@ function fFunction(td: number): number {
   return a[i] + b[i] * td + c[i] * Math.log10(td); // [Algorithm, 6.9]
 }
 
+/** One of the five fitted frequency-gain curves for troposcatter (j picks which). */
 function h0Curve(j: number, r: number): number {
   // values from [Algorithm, 6.13]
   const a = [25.0, 80.0, 177.0, 395.0, 705.0];
@@ -495,8 +544,9 @@ function h0Curve(j: number, r: number): number {
   return 10 * Math.log10(1 + a[j] * (1 / r) ** 4 + b[j] * (1.0 / r) ** 2);
 }
 
+/** The troposcatter frequency-gain term, read between the fitted curves for the scattering height (eta_s). */
 function h0Function(r: number, eta_s: number): number {
-  eta_s = Math.min(Math.max(eta_s, 1), 5); // range 1 <= eta_s <= 5
+  eta_s = Math.min(Math.max(eta_s, 1), 5); // Kept between 1 and 5.
   const i = trunc(eta_s);
   const q = eta_s - i;
   let result = h0Curve(i - 1, r);
@@ -570,6 +620,12 @@ function troposcatterLoss(
 // ---------------------------------------------------------------------------
 // Reference attenuation
 
+/**
+ * The reference attenuation: the median loss beyond free space for this path.
+ * Line-of-sight, diffraction and troposcatter losses are each fitted as a line
+ * against distance, and the path's distance picks which one applies. Also
+ * reports which of the three modes that is.
+ */
 function longleyRice(
   theta_hzn: [number, number],
   f__mhz: number,
@@ -720,6 +776,7 @@ function longleyRice(
 // ---------------------------------------------------------------------------
 // Variability
 
+/** The climate curve shape used for variability: rises with distance and levels off, with a hump set by the constants. */
 function curve(c1: number, c2: number, x1: number, x2: number, x3: number, d_e__meter: number): number {
   return ((c1 + c2 / (1.0 + ((d_e__meter - x2) / x3) ** 2)) * (d_e__meter / x1) ** 2) / (1.0 + (d_e__meter / x1) ** 2);
 }
@@ -762,6 +819,11 @@ export interface VariabilityPath {
   mdvar: number;
 }
 
+/**
+ * The loss to add to the reference attenuation for the chosen percentages of
+ * time, location and situation (confidence), by the radio climate's curves.
+ * 50% of each gives the median; higher percentages plan for worse days.
+ */
 function variability(time: number, location: number, situation: number, p: VariabilityPath, warn: { flags: number }): number {
   const { h_e__meter, delta_h__meter, f__mhz, d__meter, A_ref__db, climate, mdvar } = p;
   let z_T = inverseCcdf(time / 100);
@@ -886,6 +948,7 @@ export interface ItmP2PResult {
   path: VariabilityPath;
 }
 
+/** Throws ItmError for inputs ITM can't take, and sets warning flags for inputs outside the range it was tested over. */
 function validateInputs(i: ItmP2PInputs, warn: { flags: number }): void {
   const { txHeightM: h_tx, rxHeightM: h_rx, climate, refractivityN: N_0, freqMhz: f, permittivity, conductivity, mdvar } = i;
   if (h_tx < 1.0 || h_tx > 1000.0) warn.flags |= ItmWarning.txTerminalHeight;

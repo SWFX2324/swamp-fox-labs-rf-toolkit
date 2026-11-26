@@ -12,8 +12,8 @@ const WGS84_E2 = WGS84_F * (2 - WGS84_F);
 const REF_RADIUS = 6371.2;
 const MAX_N = 12;
 
-const rad = (d: number) => (d * Math.PI) / 180;
-const deg = (r: number) => (r * 180) / Math.PI;
+const rad = (d: number) => (d * Math.PI) / 180; // Degrees to radians.
+const deg = (r: number) => (r * 180) / Math.PI; // Radians to degrees.
 
 export interface MagneticField {
   /** North, east and down components, nT. */
@@ -37,10 +37,12 @@ export function decimalYear(date: Date): number {
   return year + (date.getTime() - start) / (end - start);
 }
 
+/** True when the date (a decimal year) is inside the years the magnetic model covers. */
 export function modelIsCurrent(year: number): boolean {
   return year >= WMM_EPOCH && year <= WMM_VALID_UNTIL;
 }
 
+/** n! (1 times 2 times 3 and so on up to n), for the normalization factors below. */
 const factorial = (n: number) => {
   let f = 1;
   for (let i = 2; i <= n; i++) f *= i;
@@ -89,7 +91,8 @@ export function magneticField(latDeg: number, lonDeg: number, heightKm: number, 
     const ratio = (REF_RADIUS / r) ** (n + 2);
     const s = schmidt[n][m];
     const pnm = s * P[n][m];
-    // (1 − x²) dP/dx = (n+m) P(n−1) − n x P(n), and dP/dφ′ = cos φ′ · dP/dx.
+    // The derivative comes from the identity (1 - x^2) dP/dx = (n+m) P(n-1) - n x P(n),
+    // and dP/dφ′ = cos φ′ times dP/dx.
     const dpnm = (s * ((n + m) * (n > m ? P[n - 1][m] : 0) - n * x * P[n][m])) / c;
     const cos = Math.cos(m * lambda);
     const sin = Math.sin(m * lambda);

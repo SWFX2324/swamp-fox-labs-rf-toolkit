@@ -33,6 +33,7 @@ const USGS_BOUNDS: [number, number, number, number] = [-170, 17, -64, 72];
 
 type Base = "satellite" | "map";
 
+/** A remembered 3D view choice from storage, or null when there's none or storage is blocked. */
 const read = (key: string) => {
   try {
     return localStorage.getItem(key);
@@ -40,6 +41,7 @@ const read = (key: string) => {
     return null;
   }
 };
+/** Remembers a 3D view choice. */
 const write = (key: string, value: string) => {
   try {
     localStorage.setItem(key, value);
@@ -55,6 +57,7 @@ function tokenRgba(name: string, alpha: number): [number, number, number, number
   const n = m ? Number.parseInt(m[1], 16) : 0xffffff;
   return [((n >> 16) & 255) / 255 * alpha, ((n >> 8) & 255) / 255 * alpha, (n & 255) / 255 * alpha, alpha];
 }
+/** A colour from the stylesheet as written there (a hex code), or the fallback when it isn't set. */
 const tokenHex = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
 const styleToken: Record<LinkLineStyle, string> = {
@@ -104,6 +107,10 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
   let origin = { x: 0, y: 0, z: 0 };
   let lastKey = "";
 
+  // Builds the triangles for the line of sight in the air: for each link a band
+  // between the antenna tops, a faint curtain down to the ground, and a mast at
+  // each end. Positions are relative to the map's centre. Returns nothing to
+  // draw when the line of sight is turned off.
   const build = (showLos: boolean): Float32Array | undefined => {
     const scene = getScene();
     const ex = getExaggeration();
@@ -111,14 +118,17 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
     const extentM = Math.max(200, scene.ring?.radiusM ?? 0, ...scene.links.map((l) => distanceBetweenM(scene.points[l.a], scene.points[l.b])));
     const bandM = Math.min(120, Math.max(4, extentM * 0.004));
     const mastM = bandM * 0.8;
+    // The terrain height at a point, as the 3D map has it loaded.
     const ground = (p: { lat: number; lon: number }) => map.queryTerrainElevation([p.lon, p.lat]);
     const data: number[] = [];
     const center = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter(), 0);
     origin = { x: center.x, y: center.y, z: 0 };
+    // A point at a height, in the map's 3D coordinates relative to the centre.
     const at = (p: { lat: number; lon: number }, altM: number) => {
       const c = maplibregl.MercatorCoordinate.fromLngLat([p.lon, p.lat], altM);
       return [c.x - origin.x, c.y - origin.y, c.z];
     };
+    // Adds a four-cornered shape in one colour, as two triangles.
     const quad = (a: number[], b: number[], c: number[], d: number[], rgba: number[]) => {
       // Two triangles: a-b-c and c-b-d (a, b along the bottom edge; c, d on top).
       for (const v of [a, b, c, c, b, d]) data.push(v[0], v[1], v[2], ...rgba);
@@ -176,9 +186,11 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
     type: "custom" as const,
     renderingMode: "3d" as const,
     showLos: false,
+    // Runs once when the layer joins the map: compiles the small WebGL program that draws it.
     onAdd(m: maplibregl.Map, context: WebGL2RenderingContext) {
       map = m;
       gl = context;
+      // Compiles one shader from its source.
       const compile = (type: number, source: string) => {
         const shader = gl.createShader(type)!;
         gl.shaderSource(shader, source);
@@ -191,6 +203,8 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
       gl.linkProgram(program);
       buffer = gl.createBuffer();
     },
+    // Rebuilds the shapes after the scene, the line of sight switch or the height
+    // exaggeration changes. force redraws even when nothing seems to have moved.
     rebuild(force = false) {
       if (!map || !buffer) return;
       if (force) lastKey = "";
@@ -207,6 +221,7 @@ function airLayer(getScene: () => Scene3D, getExaggeration: () => number): mapli
       count = data.length / 7;
       map.triggerRepaint();
     },
+    // Draws the shapes each frame, in the map's current view.
     render(_gl: WebGL2RenderingContext, options: maplibregl.CustomRenderMethodInput) {
       if (!program || !buffer || !count) return;
       // Shift the matrix to the scene's origin, so vertices stay small enough
@@ -250,6 +265,7 @@ function groundTracks(scene: Scene3D): GeoJSON.FeatureCollection {
   };
 }
 
+/** The coverage circle as a line on the ground, or nothing when the scene has no circle. */
 const ringData = (scene: Scene3D): GeoJSON.FeatureCollection => ({
   type: "FeatureCollection",
   features: scene.ring
@@ -258,6 +274,7 @@ const ringData = (scene: Scene3D): GeoJSON.FeatureCollection => ({
 });
 
 type Corners = [[number, number], [number, number], [number, number], [number, number]];
+/** The coverage image's four corners, in the order MapLibre wants: top left, top right, bottom right, bottom left. */
 const overlayCorners = (b: NonNullable<Scene3D["overlay"]>["bounds"]): Corners => [
   [b.west, b.north],
   [b.east, b.north],
@@ -268,6 +285,7 @@ const overlayCorners = (b: NonNullable<Scene3D["overlay"]>["bounds"]): Corners =
 // Matches the key under the 2D Coverage Analysis.
 const COVERAGE_LEGEND = `<div class="legend coverage-legend"><span class="key"><span class="sw cov-strong"></span>Strong</span><span class="key"><span class="sw cov-solid"></span>Good</span><span class="key"><span class="sw cov-marginal"></span>Marginal</span></div>`;
 
+/** The 3D view's markup: its bar of controls, the map, and the key and hint underneath. */
 const template = (title: string) => `
   <div class="view3d-bar">
     <h2>3D view <span class="meta">${title}</span></h2>
@@ -294,6 +312,10 @@ export interface View3D {
   isOpen(): boolean;
 }
 
+/**
+ * Opens the 3D view in a full-screen dialog on the given scene. The page keeps
+ * the returned handle to update the view after it recalculates.
+ */
 export function open3DView(first: Scene3D): View3D {
   let scene = first;
   let open = true;
@@ -301,6 +323,7 @@ export function open3DView(first: Scene3D): View3D {
   dialog.className = "view3d";
   dialog.setAttribute("aria-label", `3D view, ${scene.title}`);
   dialog.innerHTML = template(scene.title);
+  // An element of the dialog by its data-v name.
   const el = <T extends HTMLElement = HTMLElement>(name: string) => dialog.querySelector<T>(`[data-v="${name}"]`)!;
   document.body.append(dialog);
   dialog.showModal();
@@ -308,6 +331,7 @@ export function open3DView(first: Scene3D): View3D {
   // The key follows what's on screen: link styles, or the coverage shades.
   let legend: Element = el("legend");
   let legendKey = "";
+  // Shows the key for what's on screen: the link line styles in use, or the coverage shades.
   const setLegend = () => {
     const styles = linkLineOrder.filter((s) => scene.links.some((l) => l.style === s));
     const key = styles.length ? styles.join(",") : scene.overlay ? "coverage" : "";
@@ -322,6 +346,7 @@ export function open3DView(first: Scene3D): View3D {
     legend.replaceWith(next);
     legend = next;
   };
+  // Says how to move around, and what can be dragged or clicked in this scene.
   const setHint = () => {
     const move = !scene.onMove ? "" : scene.ring || scene.points.length === 1 ? " Drag the site's label to move it." : " Drag a label to move that pin or node.";
     const edit = scene.onEdit && scene.points.some((p) => p.fields?.length) ? " Click a label to edit that site." : "";
@@ -344,6 +369,7 @@ export function open3DView(first: Scene3D): View3D {
   // Set once the style has loaded. (isStyleLoaded() also turns false while tiles
   // load, which would drop updates.)
   let ready = false;
+  // Closes the view and frees the 3D map.
   const close = () => {
     open = false;
     map?.remove();
@@ -362,6 +388,7 @@ export function open3DView(first: Scene3D): View3D {
   // In the US the USGS hybrid already prints names; EOX's labels are for elsewhere.
   const at = first.points[0] ?? first.ring?.center ?? first.center;
   const labelsWanted = !tileInUsgsArea({ z: 10, x: Math.floor(((at.lon + 180) / 360) * 1024), y: Math.floor(((1 - Math.log(Math.tan((at.lat * Math.PI) / 180) + 1 / Math.cos((at.lat * Math.PI) / 180)) / Math.PI) / 2) * 1024) });
+  // A map layer's visibility setting from on or off.
   const visible = (on: boolean) => (on ? "visible" : "none") as "visible" | "none";
   // Dash lengths are in line widths, echoing the 2D standard.
   const dashFor = (s: LinkLineStyle) => (s === "good-clear" ? undefined : s === "good-obstructed" ? [3, 2] : s === "marginal" ? [0.6, 1.4] : [0.1, 1.4]);
@@ -473,6 +500,7 @@ export function open3DView(first: Scene3D): View3D {
 
   // A site's pop-up editor: its fields as a small form; Apply sends what changed.
   let editor: { remove(): void } | undefined;
+  // Opens the editor for a site beside its label (or along the bottom on a phone).
   const openEditor = (i: number, marker: maplibregl.Marker) => {
     const p = scene.points[i];
     if (!map || !p?.fields?.length || !scene.onEdit) return;
@@ -553,6 +581,7 @@ export function open3DView(first: Scene3D): View3D {
     inputs[0]?.input.focus();
   };
 
+  // Redraws every site's label, draggable and clickable when the page allows it.
   const setMarkers = () => {
     if (!map) return;
     for (const m of markers) m.remove();
@@ -588,6 +617,7 @@ export function open3DView(first: Scene3D): View3D {
     });
   };
 
+  // Brings everything on the 3D map in line with the current scene.
   const applyScene = () => {
     if (!open || !ready || !map) return;
     (map.getSource("tracks") as maplibregl.GeoJSONSource).setData(groundTracks(scene));
@@ -655,6 +685,7 @@ export function open3DView(first: Scene3D): View3D {
     }
   }, 500);
 
+  // Switches between satellite imagery and the street map, and remembers the choice.
   const setBase = (next: Base) => {
     base = next;
     write(BASE_KEY, next);

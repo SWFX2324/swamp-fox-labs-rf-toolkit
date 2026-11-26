@@ -1,4 +1,4 @@
-// RF Toolkit pictograms on a 24 × 24 grid.
+// RF Toolkit pictograms on a 24 by 24 grid.
 const glyphs = {
   brand: '<path d="M12 13.5v7m-3 0h6M8.2 7.2a5.4 5.4 0 0 0 0 7.6m7.6-7.6a5.4 5.4 0 0 1 0 7.6M5.4 4.4a9.4 9.4 0 0 0 0 13.2m13.2-13.2a9.4 9.4 0 0 1 0 13.2"/><circle cx="12" cy="11" r="2.3"/>',
   linkAnalysis: '<path d="m3 18 4-4 3 2 4-4 7 6M5.6 9h12.8"/><circle cx="4" cy="9" r="1.6"/><circle cx="20" cy="9" r="1.6"/>',

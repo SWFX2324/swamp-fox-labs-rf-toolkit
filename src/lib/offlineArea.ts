@@ -49,6 +49,7 @@ const USGS_AREAS: Box[] = [
 /** A web-map tile's corners in degrees. */
 export function tileBox({ z, x, y }: TileId): Box {
   const n = 2 ** z;
+  // The latitude of a tile row's top edge (web maps stretch latitude, so rows aren't evenly spaced in degrees).
   const lat = (row: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * row) / n))) * 180) / Math.PI;
   return { north: lat(y), south: lat(y + 1), west: (x / n) * 360 - 180, east: ((x + 1) / n) * 360 - 180 };
 }
@@ -88,6 +89,7 @@ interface TileRange {
   y1: number;
 }
 
+/** The first and last tile column and row that a box covers at zoom z. Rows are clamped to the map's top and bottom. */
 function tileRange(box: Box, z: number): TileRange {
   const a = toGlobalPixel({ lat: box.north, lon: box.west }, z);
   const b = toGlobalPixel({ lat: box.south, lon: box.east }, z);
@@ -100,6 +102,7 @@ function tileRange(box: Box, z: number): TileRange {
   };
 }
 
+/** How many tiles a box covers at zoom z, without listing them. A box wider than the world counts the world once. */
 function tileCount(box: Box, z: number): number {
   const r = tileRange(box, z);
   return Math.min(r.x1 - r.x0 + 1, 2 ** z) * (r.y1 - r.y0 + 1);
@@ -118,8 +121,10 @@ export function tilesInBox(box: Box, z: number): TileId[] {
   return out;
 }
 
+/** True when two boxes share any area. */
 const overlaps = (a: Box, b: Box) => a.north > b.south && a.south < b.north && a.east > b.west && a.west < b.east;
 
+/** A tile's address from a URL template with {z}, {y} and {x} in it. */
 const imageryUrl = (template: string, { z, x, y }: TileId) =>
   template.replace("{z}", String(z)).replace("{y}", String(y)).replace("{x}", String(x));
 

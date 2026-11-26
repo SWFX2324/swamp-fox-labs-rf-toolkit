@@ -45,6 +45,7 @@ export const environments: Environment[] = [
   { id: "dense", name: "Dense Vegetation", clutterHeightM: 20, model: "forest" },
 ];
 
+/** The environment with this id, or None when the id isn't known. */
 export function findEnvironment(id: string): Environment {
   return environments.find((e) => e.id === id) ?? environments[0];
 }
@@ -65,7 +66,7 @@ export function belowModelRange(freqHz: number): boolean {
 export const DEFAULT_TREE_HEIGHT_M = 20;
 
 /**
- * Maximum excess loss for one terminal in woodland, dB: Am = A1·f^α with f in
+ * Maximum excess loss for one terminal in woodland, dB: Am = A1 * f^α with f in
  * MHz (ITU-R P.833-10, equation 2), using A1 = 1.15 dB and α = 0.43 measured
  * in forest near Mulhouse (France), trees about 15 m, paths to 6 km, a 1.6 m
  * vehicle antenna. P.833's St Petersburg mixed-forest data (Table 1, 106 MHz

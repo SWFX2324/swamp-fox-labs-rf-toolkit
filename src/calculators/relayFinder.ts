@@ -31,8 +31,16 @@ const RADIALS = 120;
 const STEPS = 100;
 const SURFACE_SIZE = 160;
 
+/**
+ * Finds where a relay could close both hops: loads terrain around each site,
+ * works out every hop's margin to a receiver at the relay's height, and
+ * combines them into a surface of the weaker hop's margin at each spot.
+ * Undefined when the search is cancelled. onStatus reports progress.
+ */
 export async function findRelay(inputs: RelayFinderInputs, onStatus: (text: string) => void, signal: AbortSignal): Promise<RelaySurface | undefined> {
   const box = relaySearchBox(inputs.a, inputs.b);
+  // Loads the terrain around one site, far enough to reach the whole search
+  // area, and samples it along radials for the coverage maths.
   const sample = async (site: LatLon, label: string) => {
     const r = radiusToCover(site, box);
     const z = chooseZoom(site, r, 36);
@@ -63,6 +71,7 @@ function weakest(loss: Float32Array[], radios: HopRadio[]): Float32Array[] {
   return each[0].map((row, i) => row.map((v, k) => each.reduce((m, g) => Math.min(m, g[i][k]), v)));
 }
 
+/** A colour from the page's CSS variables (such as --good) as red, green and blue, so the canvas uses the theme's colours. */
 function cssColor(name: string): [number, number, number] {
   const probe = document.createElement("span");
   probe.style.color = `var(${name})`;

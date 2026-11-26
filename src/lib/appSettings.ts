@@ -105,6 +105,7 @@ export function parseSettings(raw: unknown): AppSettings {
   return out as unknown as AppSettings;
 }
 
+/** The saved settings, checked field by field, or the defaults when nothing usable is stored. */
 export function loadSettings(storage: Pick<StorageLike, "getItem">): AppSettings {
   try {
     return parseSettings(JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}"));
@@ -113,6 +114,7 @@ export function loadSettings(storage: Pick<StorageLike, "getItem">): AppSettings
   }
 }
 
+/** Stores the settings. Throws when storage refuses it; the caller decides what to do. */
 export function saveSettings(storage: Pick<StorageLike, "setItem">, s: AppSettings): void {
   storage.setItem(SETTINGS_KEY, JSON.stringify(s));
 }

@@ -11,7 +11,7 @@ import { rfIcon } from "../ui/rfIcons";
 // The mode is one setting for the whole app.
 
 export interface FieldGuide {
-  /** Input name → plain-language help. */
+  /** Plain-language help for each field, by its input name. */
   help: Record<string, string>;
   /** Input names (their labels hide) or CSS selectors, hidden in Simple mode. */
   advanced?: string[];
@@ -23,6 +23,7 @@ const MODE_KEY = "rf-toolkit:mode";
 const MODE_EVENT = "rf-toolkit:mode-change";
 let helpCounter = 0;
 
+/** The chosen field mode, Simple (the default) or Advanced. One setting for the whole app. */
 export function getMode(): Mode {
   try {
     return localStorage.getItem(MODE_KEY) === "advanced" ? "advanced" : "simple";
@@ -31,6 +32,7 @@ export function getMode(): Mode {
   }
 }
 
+/** Saves the field mode and tells every open page to show or hide its advanced fields. */
 function setMode(mode: Mode): void {
   try {
     localStorage.setItem(MODE_KEY, mode);
@@ -45,7 +47,9 @@ export function withoutKeys(values: Record<string, string>, ...keys: string[]): 
   return Object.fromEntries(Object.entries(values).filter(([k]) => !keys.includes(k)));
 }
 
+/** True when an advanced-field key is a CSS selector (starts with ".", "#" or "[") rather than an input name. */
 const isSelector = (key: string) => /^[.#[]/.test(key);
+/** The input or dropdown with this name inside root. */
 const controlFor = (root: HTMLElement, name: string) =>
   root.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${CSS.escape(name)}"]`);
 
@@ -66,6 +70,11 @@ function labelHead(label: HTMLLabelElement): HTMLElement {
   return head;
 }
 
+/**
+ * Adds field help and the Simple/Advanced switch to a rendered page (see the
+ * top of this file). defaults are the values the advanced fields start with,
+ * so the page can say when a hidden field has been changed.
+ */
 export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Record<string, string> = {}): void {
   // Help buttons.
   for (const [name, text] of Object.entries(guide.help)) {
@@ -120,6 +129,7 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
   const note = bar.querySelector<HTMLElement>(".mode-note")!;
   if (reset) note.before(reset);
 
+  // The labels of hidden advanced fields whose values differ from their defaults.
   const changedAdvanced = () =>
     keys
       .filter((key) => !isSelector(key) && key in defaults)
@@ -134,6 +144,8 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
         return words.map((n) => n.textContent).join("").trim() || key;
       });
 
+  // Shows or hides the advanced fields for the current mode, marks the selected
+  // mode button, and updates the note about changed hidden fields.
   const refresh = () => {
     const mode = getMode();
     for (const el of hideable) el.classList.toggle("mode-hidden", mode === "simple");
@@ -165,6 +177,7 @@ export function enhanceFields(root: HTMLElement, guide: FieldGuide, defaults: Re
   // Keep the "changed" note current as values change.
   root.addEventListener("input", refresh);
   root.addEventListener("change", refresh);
+  // Follows a mode change made on any page; stops listening once this page is gone.
   const onModeChange = () => {
     if (!root.isConnected) {
       window.removeEventListener(MODE_EVENT, onModeChange);

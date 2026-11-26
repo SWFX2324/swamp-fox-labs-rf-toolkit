@@ -1,7 +1,7 @@
 // Ground elevation from Terrain Tiles (Mapzen, hosted on AWS Open Data):
-// 256 × 256 PNG web-map tiles whose pixel colours encode height as
+// 256 by 256 pixel PNG web-map tiles whose pixel colours encode height as
 //
-//   elevation = (R × 256 + G + B / 256) − 32768   metres
+//   elevation in metres = (R * 256 + G + B / 256) - 32768
 //
 // Unlike the point API there is no rate limit, so a whole coverage area can
 // be loaded in a few dozen tiles.
@@ -20,6 +20,7 @@ export interface TileId {
   y: number;
 }
 
+/** The web address of one terrain tile. */
 export function tileUrl({ z, x, y }: TileId): string {
   return TILE_URL.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
 }
@@ -35,6 +36,7 @@ export function toGlobalPixel(p: LatLon, z: number): { gx: number; gy: number } 
   };
 }
 
+/** The height in metres a terrain tile pixel's red, green and blue values stand for (see the formula at the top). */
 export function decodeTerrarium(r: number, g: number, b: number): number {
   return r * 256 + g + b / 256 - 32768;
 }
@@ -111,14 +113,20 @@ export class ElevationGrid {
 
   constructor(readonly z: number) {}
 
+  /** Adds a decoded tile's heights to the grid. */
   set(tile: TileId, heights: Float32Array): void {
     this.tiles.set(`${tile.x}/${tile.y}`, heights);
   }
 
+  /** True when that tile is already loaded. */
   has(tile: TileId): boolean {
     return this.tiles.has(`${tile.x}/${tile.y}`);
   }
 
+  /**
+   * The height stored at one pixel, given in global pixel coordinates, or NaN
+   * when its tile isn't loaded. Columns wrap around at the date line.
+   */
   private pixel(gx: number, gy: number): number {
     const n = 2 ** this.z;
     const tx = ((Math.floor(gx / TILE_SIZE) % n) + n) % n;

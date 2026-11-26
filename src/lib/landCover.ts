@@ -55,7 +55,7 @@ export function decodeLandCover(rgba: Uint8ClampedArray | Uint8Array): Uint8Arra
  * Suburban, over the window around it.
  */
 const URBAN_SHARE = 0.7;
-/** Half-width of that window, pixels: 5 × 5, about 150 m at zoom 12. */
+/** Half the width of that window in pixels: the window is 5 by 5 pixels, about 150 m across at zoom 12. */
 const WINDOW = 2;
 
 /** The Environment profile for a class, given how built-up the area around it is. */
@@ -94,14 +94,17 @@ export class LandCoverGrid {
 
   constructor(readonly z: number) {}
 
+  /** Adds a decoded tile's land cover classes to the grid. */
   set(tile: TileId, classes: Uint8Array): void {
     this.tiles.set(`${tile.x}/${tile.y}`, classes);
   }
 
+  /** How many tiles are loaded. */
   get size(): number {
     return this.tiles.size;
   }
 
+  /** The class at one pixel in global pixel coordinates, 0 when its tile isn't loaded. Columns wrap at the date line. */
   private pixel(px: number, py: number): number {
     const n = 2 ** this.z;
     const tx = ((Math.floor(px / TILE_SIZE) % n) + n) % n;

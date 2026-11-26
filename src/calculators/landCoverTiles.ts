@@ -8,6 +8,11 @@ import { type TileId, tilesForPoints } from "../lib/terrainTiles";
 
 const decoded = new Map<string, Uint8Array>();
 
+/**
+ * One land cover tile's classes: downloaded, drawn onto a canvas and decoded.
+ * Kept for the rest of the page load. Throws when the download fails or the
+ * service sends something other than an image.
+ */
 async function loadTile(tile: TileId, signal?: AbortSignal): Promise<Uint8Array> {
   const key = `${tile.z}/${tile.x}/${tile.y}`;
   const cached = decoded.get(key);
@@ -36,6 +41,7 @@ export async function loadLandCover(
 ): Promise<void> {
   const queue = [...tiles];
   let done = 0;
+  // Takes tiles off the shared queue until it is empty; four run at once.
   const worker = async () => {
     while (queue.length) {
       const t = queue.shift()!;
@@ -47,6 +53,7 @@ export async function loadLandCover(
 }
 
 const pointCache = new Map<string, LandCoverPoint>();
+/** The cache key for a point, rounded to five decimal places (about a metre). */
 const pointKey = (p: LatLon) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`;
 
 /** The land cover at each point, from cache where it's been looked up before. */

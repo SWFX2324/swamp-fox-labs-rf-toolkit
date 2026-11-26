@@ -6,6 +6,7 @@
 import { escapeHtml } from "../lib/html";
 import { type Modcod, GOOD_MARGIN_DB, allModcods, bitsPerSymbolNet } from "../lib/satLink";
 
+/** A number to the given decimal places, with a true minus sign for negatives. */
 const fmt = (v: number, digits = 1) =>
   `${v < 0 ? "−" : ""}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 
@@ -40,8 +41,10 @@ function rainWord(at: number | undefined, tiers: [number, number, number]): stri
 export function rainBars(band: string, retAt: number | undefined, fwdAt: number | undefined): string {
   const tiers = RAIN_DB[band] ?? RAIN_DB.Ku;
   const max = Math.max(tiers[2] * 1.35, (retAt ?? 0) * 1.1, (fwdAt ?? 0) * 1.1);
+  // A value as a share of the chart's width, capped at the full width.
   const pct = (v: number) => `${Math.min(100, (v / max) * 100).toFixed(1)}%`;
   const ticks = tiers.map((t, i) => `<span class="rb-tick" style="left:${pct(t)}"><span>${RAIN_WORDS[i][0].toUpperCase()}${RAIN_WORDS[i].slice(1)}</span></span>`).join("");
+  // One labelled bar: how much rain this direction rides out, over the rain marks.
   const bar = (name: string, cls: string, at: number | undefined) => `
     <div class="rb-row">
       <div class="rb-head"><b>${name}</b><span class="rb-word">${rainWord(at, tiers)}</span></div>
@@ -79,6 +82,7 @@ export function bestModcods(v: Pick<ModcodView, "esn0" | "implLossDb">): { good?
   };
 }
 
+/** The rating word and its colour class for a margin: Good, Marginal or Won't connect. */
 const ratingOf = (mg: number) => (mg >= GOOD_MARGIN_DB ? ["Good", "s-good"] : mg >= 0 ? ["Marginal", "s-marginal"] : ["Won't connect", "s-fail"]);
 
 /**
@@ -114,9 +118,11 @@ export function modcodList(v: ModcodView): string {
  * nearest your setting marked.
  */
 export function aimTable(beamwidthDeg: number, dishM: number, errorDeg: number, youLossDb: number): string {
+  // How far off the satellite the dish can point before losing lossDb, from the pointing loss formula.
   const offFor = (lossDb: number) => beamwidthDeg * Math.sqrt(lossDb / 12);
   /** How far the dish's rim moves for an aim change, mm. */
   const rimMm = (deg: number) => (dishM / 2) * Math.tan((deg * Math.PI) / 180) * 1000;
+  // A rim movement as text, "<1 mm" for anything under a millimetre.
   const mm = (deg: number) => {
     const v = rimMm(deg);
     return v < 1 ? "<1 mm" : `${fmt(v, v < 10 ? 1 : 0)} mm`;

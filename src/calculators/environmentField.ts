@@ -5,6 +5,7 @@ import { DEFAULT_TREE_HEIGHT_M, type Environment, environments, withTreeHeight }
 import { AUTO_ENVIRONMENT } from "../lib/landCover";
 import { asDistanceUnit, fromMetres, toMetres } from "../lib/units";
 
+/** The Environment dropdown's options: None first, then Auto (from the land cover map), then each profile. */
 export function environmentOptions(): string {
   const [none, ...rest] = environments;
   return [
@@ -25,7 +26,9 @@ export function treeHeightFieldHtml(): string {
     </label>`;
 }
 
+/** The tree height box in a form, if the form has one. */
 const treeInput = (form: HTMLElement) => form.querySelector<HTMLInputElement>('input[name="treeHeight"]');
+/** The height unit chosen in the form's unit dropdown (named unitName), feet when there's none. */
 const unitOf = (form: HTMLElement, unitName: string) =>
   asDistanceUnit(form.querySelector<HTMLSelectElement | HTMLInputElement>(`[name="${unitName}"]`)?.value ?? "ft", "ft");
 
@@ -46,6 +49,8 @@ export function withFormTrees(form: HTMLElement, unitName: string, env: Environm
  * antenna heights.
  */
 export function bindTreeField(form: HTMLElement, unitName: string): void {
+  // Shows the tree height box only for Dense Vegetation or Auto, in the form's
+  // height unit, with the default height as its placeholder.
   const sync = () => {
     const label = form.querySelector<HTMLElement>("[data-tree]");
     const input = treeInput(form);

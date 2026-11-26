@@ -50,6 +50,12 @@ export interface ProfileResult {
 /** 60% of the first Fresnel zone clear is the usual goal for no extra loss. */
 export const FRESNEL_CLEAR_RATIO = 0.6;
 
+/**
+ * How well a path clears the terrain: at each sample, the ground (with the
+ * earth's curve added), the straight line between the antennas, the Fresnel
+ * zone radius and the clearance. The tightest point sets the verdict: clear,
+ * Fresnel zone partly blocked, or line of sight blocked.
+ */
 export function analyzeProfile(i: ProfileInputs): ProfileResult {
   const n = i.elevationsM.length;
   if (n < 2) throw new RangeError("A profile needs at least two elevation samples");

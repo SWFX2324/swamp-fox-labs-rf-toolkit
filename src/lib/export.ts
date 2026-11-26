@@ -5,6 +5,10 @@
 import type { LatLon } from "./geo";
 import type { LinkLineStyle } from "./linkLines";
 
+/**
+ * Escapes the five characters that have meaning in XML, so a name such as
+ * "Tom & Jerry's" can't break the exported KML or CoT file.
+ */
 export function escapeXml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -44,8 +48,10 @@ const lineStyles: Record<LinkLineStyle, { colour: string; width: number }> = {
 const iconStyle = (iconFile: string) =>
   `    <Style id="node"><IconStyle><scale>0.9</scale><Icon><href>${escapeXml(iconFile)}</href></Icon><hotSpot x="0.5" y="0.5" xunits="fraction" yunits="fraction"/></IconStyle></Style>`;
 
+/** A point as KML writes it: longitude, latitude, then height (always 0 here). */
 const coordinate = (p: LatLon) => `${p.lon.toFixed(6)},${p.lat.toFixed(6)},0`;
 
+/** One KML Placemark: a name, an optional description and style, and its geometry (a point or a line). */
 function placemark(name: string, description: string | undefined, geometry: string, style?: string): string {
   return `    <Placemark>
       <name>${escapeXml(name)}</name>${description ? `\n      <description>${escapeXml(description)}</description>` : ""}${style ? `\n      <styleUrl>#${style}</styleUrl>` : ""}
@@ -106,12 +112,14 @@ ${[...(iconFile ? [iconStyle(iconFile)] : []), overlay, ...marks].join("\n")}
 `;
 }
 
+/** The lookup table for the CRC-32 checksum that zip files store for each file, built once. */
 const crcTable = Array.from({ length: 256 }, (_, n) => {
   let c = n;
   for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
   return c >>> 0;
 });
 
+/** The CRC-32 checksum of some bytes, the way zip files compute it, so other apps accept the zip as intact. */
 export function crc32(data: Uint8Array): number {
   let c = 0xffffffff;
   for (const byte of data) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
@@ -127,6 +135,7 @@ export function buildZip(files: { name: string; data: Uint8Array }[]): Uint8Arra
   for (const file of files) {
     const name = encoder.encode(file.name);
     const crc = crc32(file.data);
+    // A blank record of the given size and a view for writing numbers into it.
     const header = (size: number) => {
       const bytes = new Uint8Array(size);
       return { bytes, view: new DataView(bytes.buffer) };

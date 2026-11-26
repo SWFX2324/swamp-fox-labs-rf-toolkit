@@ -45,7 +45,9 @@ interface Card {
   note?: string;
 }
 
+/** Wraps a conversion so it gives no answer for zero or a negative, which have no logarithm. */
 const positive = (f: (v: number) => number) => (v: number) => (v > 0 ? f(v) : undefined);
+/** A fraction from 0 to 1 as a percentage. */
 const pct = (fraction: number) => `${num(fraction * 100)}%`;
 
 /** Up to 5 significant figures, scientific for very large or small values. */
@@ -70,6 +72,7 @@ const cards: Card[] = [
       { name: "dbw", label: "dBW", unit: "dBW", to: dbwToDbm, from: dbmToDbw },
       { name: "uv", label: "Voltage at the receiver (50 Ω)", unit: "µV", to: positive(microvoltsToDbm), from: dbmToMicrovolts },
     ],
+    // The S-meter reading for the power, on HF and on VHF and up.
     outputs: (c) => [
       ["S-meter, HF", sMeter(c, "hf")],
       ["S-meter, VHF and up", sMeter(c, "vhf")],
@@ -86,6 +89,7 @@ const cards: Card[] = [
       { name: "rl", label: "Return loss", unit: "dB", to: (v) => (v > 0 ? returnLossToGamma(v) : undefined), from: gammaToReturnLoss },
       { name: "gamma", label: "Reflection coefficient |Γ|", unit: "", to: (v) => (v >= 0 && v < 1 ? v : undefined), from: (c) => c },
     ],
+    // What the mismatch costs: the loss, and the shares of power reflected and accepted.
     outputs: (c) => [
       ["Mismatch loss", `${num(mismatchLossDb(c))} dB`],
       ["Power reflected", pct(c * c)],
@@ -101,6 +105,7 @@ const cards: Card[] = [
       { name: "dbi", label: "Over isotropic", unit: "dBi", to: (v) => v, from: (c) => c },
       { name: "dbd", label: "Over a dipole", unit: "dBd", to: dbdToDbi, from: dbiToDbd },
     ],
+    // The gain as a plain power ratio.
     outputs: (c) => [["Power gain over isotropic", `×${num(dbToPowerRatio(c))}`]],
     note: "A half-wave dipole is 2.15 dBi. Gain quoted in dBd reads 2.15 lower than the same antenna in dBi.",
   },
@@ -117,6 +122,7 @@ const cards: Card[] = [
   },
 ];
 
+/** The last value of each card (stored in its common unit), or none when nothing usable is stored. */
 function loadState(): Record<string, number> {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -126,6 +132,7 @@ function loadState(): Record<string, number> {
   }
 }
 
+/** Remembers each card's last value. */
 function saveState(state: Record<string, number>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -142,6 +149,8 @@ export const converterCalculator: Calculator = {
   id: "convert",
   title: "Unit of Measure Conversion Tool",
   shortTitle: "Convert",
+  // Builds the four conversion cards. Typing in any box converts the value to
+  // the card's common unit and fills in every other box from it.
   render() {
     const root = document.createElement("form");
     root.className = "calculator converter";
@@ -171,7 +180,10 @@ export const converterCalculator: Calculator = {
         ${card.note ? `<details class="about"><summary>About this</summary><p>${card.note}</p></details>` : ""}`;
       root.append(section);
 
+      // The text box for one of this card's fields.
       const input = (f: Field) => section.querySelector<HTMLInputElement>(`input[name="${card.id}-${f.name}"]`)!;
+      // Fills every box of this card from a value in its common unit (except the
+      // one being typed in) and redraws the card's extra results.
       const refill = (canonical: number, except?: Field) => {
         for (const f of card.fields) if (f !== except) input(f).value = num(f.from(canonical));
         const out = section.querySelector<HTMLElement>(`[data-out="${card.id}-outputs"]`);

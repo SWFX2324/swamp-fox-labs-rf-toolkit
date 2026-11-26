@@ -1,4 +1,4 @@
-// Coordinates as people type them: decimal lat/lon or MGRS (what TAK uses).
+// Coordinates as people type them: decimal latitude and longitude, or MGRS (what TAK uses).
 // Every location box accepts both; the display format is a user preference.
 
 import { forward, toPoint } from "mgrs";
@@ -38,11 +38,12 @@ export function toMgrs(p: LatLon): string | undefined {
   }
 }
 
-/** Format in the chosen style, falling back to lat/lon where MGRS can't go. */
+/** Format in the chosen style, falling back to latitude and longitude where MGRS can't go (near the poles). */
 export function formatCoordinates(p: LatLon, format: CoordFormat = getCoordFormat()): string {
   return (format === "mgrs" && toMgrs(p)) || formatLatLon(p);
 }
 
+/** The coordinate style chosen in Settings: MGRS or latitude and longitude (the default, also when storage is blocked). */
 export function getCoordFormat(): CoordFormat {
   try {
     return localStorage.getItem(FORMAT_KEY) === "mgrs" ? "mgrs" : "latlon";
@@ -51,6 +52,7 @@ export function getCoordFormat(): CoordFormat {
   }
 }
 
+/** Remembers the coordinate style chosen in Settings. */
 export function setCoordFormat(format: CoordFormat): void {
   try {
     localStorage.setItem(FORMAT_KEY, format);
