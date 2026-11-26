@@ -102,6 +102,8 @@ export interface TerrainCard {
   setView(v: PathView): void;
   /** Frame the sites again for space that changed (the docked profile), unless the user has moved the map. */
   reframe(): void;
+  /** Run when a path line on the map is tapped, with the path tapped. */
+  onLineTap(fn: (view: PathView) => void): void;
 }
 
 export type PathView = "relay" | "direct";
@@ -264,15 +266,29 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
   // The line's style comes from the budget's verdict and the profile's.
   let quality: LinkQuality | undefined;
   let lineOfSight: ProfileStatus | undefined;
+  /** Called when a path line is tapped, with the path it belongs to. */
+  let lineTap: ((view: PathView) => void) | undefined;
+  /** A wide, invisible line over a path line, so a finger can tap it. */
+  const tappable = (group: L.LayerGroup, a: LatLon, b: LatLon, view: PathView) => {
+    const hit = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { className: "link-hit", weight: 20, opacity: 0 });
+    hit.on("click", (e) => {
+      // While a relay is being placed, a tap on the line places it there.
+      if (placingRelay || !lineTap) return;
+      L.DomEvent.stopPropagation(e);
+      lineTap(view);
+    });
+    group.addLayer(hit);
+    return group;
+  };
   // Without a rating (a field missing, or HF) there's no line, just the pins.
   const drawPath = () => {
     line?.remove();
     for (const l of hopLines) l.remove();
     hopLines = [];
-    line = map && tx && rx && quality ? drawLinkLine(map, tx, rx, linkLineStyle(quality, lineOfSight)) : undefined;
+    line = map && tx && rx && quality ? tappable(drawLinkLine(map, tx, rx, linkLineStyle(quality, lineOfSight)), tx, rx, "direct") : undefined;
     if (map && relay) {
-      if (tx && hopQuality[0]) hopLines.push(drawLinkLine(map, tx, relay, linkLineStyle(hopQuality[0], hopStatus[0])));
-      if (rx && hopQuality[1]) hopLines.push(drawLinkLine(map, relay, rx, linkLineStyle(hopQuality[1], hopStatus[1])));
+      if (tx && hopQuality[0]) hopLines.push(tappable(drawLinkLine(map, tx, relay, linkLineStyle(hopQuality[0], hopStatus[0])), tx, relay, "relay"));
+      if (rx && hopQuality[1]) hopLines.push(tappable(drawLinkLine(map, relay, rx, linkLineStyle(hopQuality[1], hopStatus[1])), relay, rx, "relay"));
     }
     view3d?.refresh();
   };
@@ -1007,7 +1023,7 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     const segments = viaRelay && hopSegments ? hopSegments.map((s) => s.result) : [result];
     const names = viaRelay ? [nameOf("tx"), nameOf("relay"), nameOf("rx")] : [nameOf("tx"), nameOf("rx")];
     const docked = !!chart.closest(".profile-dock");
-    chart.innerHTML = drawProfile(segments, params, chart.clientWidth || 640, names, docked ? 150 : undefined);
+    chart.innerHTML = drawProfile(segments, params, chart.clientWidth || 640, names, docked ? 150 : undefined, true, viaRelay ? [...hopQuality] : [quality]);
     lastParams = params;
 
     // Built as text: site names are user input.
@@ -1053,6 +1069,9 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     pins: () => (tx && rx ? { tx, rx } : undefined),
     relay: () => relay,
     view: () => profileView,
+    onLineTap(fn) {
+      lineTap = fn;
+    },
     reframe() {
       if (map && framed) fitPath(map);
     },
@@ -1075,8 +1094,10 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
       return { hop1, hop2 };
     },
     showHops(q1, q2) {
+      const changed = q1 !== hopQuality[0] || q2 !== hopQuality[1];
       hopQuality = [q1, q2];
       drawPath();
+      if (changed && lastParams) refresh(lastParams);
     },
     namesChanged() {
       syncPins();
@@ -1086,8 +1107,10 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     refresh,
     reset,
     showLink(q) {
+      const changed = q !== quality;
       quality = q;
       drawPath();
+      if (changed && lastParams) refresh(lastParams);
     },
   };
 }
@@ -1097,7 +1120,27 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
  * Several segments (the hops through a relay) are drawn end to end, each with
  * its own line of sight; names label every antenna, in order.
  */
-function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number, names: string[], height?: number): string {
+type LosStyle = ReturnType<typeof linkLineStyle> | "unknown";
+/** The key's words for each line-of-sight style. */
+const LOS_KEY: Record<LosStyle, string> = {
+  "good-clear": "Line of sight, clear",
+  "good-obstructed": "Line of sight, obstructed (link still good)",
+  marginal: "Line of sight (link marginal)",
+  fail: "Line of sight (won't connect)",
+  unknown: "Line of sight, obstructed",
+};
+
+export function drawProfile(
+  segments: ProfileResult[],
+  p: Pick<TerrainParams, "distUnit" | "heightUnit">,
+  width: number,
+  names: string[],
+  height?: number,
+  /** False where the chart has no tap-to-read handler. */
+  readout = true,
+  /** Each segment's budget verdict, to style its line of sight as the map styles its link. */
+  qualities?: (LinkQuality | undefined)[],
+): string {
   const W = Math.max(300, Math.round(width));
   // The graph is the point of the card: tall enough to read the ground.
   // Docked under the map it's a wide strip instead, so the map keeps its room.
@@ -1136,9 +1179,17 @@ function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number,
   const zone60 = segs.map((sp) => path(sp.map((q): [number, number] => [x(q.distanceM), y(q.losM - FRESNEL_CLEAR_RATIO * q.fresnelM)]))).join("");
   // The line of sight per segment: green while it clears the ground, red where it doesn't.
   const losLines = segs
-    .map((sp, i) => `<path class="los ${segments[i].status === "blocked" ? "los-blocked" : "los-clear"}" d="${path([[x(sp[0].distanceM), y(sp[0].losM)], [x(sp[sp.length - 1].distanceM), y(sp[sp.length - 1].losM)]])}"/>`)
+    .map((sp, i) => `<path class="los los-${losStyle(i)}" d="${path([[x(sp[0].distanceM), y(sp[0].losM)], [x(sp[sp.length - 1].distanceM), y(sp[sp.length - 1].losM)]])}"/>`)
     .join("");
-  const anyBlocked = segments.some((r) => r.status === "blocked");
+  // The same rule as the map's link lines: colour from the budget, dashes when the
+  // path isn't clear. Red only when the budget says it won't connect; a blocked
+  // path that still closes by diffraction is dashed green. Without a verdict, grey.
+  function losStyle(i: number): LosStyle {
+    const q = qualities?.[i];
+    if (q) return linkLineStyle(q, segments[i].status);
+    return segments[i].status === "clear" ? "good-clear" : "unknown";
+  }
+  const shownStyles = [...new Set(segments.map((_, i) => losStyle(i)))];
 
   const hits = segs
     .flatMap((sp) => sp.slice(1, -1))
@@ -1181,9 +1232,9 @@ function drawProfile(segments: ProfileResult[], p: TerrainParams, width: number,
       ${relayLabels}
       <line class="crosshair" x1="0" x2="0" y1="${pad.t}" y2="${H - pad.b}" style="display:none"/>
     </svg>
-    <p class="note chart-readout">Tap the chart to read any point.</p>
+    ${readout ? `<p class="note chart-readout">Tap the chart to read any point.</p>` : ""}
     <div class="legend">
-      <span class="key"><span class="ln los-key ${anyBlocked ? "los-blocked" : "los-clear"}"></span>Line of sight${anyBlocked ? " (blocked)" : ""}</span>
+      ${shownStyles.map((st) => `<span class="key"><span class="ln los-key los-${st}"></span>${LOS_KEY[st]}</span>`).join("")}
       <span class="key"><span class="sw zone-key"></span>First Fresnel zone</span>
       <span class="key"><span class="ln dash zone60-key"></span>60% line</span>
       <span class="key"><span class="sw terrain-key"></span>Terrain + earth curve</span>

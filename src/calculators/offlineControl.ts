@@ -140,10 +140,26 @@ function offlinePanel(map: L.Map, button: HTMLElement): void {
     stored.textContent = await storedText();
   };
 
+  const placeOverTaskbar = () => {
+    const bar = button.closest<HTMLElement>(".map-taskbar");
+    if (!bar) return;
+    const box = map.getContainer().getBoundingClientRect();
+    const barTop = bar.getBoundingClientRect().top;
+    const b = button.getBoundingClientRect();
+    panel.classList.add("over-taskbar");
+    panel.style.bottom = `${box.bottom - barTop + 10}px`;
+    panel.style.maxHeight = `${Math.max(160, barTop - box.top - 20)}px`;
+    // Centred on the button, kept inside the map.
+    const half = panel.offsetWidth / 2;
+    const centre = Math.min(Math.max(b.left + b.width / 2 - box.left, half + 10), box.width - half - 10);
+    panel.style.left = `${centre - half}px`;
+  };
+
   const open = (show: boolean) => {
     panel.hidden = !show;
     button.setAttribute("aria-expanded", String(show));
     if (!show) return;
+    placeOverTaskbar();
     status.textContent = "";
     describe();
     void refreshStored();

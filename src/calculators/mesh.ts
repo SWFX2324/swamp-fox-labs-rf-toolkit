@@ -28,7 +28,8 @@ import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM, samplePath
 import { beam, elevationAngleDeg, patternLossDb, patterns } from "../lib/pattern";
 import { type EndRadio, type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
 import { createPathStore, pathKey } from "../lib/pathStore";
-import { sampleCount } from "../lib/profile";
+import { type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
+import { drawProfile } from "./terrain";
 import type { EditField } from "../lib/scene3d";
 import { type RadioPreset, type Route, bestRoutes, formatRate, hopLimit, ladder, rateAt } from "../lib/radioPresets";
 import { PRESETS_EVENT, adoptPreset, loadPresets, openPresetManager, presetsEventFor } from "./presetManager";
@@ -104,9 +105,9 @@ const legacySettingDefaults: Record<string, string> = {
 };
 
 const statusText: Record<MeshLinkStatus, [string, string]> = {
-  good: ["Solid", "s-good"],
+  good: ["Good", "s-good"],
   marginal: ["Marginal", "s-marginal"],
-  fail: ["No link", "s-fail"],
+  fail: ["Won't connect", "s-fail"],
 };
 
 function numberField(label: string, name: string, unit: string, attrs = ""): string {
@@ -123,7 +124,7 @@ const template = `
   <div class="lb-shell floating">
   ${sideToggles("mesh results")}
   <div class="lb-left">
-    ${pane("config", "mesh", "Mesh configuration", `
+    ${pane("config", "mesh", "Radio", `
       <div class="fields">
         <label class="wide">Radio
           <span class="preset-pick">
@@ -155,7 +156,7 @@ const template = `
         </label>
       </div>`)}
 
-    ${pane("nodes", "radio", "Node list", `
+    ${pane("nodes", "radio", "Nodes", `
       <div class="add-node">
         <input name="addLoc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <button type="button" class="secondary" data-action="add">Add node</button>
@@ -192,6 +193,20 @@ const template = `
     <div class="map-legend"><div data-out="legend"></div></div>
   </div>
 
+  <section class="card profile-dock" data-out="profileDock" hidden>
+    <div class="dock-head">
+      <h2 class="with-icon">${PANE_ICONS.terrain}Terrain profile</h2>
+      <span class="dock-link" data-out="dockLink"></span>
+      <span class="pill" data-out="dockPill" hidden></span>
+      <button type="button" class="dock-toggle" data-action="closeProfile" aria-label="Close the terrain profile">${rfIcon("close")}</button>
+    </div>
+    <div class="dock-body">
+      <div class="profile-chart" data-out="dockChart"></div>
+      <p class="note" data-out="dockNote" hidden></p>
+      <p class="dock-facts" data-out="dockFacts"></p>
+    </div>
+  </section>
+
   <aside class="results lb-right">
     <section class="card">
       <div class="card-head">
@@ -210,10 +225,11 @@ const template = `
         </div>
         <div class="table-wrap">
           <table class="ledger links">
-            <thead><tr><th>Link</th><th class="num">Distance</th><th class="num">Terrain</th><th class="num">Margin</th></tr></thead>
+            <thead><tr><th>Link</th><th class="num">Distance</th><th class="num">Terrain loss</th><th class="num">Margin</th></tr></thead>
             <tbody data-out="links"></tbody>
           </table>
         </div>
+        <p class="note links-note">Each link is rated on its weaker direction. Tap a link for its terrain profile.</p>
         <details class="routes" data-out="routesWrap" hidden>
           <summary>End-to-end throughput for every pair</summary>
           <div class="table-wrap">
@@ -497,6 +513,84 @@ export const meshCalculator: Calculator = {
       );
     };
 
+    // The link whose terrain profile is open, by its two nodes (so it survives a re-sort).
+    let selected: [MeshNode, MeshNode] | undefined;
+    let selLine: L.Polyline | undefined;
+    const LOS_WORDS: Record<ProfileStatus, [string, string]> = {
+      clear: ["Clear line of sight", "s-good"],
+      fresnel: ["Fresnel partly blocked", "s-marginal"],
+      blocked: ["No line of sight", "s-marginal"],
+    };
+    /** Draw the chosen link's profile in the dock, or close it if that link is gone. */
+    const showSelected = () => {
+      selLine?.remove();
+      selLine = undefined;
+      const dock = out("profileDock");
+      const r = selected && lastLinks.find((l) => nodes[l.a] === selected![0] && nodes[l.b] === selected![1]);
+      for (const tr of out("links").querySelectorAll("tr")) tr.classList.toggle("selected", !!r && Number(tr.dataset.a) === r.a && Number(tr.dataset.b) === r.b);
+      if (!r || nodes.length < 2) {
+        selected = undefined;
+        dock.hidden = true;
+        syncDock();
+        return;
+      }
+      const a = nodes[r.a];
+      const b = nodes[r.b];
+      const name = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
+      dock.hidden = false;
+      out("dockLink").textContent = `${name(r.a)} ↔ ${name(r.b)}`;
+      if (map) selLine = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { className: "mesh-link-selected", interactive: false }).addTo(map);
+      const distUnit: DistanceUnit = asDistanceUnit(getSettings().distanceUnit, "mi");
+      const heightUnit = asDistanceUnit(field("heightUnit").value);
+      const elev = terrain.get(pathKey(a, b));
+      const chart = out("dockChart");
+      const note = out("dockNote");
+      const pill = out("dockPill");
+      const freqHz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value));
+      if (Array.isArray(elev) && elev.length >= 3 && freqHz > 0) {
+        const result = analyzeProfile({
+          freqHz,
+          distanceM: Math.max(1, distanceBetweenM(a, b)),
+          elevationsM: elev,
+          txHeightM: r.link.pathHeightsM[0],
+          rxHeightM: r.link.pathHeightsM[1],
+          k: globalK(),
+        });
+        const docked = !dock.classList.contains("inline");
+        chart.hidden = false;
+        chart.innerHTML = drawProfile([result], { distUnit, heightUnit }, chart.clientWidth || 600, [name(r.a), name(r.b)], docked ? 150 : undefined, false, [r.link.status]);
+        note.hidden = true;
+        const [words, cls] = LOS_WORDS[result.status];
+        pill.hidden = false;
+        pill.className = `pill ${cls}`;
+        pill.textContent = words;
+      } else {
+        chart.hidden = true;
+        chart.replaceChildren();
+        pill.hidden = true;
+        note.hidden = false;
+        note.textContent =
+          distanceBetweenM(a, b) < 50 ? "These nodes are too close together for a terrain profile."
+          : elev === "error" ? "Couldn't load terrain for this link; it's worked out as free space."
+          : "Terrain for this link is still loading.";
+      }
+      const [text] = statusText[r.link.status];
+      out("dockFacts").innerHTML = [
+        ["Distance", `${fmt(fromMetres(r.distanceM, distUnit), 2)} ${distUnit}`],
+        ["Terrain loss", `${fmt(r.link.terrainLossDb)} dB`],
+        ["Margin", `${fmt(r.link.marginDb)} dB, ${text}`],
+      ]
+        .map(([k, v]) => `<span>${k} <b>${v.replace("-", "−")}</b></span>`)
+        .join("");
+      syncDock();
+    };
+
+    function syncDock() {
+      const dock = out("profileDock");
+      const docked = !dock.hidden && !dock.classList.contains("inline");
+      form.querySelector(".lb-shell")!.classList.toggle("has-dock", docked);
+    }
+
     const drawMarkers = () => {
       clearControl?.setVisible(nodes.length > 0);
       if (!map) return;
@@ -507,6 +601,10 @@ export const meshCalculator: Calculator = {
           draggable: true,
           title: n.name,
         }).addTo(map!);
+        // The name beside the pin, as on the other maps; an unnamed node by its number.
+        const tag = document.createElement("span");
+        tag.textContent = n.name.trim() || `Node ${idx + 1}`; // user text
+        m.bindTooltip(tag, { permanent: true, direction: "right", offset: [8, -16], className: "pin-name" });
         m.on("dragend", () => {
           const p = m.getLatLng();
           n.lat = p.lat;
@@ -558,6 +656,7 @@ export const meshCalculator: Calculator = {
       out("results").hidden = !ready;
       out("pill").hidden = !ready;
       if (!ready) {
+        showSelected();
         view3d?.refresh();
         return;
       }
@@ -660,7 +759,7 @@ export const meshCalculator: Calculator = {
       const ref = (i: number) => nodes[i].name.trim() || `node ${i + 1}`;
       if (solidGroups.length === 1) {
         pill.className = "pill s-good";
-        pill.textContent = "Solid mesh";
+        pill.textContent = "Good mesh";
         split.hidden = true;
       } else if (groups.length === 1) {
         pill.className = "pill s-marginal";
@@ -675,7 +774,7 @@ export const meshCalculator: Calculator = {
         split.textContent = `The mesh splits into ${groups.length} groups that can't reach each other: ${named.join("; ")}. A relay between groups, or taller antennas, would join them.`;
       }
       out("up").textContent = `${up.length} of ${results.length}`;
-      out("upSub").textContent = `${solid.length} solid, ${up.length - solid.length} marginal`;
+      out("upSub").textContent = `${solid.length} good, ${up.length - solid.length} marginal`;
       out("hops").textContent = groups.length === 1 ? String(maxHops) : "—";
       out("hopsSub").textContent = (groups.length === 1 ? "Between the farthest two nodes" : "The mesh is split") + (limit ? `; the limit is ${limit}` : "");
 
@@ -703,7 +802,7 @@ export const meshCalculator: Calculator = {
         const rows = [...all].sort((x, y) => (x.route?.kbps ?? -1) - (y.route?.kbps ?? -1));
         const body = out("routes") as HTMLTableSectionElement;
         body.innerHTML = rows
-          .map((p) => `<tr><td></td><td class="num mono">${p.route ? p.route.hops : "—"}</td><td class="num mono">${p.route ? formatRate(p.route.kbps) : "No solid route"}</td></tr>`)
+          .map((p) => `<tr><td></td><td class="num mono">${p.route ? p.route.hops : "—"}</td><td class="num mono">${p.route ? formatRate(p.route.kbps) : "No good route"}</td></tr>`)
           .join("");
         rows.forEach((p, i) => (body.rows[i].cells[0].textContent = `${label(p.a)} ↔ ${label(p.b)}`));
         out("routesNote").textContent = `Every hop keeps your fade margin at the rate used. ${
@@ -721,7 +820,8 @@ export const meshCalculator: Calculator = {
             : r.terrainState === "short" ? "Negligible"
             : r.terrainState === "pending" ? "waiting"
             : "free space";
-          return `<tr>
+          const chosen = selected && nodes[r.a] === selected[0] && nodes[r.b] === selected[1];
+          return `<tr tabindex="0" data-a="${r.a}" data-b="${r.b}"${chosen ? ' class="selected"' : ""}>
             <td class="link-name"></td>
             <td class="num mono">${fmt(fromMetres(r.distanceM, distUnit), 2)} ${distUnit}</td>
             <td class="num mono">${terrainCell}</td>
@@ -749,6 +849,7 @@ export const meshCalculator: Calculator = {
       if (map) {
         lines = results.map((r) => drawLinkLine(map!, nodes[r.a], nodes[r.b], linkLineStyle(r.link.status, r.link.profile)));
       }
+      showSelected();
       view3d?.refresh();
     };
 
@@ -823,7 +924,7 @@ export const meshCalculator: Calculator = {
         else showDefaultView(m);
       }, { taskbar: true });
       map.attributionControl.addAttribution(DATA_ATTRIBUTION);
-      clearControl = addClearControl(map, "the nodes", clearNodes);
+      clearControl = addClearControl(map, "the nodes", clearNodes, () => `Clear ${nodes.length === 1 ? "the node" : `all ${nodes.length} nodes`} from the map`);
       // What the 3D view's editor shows for a node. A blank height uses the default.
       const nodeFields = (n: MeshNode): EditField[] => [
         { key: "name", label: "Name", value: n.name, type: "text", placeholder: "Optional" },
@@ -916,8 +1017,7 @@ export const meshCalculator: Calculator = {
       });
     });
     const clearNodes = () => {
-      // Several nodes take a while to place again, so ask first.
-      if (nodes.length > 1 && !confirm(`Clear all ${nodes.length} nodes from the map?`)) return;
+      // The button has already asked for a second tap.
       nodes = [];
       setStatus("");
       nodesChanged(false);
@@ -1053,6 +1153,65 @@ export const meshCalculator: Calculator = {
     enhanceFields(form, meshGuide, settingDefaults);
     moveModeBar(form);
     setupMapFirst(form, { panesKey: PANES_KEY, sidesKey: SIDES_KEY, rightName: "mesh results" });
+    const pickRow = (tr: HTMLTableRowElement | null) => {
+      if (!tr?.dataset.a) return;
+      const a = nodes[Number(tr.dataset.a)];
+      const b = nodes[Number(tr.dataset.b)];
+      // A second tap on the open link closes it.
+      selected = selected && selected[0] === a && selected[1] === b ? undefined : [a, b];
+      showSelected();
+      if (selected) requestAnimationFrame(() => showLinkOnMap(a, b));
+      // In the card, below the table: bring it into view.
+      if (selected && out("profileDock").classList.contains("inline")) out("profileDock").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+    /** Frame a link in the part of the map the panes and the dock leave open. */
+    const showLinkOnMap = (a: MeshNode, b: MeshNode) => {
+      if (!map) return;
+      const box = map.getContainer().getBoundingClientRect();
+      const covered = (el: HTMLElement | null) =>
+        el && el.offsetWidth && getComputedStyle(el).position === "absolute" ? el.getBoundingClientRect() : undefined;
+      const left = covered(form.querySelector<HTMLElement>(".lb-left"));
+      const right = covered(form.querySelector<HTMLElement>(".lb-right"));
+      const tops = [covered(out("profileDock"))?.top, form.querySelector<HTMLElement>(".map-taskbar")?.getBoundingClientRect().top]
+        .filter((t): t is number => t !== undefined && t > box.top);
+      const bottom = tops.length ? box.bottom - Math.min(...tops) : 0;
+      const bounds = L.latLngBounds([[a.lat, a.lon], [b.lat, b.lon]]);
+      map.fitBounds(bounds, {
+        paddingTopLeft: [40 + (left ? left.right - box.left : 0), 40],
+        paddingBottomRight: [40 + (right ? box.right - right.left : 0), 40 + bottom],
+        maxZoom: Math.max(map.getZoom(), 10),
+      });
+    };
+    out("links").addEventListener("click", (e) => pickRow((e.target as HTMLElement).closest("tr")));
+    out("links").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      pickRow((e.target as HTMLElement).closest("tr"));
+    });
+    form.querySelector('[data-action="closeProfile"]')!.addEventListener("click", () => {
+      selected = undefined;
+      showSelected();
+    });
+    // Wide screens: docked under the map between the panes. Narrower: in the Mesh card.
+    const shell = form.querySelector<HTMLElement>(".lb-shell")!;
+    const dock = out("profileDock");
+    const wide = window.matchMedia("(min-width: 1300px)");
+    const placeDock = () => {
+      if (wide.matches) shell.append(dock);
+      else out("results").append(dock);
+      dock.classList.toggle("inline", !wide.matches);
+      showSelected();
+    };
+    wide.addEventListener("change", placeDock);
+    let dockWidth = 0;
+    new ResizeObserver(() => {
+      shell.style.setProperty("--dock-h", dock.hidden || !wide.matches ? "0px" : `${dock.offsetHeight + 14}px`);
+      if (!dock.hidden && dock.offsetWidth !== dockWidth) {
+        dockWidth = dock.offsetWidth;
+        showSelected();
+      }
+    }).observe(dock);
+    placeDock();
     // Climate and ground type are global: shown here, kept in Settings, so a
     // change here applies on every tab.
     const climateSel = field("climate") as HTMLSelectElement;

@@ -6,7 +6,7 @@ import { rfIcon } from "../ui/rfIcons";
 
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
+import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL, tileInUsgsArea } from "../lib/offlineArea";
 import { addOfflineControl } from "./offlineControl";
 import { THEME_EVENT, isDarkTheme } from "./theme";
 import type { Scene3D } from "../lib/scene3d";
@@ -28,6 +28,20 @@ export const USGS_ATTRIBUTION = '<a href="https://www.usgs.gov/programs/national
 // "save this view" and out of the service worker's tile caches (vite.config.ts).
 const CLARITY_URL = "https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const CLARITY_ATTRIBUTION = "Imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community";
+
+// Esri's place names and boundaries, a see-through layer made to sit on its
+// imagery: city, town and place names with thin pale borders. Online only, like
+// Clarity, and kept out of the tile caches for the same reason.
+const ESRI_LABELS_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+const ESRI_LABELS_ATTRIBUTION = "Labels: Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS user community";
+const BLANK_TILE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+/** A label layer left blank over the US, where the USGS imagery already prints names. */
+const LabelsOutsideUs = L.TileLayer.extend({
+  getTileUrl(this: L.TileLayer, coords: L.Coords) {
+    return tileInUsgsArea(coords) ? BLANK_TILE : L.TileLayer.prototype.getTileUrl.call(this, coords);
+  },
+}) as unknown as new (url: string, options?: L.TileLayerOptions) => L.TileLayer;
 
 // The stored names stay as they were, so saved choices still work; the menu shows these.
 type LayerName = "Streets" | "Dark" | "Satellite" | "Clarity";
@@ -108,18 +122,47 @@ export interface ClearControl {
  * A labelled "Clear map" button in the same corner of every map, for removing
  * the page's pins, nodes or coverage. what names them for screen readers.
  */
-export function addClearControl(map: L.Map, what: string, onClear: () => void): ClearControl {
+export function addClearControl(
+  map: L.Map,
+  what: string,
+  onClear: () => void,
+  /** What the button says it will clear while it waits for the second tap. */
+  ask: () => string = () => `Clear ${what} from the map`,
+): ClearControl {
   const slot = taskbarSlot(map, "clear");
   if (slot) {
     // In the taskbar it stays put, greyed out while there's nothing to clear.
     const b = taskButton("Clear map", TASK_ICONS.clear);
+    const label = b.querySelector("span")!;
     b.setAttribute("aria-label", `Clear ${what} from the map`);
     b.disabled = true;
-    b.addEventListener("click", onClear);
+    let armed: ReturnType<typeof setTimeout> | undefined;
+    const disarm = () => {
+      clearTimeout(armed);
+      armed = undefined;
+      b.classList.remove("armed");
+      label.textContent = "Clear map";
+      b.title = "Clear map";
+    };
+    b.addEventListener("click", () => {
+      // Every map: the first tap asks, a second tap within a few seconds clears.
+      const question = armed ? undefined : ask();
+      if (question) {
+        // First tap: the button asks; a second tap within a few seconds clears.
+        b.classList.add("armed");
+        label.textContent = "Tap again to clear";
+        b.title = question;
+        armed = setTimeout(disarm, 4000);
+        return;
+      }
+      disarm();
+      onClear();
+    });
     slot.append(b);
     return {
       setVisible(visible) {
         b.disabled = !visible;
+        if (!visible) disarm();
       },
     };
   }
@@ -133,8 +176,24 @@ export function addClearControl(map: L.Map, what: string, onClear: () => void): 
       button.innerHTML =
         `${TASK_ICONS.clear}Clear map`;
       L.DomEvent.disableClickPropagation(button);
+      let armed: ReturnType<typeof setTimeout> | undefined;
+      const b = button;
+      const disarm = () => {
+        clearTimeout(armed);
+        armed = undefined;
+        b.classList.remove("armed");
+        b.innerHTML = `${TASK_ICONS.clear}Clear map`;
+      };
       L.DomEvent.on(button, "click", (e) => {
         L.DomEvent.preventDefault(e);
+        if (!armed) {
+          b.classList.add("armed");
+          b.innerHTML = `${TASK_ICONS.clear}Tap again to clear`;
+          b.title = ask();
+          armed = setTimeout(disarm, 4000);
+          return;
+        }
+        disarm();
         onClear();
       });
       return button;
@@ -192,10 +251,15 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
         crossOrigin: true,
         attribution: USGS_ATTRIBUTION,
       }),
-      // No EOX label overlay on the satellite maps: its names come with orange
-      // border and coast lines that can't be separated from them.
+      // Esri's place names outside the US, where the USGS imagery has none.
+      // (Not EOX's labels: they come with orange borders and coastlines.)
+      new LabelsOutsideUs(ESRI_LABELS_URL, { maxZoom: 19, crossOrigin: true, attribution: ESRI_LABELS_ATTRIBUTION }),
     ]),
-    Clarity: L.tileLayer(CLARITY_URL, { maxZoom: 19, crossOrigin: true, attribution: CLARITY_ATTRIBUTION }),
+    // Clarity imagery with Esri's place names on top.
+    Clarity: L.layerGroup([
+      L.tileLayer(CLARITY_URL, { maxZoom: 19, crossOrigin: true, attribution: CLARITY_ATTRIBUTION }),
+      L.tileLayer(ESRI_LABELS_URL, { maxZoom: 19, crossOrigin: true, attribution: ESRI_LABELS_ATTRIBUTION }),
+    ]),
   };
   let current = readLayer(isDarkTheme());
   layers[current].addTo(map);

@@ -155,13 +155,13 @@ const SECTIONS: Section[] = [
       },
       {
         name: "ESRI Satellite",
-        source: "Esri World Imagery (Clarity), Maxar, Earthstar Geographics",
-        how: "Sharp, recent satellite and aerial photos worldwide. Online only: Esri doesn't allow its imagery to be saved for offline use. Maps start on it until you pick another layer.",
+        source: "Esri World Imagery (Clarity), Maxar, Earthstar Geographics; labels from Esri World Boundaries and Places",
+        how: "Sharp, recent satellite and aerial photos worldwide, with Esri's city and place names on top. Online only: Esri doesn't allow its imagery or labels to be saved for offline use. Maps start on it until you pick another layer.",
       },
       {
         name: "USGS Satellite",
-        source: "USGS The National Map; EOxCloudless Sentinel-2 by EOX",
-        how: "Aerial photos with roads and names over the US (about 1 m detail), and cloud-free Sentinel-2 satellite images (about 10 m) everywhere else. This is the layer the Download button saves, and the one maps fall back to with no connection.",
+        source: "USGS The National Map; EOxCloudless Sentinel-2 by EOX; labels from Esri",
+        how: "Aerial photos with roads and names over the US (about 1 m detail), and cloud-free Sentinel-2 satellite images (about 10 m) everywhere else, with Esri's place names on top while online. This is the layer the Download button saves, and the one maps fall back to with no connection.",
       },
     ],
   },

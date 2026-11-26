@@ -39,8 +39,6 @@ const STORAGE_KEY = "rf-toolkit:link-budget";
 // Cards start closed; this remembers which ones you open.
 const PANES_KEY = "rf-toolkit:link-panes";
 const SIDES_KEY = "rf-toolkit:link-sides";
-/** Whether the docked terrain profile is folded away. */
-const DOCK_KEY = "rf-toolkit:link-profile-dock";
 
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognise untouched old saves.
@@ -216,7 +214,7 @@ const template = `
     <div class="dock-head">
       <h2 class="with-icon">${PANE_ICONS.terrain}Terrain profile</h2>
       <span class="dock-pill" data-out="dockPill"></span>
-      <button type="button" class="dock-toggle" data-out="dockToggle" aria-expanded="true" aria-label="Hide the terrain profile">${rfIcon("chevronDown")}</button>
+      <button type="button" class="dock-toggle" data-out="dockToggle" aria-label="Close the terrain profile">${rfIcon("close")}</button>
     </div>
     <div class="dock-body" data-out="dockBody"></div>
   </section>
@@ -284,6 +282,7 @@ const template = `
       </div>
       <div class="budget-flow" data-out="ledger"></div>
       </details>
+      <button type="button" class="profile-open" data-out="profileOpen" hidden>Terrain profile</button>
       <div class="relay-results" data-out="relayResults" hidden>
         <div class="card-head"><h3>Hops</h3></div>
         <table class="ledger">
@@ -470,39 +469,44 @@ export const linkBudgetCalculator: Calculator = {
     const terrainPane = form.querySelector<HTMLDetailsElement>('details[data-pane="terrain"]')!;
     const wide = window.matchMedia("(min-width: 1300px)");
     const profileSwitch = terrain.parts.profile.querySelector<HTMLElement>(".profile-view");
-    let dockClosed = false;
-    try {
-      dockClosed = localStorage.getItem(DOCK_KEY) === "closed";
-    } catch {
-      // Storage blocked: the dock just starts open.
-    }
-    const syncDockOpen = () => {
-      dock.classList.toggle("closed", dockClosed);
-      out("dockToggle").setAttribute("aria-expanded", String(!dockClosed));
-      out("dockToggle").setAttribute("aria-label", `${dockClosed ? "Show" : "Hide"} the terrain profile`);
+    // Docked, the profile shows only while a path is being looked at: opened by
+    // tapping its line on the map or the card's Terrain profile button, closed with ✕.
+    let profileOpen = false;
+    const syncProfile = () => {
+      const docked = wide.matches;
+      const show = docked && profileOpen && !!terrain.pins();
+      dock.hidden = !show;
+      shell.classList.toggle("has-dock", show);
+      out("profileOpen").hidden = !docked || show || !terrain.pins();
+      if (show) terrain.redraw();
     };
     const placeProfile = () => {
       const docked = wide.matches;
-      dock.hidden = !docked;
       terrainPane.hidden = docked;
-      shell.classList.toggle("has-dock", docked);
       (docked ? out("dockBody") : form.querySelector('[data-slot="profile"]')!).append(terrain.parts.profile);
       if (profileSwitch) {
         if (docked) out("dockToggle").before(profileSwitch);
         else terrain.parts.profile.querySelector(".profile-chart")!.before(profileSwitch);
       }
       if (profilePill) (docked ? out("dockPill") : form.querySelector('[data-slot="pill"]')!).append(profilePill);
+      syncProfile();
       terrain.redraw();
     };
-    out("dockToggle").addEventListener("click", () => {
-      dockClosed = !dockClosed;
-      try {
-        localStorage.setItem(DOCK_KEY, dockClosed ? "closed" : "open");
-      } catch {
-        // Storage blocked: remembered for this visit only.
+    const openProfile = (open: boolean) => {
+      profileOpen = open;
+      syncProfile();
+    };
+    out("dockToggle").addEventListener("click", () => openProfile(false));
+    out("profileOpen").addEventListener("click", () => openProfile(true));
+    // A tapped line opens the profile for its path: direct, or through the relay.
+    terrain.onLineTap((view) => {
+      if (terrain.relay() && terrain.view() !== view) terrain.setView(view);
+      if (wide.matches) openProfile(true);
+      else {
+        // Narrower, the profile is in its pane: open that and bring it into view.
+        terrainPane.open = true;
+        terrainPane.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
-      syncDockOpen();
-      if (!dockClosed) terrain.redraw();
     });
     // The map's taskbar, key and credits sit above the dock.
     let dockH = "";
@@ -522,7 +526,6 @@ export const linkBudgetCalculator: Calculator = {
       terrain.redraw();
     }).observe(dock);
     wide.addEventListener("change", placeProfile);
-    syncDockOpen();
     placeProfile();
     setupMapFirst(form, {
       panesKey: PANES_KEY,
@@ -673,6 +676,7 @@ export const linkBudgetCalculator: Calculator = {
 
     const update = () => {
       syncPaneTitles();
+      syncProfile();
       // Distances in the unit chosen in Settings.
       const distUnit = asDistanceUnit(getSettings().distanceUnit);
       out("distUnitLabel").textContent = distUnit === "km" ? "Kilometers" : "Miles";

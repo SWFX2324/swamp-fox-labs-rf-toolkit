@@ -168,7 +168,7 @@ const template = `
         ${numberField("RX sensitivity", "siteSens", "dBm")}
       </div>`)}
 
-    ${pane("rx", "rx", "Site B (anywhere)", `
+    ${pane("rx", "rx", "Site B", `
       <div class="fields">
         <label class="wide">Radio
           <select name="rxPreset"></select>

@@ -51,6 +51,8 @@ export interface MeshLink {
   status: MeshLinkStatus;
   /** Clearance verdict when terrain was available, else undefined. */
   profile?: ProfileStatus;
+  /** Antenna heights the terrain path runs between (above any clutter), metres. */
+  pathHeightsM: [number, number];
 }
 
 export function meshLink(
@@ -115,6 +117,7 @@ export function meshLink(
     marginBaDb: ba.marginDb,
     status,
     profile,
+    pathHeightsM: [pathA, pathB],
   };
 }
 

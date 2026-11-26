@@ -560,6 +560,12 @@ main .leaflet-container { background: var(--card-2); }
   box-shadow: 0 1px 4px rgb(0 0 0 / .25); font-size: 12px; line-height: 1.4;
 }
 .offline-panel[hidden] { display: none; }
+/* Opened from the taskbar: placed above it in script, so not pinned to the top. */
+.offline-panel.over-taskbar { top: auto; z-index: 1001; }
+/* The Clear map button asking for its second tap. */
+.map-clear.armed { color: var(--critical); border-color: var(--critical); }
+.taskbar-btn.armed { color: var(--critical); background: color-mix(in srgb, var(--critical) 14%, transparent); }
+.map-taskbar.compact .taskbar-btn.armed span { display: inline; }
 .offline-panel p { margin: 6px 0 0; color: var(--text-2); font-size: 12px; }
 .offline-panel p:empty { display: none; }
 .offline-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -594,7 +600,14 @@ main .leaflet-container { background: var(--card-2); }
 .profile-chart .zone { fill: color-mix(in srgb, var(--accent) 14%, transparent); }
 .profile-chart .zone60 { fill: none; stroke: var(--serious); stroke-width: 1.4; stroke-dasharray: 4 3; }
 .profile-chart .los { fill: none; stroke: var(--good); stroke-width: 2; }
-.profile-chart .los.los-blocked { stroke: var(--critical); }
+/* Line of sight, styled like the link on the map: green solid when clear, green
+   dashed when obstructed but the budget still closes, amber dashed when marginal,
+   solid red only when it won't connect; grey dashed with no verdict. */
+.profile-chart .los.los-good-clear { stroke: var(--good); }
+.profile-chart .los.los-good-obstructed { stroke: var(--good); stroke-dasharray: 9 5; }
+.profile-chart .los.los-marginal { stroke: var(--warning); stroke-dasharray: 5 4; }
+.profile-chart .los.los-fail { stroke: var(--critical); }
+.profile-chart .los.los-unknown { stroke: var(--muted); stroke-dasharray: 6 4; }
 .profile-chart .mast { stroke: var(--text-2); stroke-width: 2; }
 .profile-chart .hit-fresnel { fill: var(--serious); }
 .profile-chart .hit-block { fill: var(--critical); }
@@ -604,7 +617,10 @@ main .leaflet-container { background: var(--card-2); }
 .legend .ln { width: 16px; height: 0; border-top: 2px solid; display: inline-block; }
 .legend .ln.dash { border-top-style: dashed; border-top-width: 1px; }
 .legend .los-key { border-color: var(--good); }
-.legend .los-key.los-blocked { border-color: var(--critical); }
+.legend .los-key.los-good-obstructed { border-top-style: dashed; }
+.legend .los-key.los-marginal { border-color: var(--warning); border-top-style: dashed; }
+.legend .los-key.los-fail { border-color: var(--critical); }
+.legend .los-key.los-unknown { border-color: var(--muted); border-top-style: dashed; }
 .legend .zone60-key { border-color: var(--serious); }
 .legend .zone-key { background: color-mix(in srgb, var(--accent) 25%, transparent); }
 .legend .terrain-key { background: color-mix(in srgb, var(--muted) 45%, var(--card-2)); }
@@ -1076,7 +1092,7 @@ main:has(.map-first) { max-width: none; }
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   }
   /* The terrain profile gets room to draw: the pane widens while it's open. */
-  .lb-shell.floating .lb-left:has(details[data-pane="terrain"][open]) { width: 560px; }
+  .lb-shell.floating .lb-left:has(details[data-pane="terrain"][open]:not([hidden])) { width: 560px; }
   /* The node list needs a little more, so each location stays on one line. */
   .lb-shell.floating .lb-left:has(details[data-pane="nodes"][open]) { width: 620px; }
   /* Fold-away tabs on each pane's outer edge. */
@@ -1088,7 +1104,7 @@ main:has(.map-first) { max-width: none; }
   .lb-shell.floating .side-toggle svg { width: 17px; height: 17px; }
   .lb-shell.floating .side-toggle[data-side="left"] { left: 378px; border-radius: 0 8px 8px 0; }
   .lb-shell.floating .side-toggle[data-side="right"] { right: 398px; border-radius: 8px 0 0 8px; }
-  .lb-shell.floating:has(.lb-left details[data-pane="terrain"][open]) .side-toggle[data-side="left"] { left: 578px; }
+  .lb-shell.floating:has(.lb-left details[data-pane="terrain"][open]:not([hidden])) .side-toggle[data-side="left"] { left: 578px; }
   .lb-shell.floating:has(.lb-left details[data-pane="nodes"][open]) .side-toggle[data-side="left"] { left: 638px; }
   .lb-shell.floating.left-closed .lb-left, .lb-shell.floating.right-closed .lb-right { display: none; }
   .lb-shell.floating.left-closed .side-toggle[data-side="left"] { left: 0 !important; }
@@ -1152,6 +1168,19 @@ main:has(.map-first) { max-width: none; }
 }
 .budget-details[open] > summary::after { margin-top: 3px; transform: rotate(-135deg); }
 .budget-details > summary:hover { color: var(--accent); }
+/* Link Analysis on wide screens: opens the docked terrain profile. */
+.profile-open {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 8px;
+  min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--card-2);
+  color: var(--text); font: inherit; font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.profile-open[hidden] { display: none; }
+.profile-open::after {
+  content: ""; width: 7px; height: 7px; margin-right: 2px;
+  border-right: 1.8px solid var(--muted); border-top: 1.8px solid var(--muted); transform: rotate(45deg);
+}
+.profile-open:hover { color: var(--accent); }
+.leaflet-overlay-pane path.link-hit { cursor: pointer; }
 .budget-details[open] > summary { margin-bottom: 8px; }
 /* Full budget: a short, even list of the key steps. */
 .budget-flow { display: grid; gap: 2px; }
@@ -1159,6 +1188,7 @@ main:has(.map-first) { max-width: none; }
 .tile-field label { gap: 6px; font-size: 12px; color: var(--muted); }
 .tile-field .input-unit { justify-content: flex-start; }
 .tile-field .input-unit .unit { background: none; border: 0; color: var(--text-2); font-size: 13px; padding: 0 0 0 6px; min-width: 0; flex: none; }
+.tile-field .input-unit input { border-radius: 7px; }
 .tile-field .input-unit:has(> [data-out="distValue"]:not([hidden])) { border: 0; background: none; align-items: baseline; }
 .tile-field [data-out="distValue"] { color: var(--text); }
 .tile-field input[readonly] { border-color: transparent; background: transparent; padding-left: 0; font-family: var(--mono); font-size: 18px; color: var(--text); }
@@ -1276,12 +1306,14 @@ main:has(.map-first) { max-width: none; }
    between the side panes; the map's taskbar, key and credits sit above it. */
 .profile-dock[hidden] { display: none; }
 @media (min-width: 1300px) {
-  .lb-shell.floating .profile-dock {
+  .lb-shell.floating > .profile-dock {
     position: absolute; z-index: 1000; bottom: 14px; left: 388px; right: 408px; margin: 0;
     padding: 10px 14px 12px; box-shadow: 0 6px 24px rgb(0 0 0 / .35);
   }
-  .lb-shell.floating.left-closed .profile-dock { left: 14px; }
-  .lb-shell.floating.right-closed .profile-dock { right: 14px; }
+  .lb-shell.floating.left-closed > .profile-dock { left: 14px; }
+  .lb-shell.floating.right-closed > .profile-dock { right: 14px; }
+  /* Mesh: the wider node list pushes it over. */
+  .lb-shell.floating:has(.lb-left details[data-pane="nodes"][open]):not(.left-closed) > .profile-dock { left: 648px; }
   .lb-shell.floating.has-dock .lb-map .map-taskbar { bottom: calc(var(--dock-h, 0px) + 56px); }
   .lb-shell.floating.has-dock .lb-map .map-legend { bottom: calc(var(--dock-h, 0px) + 22px); }
   .lb-shell.floating.has-dock .lb-map .leaflet-bottom { bottom: var(--dock-h, 0px); }
@@ -1295,12 +1327,27 @@ main:has(.map-first) { max-width: none; }
 }
 .dock-toggle:hover { background: var(--card-2); color: var(--text); }
 .dock-toggle svg { width: 18px; height: 18px; transition: transform .15s; }
-.profile-dock.closed .dock-toggle svg { transform: rotate(180deg); }
-.profile-dock.closed .dock-body { display: none; }
 .dock-body { margin-top: 6px; }
 .dock-head .profile-view { margin: 0 0 0 auto; }
 .dock-head .profile-view + .dock-toggle { margin-left: 0; }
 .dock-body .profile-chart { margin-top: 4px; }
 .dock-body .profile-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 8px; }
 .dock-body .note { margin: 0; }
+/* Mesh, below wide screens: the link's profile sits in the Mesh card instead. */
+.profile-dock.inline { margin-top: 14px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--grid-line); border-radius: 0; background: none; box-shadow: none; }
+.dock-link { color: var(--text-2); font-size: 13px; }
+.dock-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 0; font-size: 12.5px; color: var(--text-2); }
+.dock-facts b { color: var(--text); font-weight: 600; }
+/* Mesh link table: rows are tappable; the chosen one is marked. */
+.ledger.links tbody tr { cursor: pointer; }
+.ledger.links tbody tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.ledger.links tbody tr.selected td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ledger.links tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.leaflet-overlay-pane path.mesh-link-selected { stroke: var(--accent); stroke-width: 9; stroke-opacity: .45; fill: none; stroke-linecap: round; }
 .dock-head .profile-view > .note { display: none; }
+/* Mesh link table: names stay on one line; the rating drops under the margin. */
+.ledger.links .link-name { white-space: nowrap; }
+.ledger.links td:last-child { white-space: normal; }
+.ledger.links td:last-child .pill { display: table; margin: 3px 0 0 auto; white-space: nowrap; }
+.dock-head { flex-wrap: wrap; row-gap: 4px; }
+.dock-head h2, .dock-link { white-space: nowrap; }
