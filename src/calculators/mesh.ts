@@ -755,8 +755,8 @@ export const meshCalculator: Calculator = {
       const pill = out("pill");
       const split = out("split");
       // A named node goes by its name; an unnamed one by its number.
-      const label = (i: number) => nodes[i].name.trim() || String(i + 1);
-      const ref = (i: number) => nodes[i].name.trim() || `node ${i + 1}`;
+      const label = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
+      const ref = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
       if (solidGroups.length === 1) {
         pill.className = "pill s-good";
         pill.textContent = "Good mesh";
@@ -1092,7 +1092,7 @@ export const meshCalculator: Calculator = {
     renderNodes();
     recompute();
     if (nodes.length >= 2) void loadTerrain();
-    const nodeLabel = (i: number) => nodes[i].name.trim() || String(i + 1);
+    const nodeLabel = (i: number) => nodes[i].name.trim() || `Node ${i + 1}`;
     form.querySelector('[data-slot="share"]')!.append(
       createPlanCard({
         toolId: "mesh",

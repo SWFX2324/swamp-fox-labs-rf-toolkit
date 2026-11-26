@@ -225,10 +225,12 @@ function loadState(): Record<string, string> {
   const pointing = read(POINTING_KEY);
   return {
     ...defaults,
-    // Start from the site and slot used in Satellite Pointing.
-    site: pointing.site ?? "",
-    slot: pointing.slot ?? "",
     ...saved,
+    // An empty location or slot here takes the one last used in the Terminal
+    // Pointing Tool, so a site entered there carries over. (A saved empty value
+    // used to win and block it for good.)
+    site: saved.site || pointing.site || "",
+    slot: saved.slot || pointing.slot || "",
   };
 }
 

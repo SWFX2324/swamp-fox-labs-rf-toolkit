@@ -5,7 +5,7 @@
 import * as L from "leaflet";
 import { type ClearControl, type Control3D, add3DControl, addClearControl, createMap, showDefaultView, DATA_ATTRIBUTION } from "./mapKit";
 import type { EditField, Link3D, Point3D } from "../lib/scene3d";
-import type { RelaySurface } from "../lib/relay";
+import { type RelaySurface, hopMarginDb, topCandidates } from "../lib/relay";
 import { type RelayFinderInputs, findRelay, surfaceImage } from "./relayFinder";
 import { type ExportPoint, buildKml, buildZip } from "../lib/export";
 import { IMPORT_ACCEPT, NO_POINTS, SHARE_ICONS, downloadFile } from "./planBar";
@@ -464,6 +464,40 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     onPathChange();
   };
 
+  /**
+   * Check candidate relay spots on detailed terrain profiles, the same way the
+   * link budget checks the placed relay, and return the one whose weaker hop
+   * has the most margin. Each hop's profile is kept in the saved-path store, so
+   * the budget reuses it once the relay is placed.
+   */
+  const verifyCandidates = async (candidates: { lat: number; lon: number }[], inputs: RelayFinderInputs, signal: AbortSignal) => {
+    if (!tx || !rx || !lastParams) return undefined;
+    const model = lastParams.model;
+    const profile = async (a: LatLon, b: LatLon) => {
+      const d = distanceBetweenM(a, b);
+      const kept = store.lookup(a, b);
+      if (kept || d < 50) return { d, e: kept };
+      const e = await fetchPathElevations(samplePath(a, b, sampleCount(d)), signal);
+      store.remember(a, b, e);
+      return { d, e };
+    };
+    /** A hop's margin on detailed terrain, or free space when it's too short to profile. */
+    const hop = async (a: LatLon, b: LatLon, aHeightM: number, bHeightM: number, radios: RelayFinderInputs["hop1"]) => {
+      const { d, e } = await profile(a, b);
+      const loss = e ? terrainLoss({ freqHz: inputs.freqHz, distanceM: d, elevationsM: e, txHeightM: aHeightM, rxHeightM: bHeightM }, model).lossDb : 0;
+      return hopMarginDb(radios, inputs.freqHz, Math.max(1, d), loss);
+    };
+    let best: { lat: number; lon: number; marginDb: number } | undefined;
+    for (const c of candidates) {
+      if (signal.aborted) return undefined;
+      const m1 = await hop(tx, c, inputs.aHeightM, inputs.relayHeightM, inputs.hop1);
+      const m2 = await hop(c, rx, inputs.relayHeightM, inputs.bHeightM, inputs.hop2);
+      const m = Math.min(m1, m2);
+      if (!best || m > best.marginDb) best = { lat: c.lat, lon: c.lon, marginDb: m };
+    }
+    return best;
+  };
+
   const runFinder = async () => {
     if (!tx || !rx) {
       setStatus(`Drop both ${nameOf("tx")} and ${nameOf("rx")} first: the relay bridges the link between them.`, true);
@@ -488,13 +522,19 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
         setStatus("No spot in the search area is within reach of both sites.", true);
         return;
       }
-      const best = found.best;
+      // The quick search runs on coarse terrain, which can smooth over ridges and
+      // read too kindly. So its strongest few spots are checked on the same
+      // detailed terrain profile the link budget uses, and the relay goes to the
+      // best spot that check confirms. The message reports the checked figure.
+      setStatus("Checking the best spots on detailed terrain…");
+      const best = await verifyCandidates(topCandidates(found, 8, 500), inputs, controller.signal);
+      if (controller.signal.aborted || !best) return;
       relay = { lat: best.lat, lon: best.lon };
       const verdict = best.marginDb >= fade ? "good" : best.marginDb >= 0 ? "marginal" : "short";
       setStatus(
         verdict === "short"
-          ? `No spot closes both hops. The best is ${fmt(-best.marginDb, 1)} dB short; a taller relay mast, more power or better antennas would help. The relay is placed there for a closer look.`
-          : `Relay placed at the strongest spot: its weaker hop keeps ${fmt(best.marginDb, 1)} dB (${verdict}). Drag it to try nearby ground you can reach; shading shows where else works.`,
+          ? `No spot closes both hops on detailed terrain. The best is ${fmt(-best.marginDb, 1)} dB short; a taller relay mast, more power or better antennas would help. The relay is placed there for a closer look.`
+          : `Relay placed at the strongest spot on detailed terrain: its weaker hop keeps ${fmt(best.marginDb, 1)} dB (${verdict}). The shading is a quicker, rougher estimate of where else may work.`,
         verdict === "short",
       );
       relayChanged();
@@ -532,7 +572,8 @@ export function createTerrainCard(onPathChange: () => void, hooks: SiteHooks): T
     const points: [number, number][] = [[tx.lat, tx.lon], [rx.lat, rx.lon]];
     if (relay) points.push([relay.lat, relay.lon]);
     m.fitBounds(L.latLngBounds(points), {
-      paddingTopLeft: [30 + (left ? left.right - box.left : 0), 30],
+      // The top padding also clears the pin icon, which stands about 31 px above its point.
+      paddingTopLeft: [30 + (left ? left.right - box.left : 0), 30 + 32],
       paddingBottomRight: [30 + (right ? box.right - right.left : 0), 30 + bottomCover],
       maxZoom: 13,
     });

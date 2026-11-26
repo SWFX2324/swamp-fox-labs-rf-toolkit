@@ -603,8 +603,10 @@ export function open3DView(first: Scene3D): View3D {
     applyScene();
   };
 
-  map.on("load", () => {
-    if (!map) return;
+  // Everything that needs the map's style in place: the 3D layer, the
+  // markers and the first framing. Runs once.
+  const onReady = () => {
+    if (!map || ready) return;
     ready = true;
     // Start the credits folded to their (i) button; MapLibre opens them on load.
     el("map").querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show");
@@ -625,12 +627,33 @@ export function open3DView(first: Scene3D): View3D {
     } else if (scene.points.length === 1) {
       map.jumpTo({ center: [scene.points[0].lon, scene.points[0].lat], zoom: 12.5, pitch: 62 });
     }
-  });
-  // Terrain arrives tile by tile: place the masts (and line of sight) again once it settles.
-  map.on("idle", () => {
+  };
+  map.on("load", onReady);
+
+  // Terrain arrives tile by tile: once it settles, take down the loading note
+  // and place the masts (and the line of sight) again on the final ground.
+  const settle = () => {
     dialog.querySelector("[data-v=loading]")?.remove();
     air.rebuild();
-  });
+  };
+  map.on("idle", settle);
+
+  // Some browsers stop drawing frames just before the map finishes loading,
+  // so MapLibre never fires its "load" and "idle" events even though the map
+  // reports itself loaded. Without this check the view would stay on
+  // "Loading terrain…" with no markers. It looks twice a second until the map
+  // is ready and its tiles are in, then stops.
+  const watchLoad = window.setInterval(() => {
+    if (!map || !open) {
+      window.clearInterval(watchLoad);
+      return;
+    }
+    if (!ready && map.loaded()) onReady();
+    if (ready && map.areTilesLoaded()) {
+      if (dialog.querySelector("[data-v=loading]")) settle();
+      window.clearInterval(watchLoad);
+    }
+  }, 500);
 
   const setBase = (next: Base) => {
     base = next;

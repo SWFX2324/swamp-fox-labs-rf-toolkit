@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { RadialSamples } from "./coverage";
 import { distanceBetweenM } from "./geo";
-import { MAX_RELAY_RADIUS_M, radiusToCover, relaySearchBox, relaySurface } from "./relay";
+import { fsplDb } from "./fspl";
+import { MAX_RELAY_RADIUS_M, hopMarginDb, radiusToCover, relaySearchBox, relaySurface, topCandidates } from "./relay";
 
 const a = { lat: 35, lon: -78 };
 const b = { lat: 35, lon: -77.8 };
@@ -74,5 +75,32 @@ describe("relaySurface", () => {
     const s = relaySurface(box, 20, 20, hop(a, 1000, 40, 3), hop(b, 1000, 40, 3));
     expect([...s.values].every((v) => Number.isNaN(v))).toBe(true);
     expect(s.best).toBeUndefined();
+  });
+});
+
+describe("topCandidates", () => {
+  it("returns the strongest spots, spaced apart, strongest first", () => {
+    const box = { north: 35.1, south: 35, west: -78, east: -77.9 };
+    const width = 10;
+    const height = 10;
+    const values = new Float32Array(width * height).fill(-20);
+    values[0] = 5; // north-west corner
+    values[1] = 4.9; // right beside it: too close to count separately
+    values[99] = 3; // south-east corner
+    values[50] = Number.NaN; // out of reach: never picked
+    const picks = topCandidates({ box, width, height, values }, 3, 2000);
+    expect(picks[0].marginDb).toBeCloseTo(5);
+    expect(picks[1].marginDb).toBeCloseTo(3);
+    expect(picks.every((p) => Number.isFinite(p.marginDb))).toBe(true);
+    expect(picks).toHaveLength(3);
+  });
+});
+
+describe("hopMarginDb", () => {
+  it("takes the weaker direction and subtracts free-space and terrain loss", () => {
+    const strong = { eirpDbm: 40, rxGainDbi: 3, rxCableLossDb: 1, sensitivityDbm: -100 };
+    const weak = { eirpDbm: 30, rxGainDbi: 3, rxCableLossDb: 1, sensitivityDbm: -100 };
+    const m = hopMarginDb([strong, weak], 150e6, 10_000, 12);
+    expect(m).toBeCloseTo(30 + 3 - 1 + 100 - fsplDb(150e6, 10_000) - 12, 6);
   });
 });

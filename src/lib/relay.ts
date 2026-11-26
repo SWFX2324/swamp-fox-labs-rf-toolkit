@@ -4,7 +4,8 @@
 // receiver at the relay's height, gives the margin of each hop at every point;
 // the relay's margin at a point is the weaker of the two.
 
-import { type RadialSamples, marginAt } from "./coverage";
+import { type CoverageRadio, type RadialSamples, marginAt } from "./coverage";
+import { fsplDb } from "./fspl";
 import { type LatLon, bearingDeg, distanceBetweenM } from "./geo";
 
 export interface Box {
@@ -93,4 +94,40 @@ export function relaySurface(box: Box, width: number, height: number, hop1: HopC
     }
   }
   return { box, width, height, values, best };
+}
+
+/**
+ * The strongest few spots on the quick-search surface, at least `minSpacingM`
+ * apart, strongest first. The quick search runs on coarse terrain that can
+ * smooth over ridges, so its single best cell can be optimistic; these are the
+ * spots worth checking on a detailed terrain profile before recommending one.
+ */
+export function topCandidates(s: RelaySurface, count: number, minSpacingM: number): RelaySpot[] {
+  const order: number[] = [];
+  for (let k = 0; k < s.values.length; k++) if (Number.isFinite(s.values[k])) order.push(k);
+  order.sort((x, y) => s.values[y] - s.values[x]);
+  const picked: RelaySpot[] = [];
+  for (const k of order) {
+    if (picked.length >= count) break;
+    const i = k % s.width;
+    const j = Math.floor(k / s.width);
+    const lat = s.box.north - ((j + 0.5) / s.height) * (s.box.north - s.box.south);
+    const lon = s.box.west + ((i + 0.5) / s.width) * (s.box.east - s.box.west);
+    if (picked.some((p) => distanceBetweenM(p, { lat, lon }) < minSpacingM)) continue;
+    // The per-hop figures aren't kept per cell; the detailed check fills them in.
+    picked.push({ lat, lon, marginDb: s.values[k], hop1Db: s.values[k], hop2Db: s.values[k] });
+  }
+  return picked;
+}
+
+/**
+ * One hop's margin from a detailed path: the weaker of its two directions,
+ * each radio's fixed gains and losses less the free-space loss and the terrain
+ * loss beyond it. The same sum the Coverage Analysis does at every point.
+ */
+export function hopMarginDb(radios: Omit<CoverageRadio, "freqHz">[], freqHz: number, distanceM: number, terrainLossDb: number): number {
+  const pathLoss = fsplDb(freqHz, distanceM) + terrainLossDb;
+  return Math.min(
+    ...radios.map((r) => r.eirpDbm + r.rxGainDbi - r.rxCableLossDb - r.sensitivityDbm - (r.clutterLossDb ?? 0) - pathLoss),
+  );
 }
