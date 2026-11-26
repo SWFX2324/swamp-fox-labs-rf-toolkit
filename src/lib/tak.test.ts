@@ -115,6 +115,12 @@ describe("importing points", () => {
     expect(await importPoints("plan.kmz", await deflatedZip("doc.kml", big))).toHaveLength(1);
   });
 
+  it("leaves no markup behind from tags nested to slip past one pass", () => {
+    const kml = "<Placemark><name>&lt;b&gt;ok&lt;/b&gt; <<b>script>Hill<<i>/script></name><Point><coordinates>-80.5,35.5,0</coordinates></Point></Placemark>";
+    // Real tags and stray brackets go; the escaped ones were meant as text and stay.
+    expect(pointsFromKml(kml)).toEqual([{ name: "<b>ok</b> scriptHill/script", lat: 35.5, lon: -80.5 }]);
+  });
+
   it("skips a character reference that isn't a valid character instead of failing the file", () => {
     const kml = "<Placemark><name>Hill&#99999999; top</name><Point><coordinates>-80.5,35.5,0</coordinates></Point></Placemark>";
     expect(pointsFromKml(kml)).toEqual([{ name: "Hill top", lat: 35.5, lon: -80.5 }]);

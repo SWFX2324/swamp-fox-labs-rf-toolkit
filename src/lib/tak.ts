@@ -184,10 +184,13 @@ function unescapeXml(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-// Markup inside a name (HTML in a CDATA block, say) goes first; then the
-// entities, so an escaped "<" in a name survives as text.
+// Markup inside a name (HTML in a CDATA block, say) goes first. One pass of
+// tag removal can leave a tag behind ("<<b>script>" becomes "script>", and
+// other shapes leave "<script"), so any raw angle bracket still there is
+// dropped too: in XML text a real "<" is always escaped. The entities are
+// decoded last, so an escaped "<" in a name survives as text.
 const cleanName = (s: string) =>
-  unescapeXml(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]*>/g, ""))
+  unescapeXml(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]*>/g, "").replace(/[<>]/g, ""))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 40);
