@@ -162,7 +162,7 @@ const SECTIONS: Section[] = [
       {
         name: "USGS Satellite",
         source: "USGS The National Map; EOxCloudless Sentinel-2 by EOX; labels from Esri",
-        how: "Aerial photos with roads and names over the US (about 1 m detail), and cloud-free Sentinel-2 satellite images (about 10 m) everywhere else, with Esri's place names on top while online. This is the layer the Download button saves, and the one maps fall back to with no connection.",
+        how: "Aerial photos over the US (about 1 m detail) and cloud-free Sentinel-2 satellite images (about 10 m) everywhere else, with Esri's place names on top while online. This is the layer the Download button saves, and the one maps fall back to with no connection.",
       },
     ],
   },

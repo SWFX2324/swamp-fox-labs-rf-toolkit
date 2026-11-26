@@ -6,7 +6,7 @@ import { rfIcon } from "../ui/rfIcons";
 
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL, tileInUsgsArea } from "../lib/offlineArea";
+import { SENTINEL_MAX_ZOOM, SENTINEL_URL, SENTINEL_YEAR, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
 import { addOfflineControl } from "./offlineControl";
 import { THEME_EVENT, isDarkTheme } from "./theme";
 import type { Scene3D } from "../lib/scene3d";
@@ -34,15 +34,6 @@ const CLARITY_ATTRIBUTION = "Imagery: Esri, Maxar, Earthstar Geographics, and th
 // Clarity, and kept out of the tile caches for the same reason.
 const ESRI_LABELS_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
 const ESRI_LABELS_ATTRIBUTION = "Labels: Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS user community";
-const BLANK_TILE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-
-/** A label layer left blank over the US, where the USGS imagery already prints names. */
-const LabelsOutsideUs = L.TileLayer.extend({
-  // A blank tile inside the USGS area, Esri's label tile everywhere else.
-  getTileUrl(this: L.TileLayer, coords: L.Coords) {
-    return tileInUsgsArea(coords) ? BLANK_TILE : L.TileLayer.prototype.getTileUrl.call(this, coords);
-  },
-}) as unknown as new (url: string, options?: L.TileLayerOptions) => L.TileLayer;
 
 // The stored names stay as they were, so saved choices still work; the menu shows these.
 type LayerName = "Streets" | "Dark" | "Satellite" | "Clarity";
@@ -245,8 +236,8 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
     // CORS here too, because browsers count a cached no-CORS tile as several MB.
     Streets: L.tileLayer(osm, { maxZoom: 19, crossOrigin: true, attribution: OSM_ATTRIBUTION }),
     Dark: L.tileLayer(osm, { maxZoom: 19, crossOrigin: true, attribution: OSM_ATTRIBUTION, className: "map-dark" }),
-    // Sentinel-2 covers the world at about 10 m. USGS aerial imagery, with roads
-    // and names (a hybrid), sits on top at about 1 m but only covers the US; elsewhere its tiles 404 and Sentinel
+    // Sentinel-2 covers the world at about 10 m. USGS aerial imagery sits on top
+    // at about 1 m but only covers the US; elsewhere its tiles 404 and Sentinel
     // shows through. Both are keyless, and CORS keeps those 404s out of the cache.
     Satellite: L.layerGroup([
       L.tileLayer(SENTINEL_URL, {
@@ -261,9 +252,9 @@ export function createMap(container: HTMLElement, recenter: (map: L.Map) => void
         crossOrigin: true,
         attribution: USGS_ATTRIBUTION,
       }),
-      // Esri's place names outside the US, where the USGS imagery has none.
+      // Esri's place names on top, since neither imagery has any.
       // (Not EOX's labels: they come with orange borders and coastlines.)
-      new LabelsOutsideUs(ESRI_LABELS_URL, { maxZoom: 19, crossOrigin: true, attribution: ESRI_LABELS_ATTRIBUTION }),
+      L.tileLayer(ESRI_LABELS_URL, { maxZoom: 19, crossOrigin: true, attribution: ESRI_LABELS_ATTRIBUTION }),
     ]),
     // Clarity imagery with Esri's place names on top.
     Clarity: L.layerGroup([

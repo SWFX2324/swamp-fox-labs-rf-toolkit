@@ -13,7 +13,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { distanceBetweenM } from "../lib/geo";
 import { linkLineOrder, type LinkLineStyle } from "../lib/linkLines";
-import { OVERLAY_MAX_ZOOM, OVERLAY_URL, SENTINEL_MAX_ZOOM, SENTINEL_URL, USGS_MAX_ZOOM, USGS_URL, tileInUsgsArea } from "../lib/offlineArea";
+import { OVERLAY_MAX_ZOOM, OVERLAY_URL, SENTINEL_MAX_ZOOM, SENTINEL_URL, USGS_MAX_ZOOM, USGS_URL } from "../lib/offlineArea";
 import { LINK_SAMPLES, type Scene3D, lineOfSightHeights, linkSamples, ringCoordinates, viewBearing } from "../lib/scene3d";
 import { TILE_URL } from "../lib/terrainTiles";
 import { linkLegend } from "./linkLine";
@@ -385,9 +385,6 @@ export function open3DView(first: Scene3D): View3D {
 
   const handle: View3D = { update: () => {}, isOpen: () => open };
   const dark = isDarkTheme();
-  // In the US the USGS hybrid already prints names; EOX's labels are for elsewhere.
-  const at = first.points[0] ?? first.ring?.center ?? first.center;
-  const labelsWanted = !tileInUsgsArea({ z: 10, x: Math.floor(((at.lon + 180) / 360) * 1024), y: Math.floor(((1 - Math.log(Math.tan((at.lat * Math.PI) / 180) + 1 / Math.cos((at.lat * Math.PI) / 180)) / Math.PI) / 2) * 1024) });
   // A map layer's visibility setting from on or off.
   const visible = (on: boolean) => (on ? "visible" : "none") as "visible" | "none";
   // Dash lengths are in line widths, echoing the 2D standard.
@@ -452,8 +449,8 @@ export function open3DView(first: Scene3D): View3D {
           },
           { id: "sentinel", type: "raster", source: "sentinel", layout: { visibility: visible(base === "satellite") } },
           { id: "usgs", type: "raster", source: "usgs", layout: { visibility: visible(base === "satellite") } },
-          // Roads and place names over the imagery: a hybrid map, as in 2D.
-          { id: "labels", type: "raster", source: "labels", layout: { visibility: visible(base === "satellite" && labelsWanted) } },
+          // Place names over the imagery, as in 2D.
+          { id: "labels", type: "raster", source: "labels", layout: { visibility: visible(base === "satellite") } },
           {
             id: "shade",
             type: "hillshade",
@@ -695,7 +692,7 @@ export function open3DView(first: Scene3D): View3D {
     map.setLayoutProperty("shade", "visibility", visible(next === "map"));
     map.setLayoutProperty("sentinel", "visibility", visible(next === "satellite"));
     map.setLayoutProperty("usgs", "visibility", visible(next === "satellite"));
-    map.setLayoutProperty("labels", "visibility", visible(next === "satellite" && labelsWanted));
+    map.setLayoutProperty("labels", "visibility", visible(next === "satellite"));
   };
   for (const b of dialog.querySelectorAll<HTMLButtonElement>("[data-base]")) b.addEventListener("click", () => setBase(b.dataset.base as Base));
   setBase(base);
