@@ -55,6 +55,13 @@ const glyphs = {
   arrowDown: '<path d="M12 4.5v15m-5-5 5 5 5-5"/>',
   arrowUp: '<path d="M12 19.5v-15m-5 5 5-5 5 5"/>',
   help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.9 2.1c-1 .7-1.5 1.2-1.5 2.1"/><circle cx="12" cy="16" r="1.15" fill="currentColor" stroke="none"/>',
+  // Release notes: a sparkle for new features, a wrench for fixes, a shield for
+  // security, a package for dependencies, and a refresh arrow for updating.
+  sparkle: '<path d="M11 3.5 12.8 9 18.5 10.8 12.8 12.6 11 18.2 9.2 12.6 3.5 10.8 9.2 9Z"/><path d="M18.5 15.5v5m-2.5-2.5h5"/>',
+  wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.3 5.3L4 17l3 3 5.4-5.4a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.3-.7-.7-2.3z"/>',
+  shield: '<path d="M12 3.5 19 6v5.5c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
+  package: '<path d="m12 3.5 8 4v9l-8 4-8-4v-9zM4 7.5l8 4 8-4M12 11.5v9M8 5.5l8 4"/>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/>',
 } as const;
 
 export type RfIconName = keyof typeof glyphs;

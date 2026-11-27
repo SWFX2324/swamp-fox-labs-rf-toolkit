@@ -1,6 +1,8 @@
 import { rfIcon } from "./ui/rfIcons";
 import "./style.css";
 import { registerSW } from "virtual:pwa-register";
+import releaseNotes from "./releaseNotes.json";
+import { showUpdateButton } from "./calculators/updatePanel";
 import { calculators } from "./calculators";
 import { renderHome } from "./calculators/home";
 import { THEME_EVENT, isDarkTheme } from "./calculators/theme";
@@ -13,23 +15,18 @@ const beta = import.meta.env.BASE_URL.endsWith("/beta/");
 const APP_NAME = beta ? "RF Toolkit Beta" : "RF Toolkit";
 if (beta) document.querySelector(".brand")?.insertAdjacentHTML("beforeend", '<span class="beta-badge">Beta</span>');
 
+// This build's version: the newest entry in the release notes when it was built.
+const APP_VERSION = releaseNotes.releases[0]?.version ?? "";
+
 // When a new version has downloaded, offer it instead of reloading on our own:
-// a reload in the middle of planning would throw away what's on screen. The
-// button stays until tapped; tapping it switches to the new version and reloads.
+// a reload in the middle of planning would throw away what's on screen. An
+// Update button appears in the top bar; it shows what changed, and reloads
+// only when the user taps Update now.
 const updateSW = registerSW({
   immediate: true,
-  // Runs when a new version has downloaded and is waiting: shows the button once.
+  // Runs when a new version has downloaded and is waiting.
   onNeedRefresh() {
-    if (document.querySelector(".update-prompt")) return;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "update-prompt";
-    button.textContent = "Update available. Tap to reload.";
-    button.addEventListener("click", () => {
-      button.disabled = true;
-      void updateSW(true);
-    });
-    document.body.append(button);
+    showUpdateButton(() => updateSW(true), APP_VERSION);
   },
 });
 

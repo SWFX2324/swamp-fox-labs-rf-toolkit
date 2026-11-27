@@ -1,0 +1,19 @@
+{
+  "releases": [
+    {
+      "version": "2026.11.26.1",
+      "date": "2026-11-26",
+      "notes": {
+        "feature": [
+          "Import measured antenna patterns (MSI / Planet files) for Coverage sites and Mesh nodes, under the new Antenna patterns button. Sites and nodes using one plan with the file's own shape and gain.",
+          "Release notes: when an update is ready, the Update button in the top bar shows what changed before you reload."
+        ],
+        "fix": [
+          "The antenna pattern view no longer adds a background listener every time you open it."
+        ],
+        "security": [],
+        "dependencies": []
+      }
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
+import releaseNotes from "./src/releaseNotes.json";
 
 // GitHub Pages serves the site from /<repo>/, so assets need that base path.
 // The dev branch builds the same app under /<repo>/beta/ (BASE_PATH set by the
@@ -13,6 +14,14 @@ export default defineConfig({
   // The 3D view is one large chunk (MapLibre), loaded only when opened.
   build: { chunkSizeWarningLimit: 1200 },
   plugins: [
+    // Publishes the release notes beside the app, so a page still running an
+    // older version can fetch the new version's notes when it offers the update.
+    {
+      name: "release-notes",
+      generateBundle() {
+        this.emitFile({ type: "asset", fileName: "release-notes.json", source: JSON.stringify(releaseNotes) });
+      },
+    },
     VitePWA({
       // A new version waits until the user taps "Update available" (see main.ts),
       // so a deploy never reloads a page in the middle of someone's work.
