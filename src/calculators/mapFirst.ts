@@ -27,6 +27,8 @@ export const PANE_ICONS = {
   pin: rfIcon("pin", "pane-icon"),
   satellite: rfIcon("satellite", "pane-icon"),
   weather: rfIcon("weather", "pane-icon"),
+  grid: rfIcon("grid", "pane-icon"),
+  settings: rfIcon("settings", "pane-icon"),
   coax: rfIcon("coax", "pane-icon"),
 };
 

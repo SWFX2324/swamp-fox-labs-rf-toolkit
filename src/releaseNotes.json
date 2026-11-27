@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "2026.11.26.2",
+      "date": "2026-11-26",
+      "notes": {
+        "feature": [
+          "Settings has a new layout that matches the other tools, with a summary of what your settings mean. Reset now asks for a second tap, since it resets every setting."
+        ],
+        "fix": [],
+        "security": [],
+        "dependencies": []
+      }
+    },
+    {
       "version": "2026.11.26.1",
       "date": "2026-11-26",
       "notes": {
