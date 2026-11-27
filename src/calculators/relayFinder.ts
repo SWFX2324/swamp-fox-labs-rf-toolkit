@@ -2,6 +2,7 @@
 // coverage for a receiver at the relay's height, and shades where a relay
 // would close both hops. See lib/relay.ts for the method.
 
+import { cssColor } from "./theme";
 import { type CoverageRadio, coveragePathLoss, marginsFromLoss, sampleRadials } from "../lib/coverage";
 import type { LatLon } from "../lib/geo";
 import type { ModelSettings } from "../lib/propagation";
@@ -69,16 +70,6 @@ export async function findRelay(inputs: RelayFinderInputs, onStatus: (text: stri
 function weakest(loss: Float32Array[], radios: HopRadio[]): Float32Array[] {
   const each = radios.map((r) => marginsFromLoss(loss, r));
   return each[0].map((row, i) => row.map((v, k) => each.reduce((m, g) => Math.min(m, g[i][k]), v)));
-}
-
-/** A color from the page's CSS variables (such as --good) as red, green and blue, so the canvas uses the theme's colors. */
-function cssColor(name: string): [number, number, number] {
-  const probe = document.createElement("span");
-  probe.style.color = `var(${name})`;
-  document.body.append(probe);
-  const m = getComputedStyle(probe).color.match(/\d+/g) ?? ["0", "0", "0"];
-  probe.remove();
-  return [Number(m[0]), Number(m[1]), Number(m[2])];
 }
 
 /**

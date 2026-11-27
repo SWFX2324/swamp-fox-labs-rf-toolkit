@@ -4,6 +4,7 @@
 // settings as short strings, and finite coordinates.
 
 import type { StorageLike } from "./pathStore";
+import { isFilePatternId } from "./antennaFile";
 import { type RadioPreset, cleanPreset, cleanPresets } from "./radioPresets";
 
 export interface Plan {
@@ -96,7 +97,8 @@ export function sanitizePlan(raw: unknown, settingNames: string[]): Plan | undef
         lat,
         lon,
         height: typeof height === "string" ? height.slice(0, 12) : "",
-        ...(typeof antenna === "string" && /^[a-z0-9]{1,16}$/.test(antenna) ? { antenna } : {}),
+        // A built-in shape ("sector90") or an imported pattern ("file-sector90-k3j9x2ab").
+        ...(typeof antenna === "string" && (/^[a-z0-9]{1,16}$/.test(antenna) || isFilePatternId(antenna)) ? { antenna } : {}),
         ...(typeof aim === "string" && aim.length <= 12 ? { aim } : {}),
         ...Object.fromEntries(NODE_RADIO_KEYS.flatMap((k) => (typeof raw[k] === "string" && (raw[k] as string).length <= 12 && raw[k] !== "" ? [[k, raw[k]]] : []))),
         ...(typeof powerUnit === "string" && /^[a-zA-Z]{1,4}$/.test(powerUnit) ? { powerUnit } : {}),

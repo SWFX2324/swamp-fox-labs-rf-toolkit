@@ -10,6 +10,13 @@
 // hand, the vertical (and for "Directional" the horizontal) beamwidth comes
 // from the gain by Kraus's rule, G is about 32 400 / (φ_3dB * θ_3dB) in degrees, so a
 // higher-gain antenna has a narrower beam, as real ones do.
+//
+// An imported pattern file (antennaFile.ts) replaces the shape with measured
+// horizontal and vertical cuts. Off both cuts, the two losses are added, capped
+// at the deepest null in the file: the usual way to rebuild a 3D pattern from
+// two cuts, and it errs toward more loss rather than less.
+
+import { type PatternTable, fallbackOf, isFilePatternId } from "./antennaFile";
 
 export type PatternId = "omni" | "sector120" | "sector90" | "sector60" | "directional";
 
@@ -30,9 +37,13 @@ export const patterns: AntennaPattern[] = [
   { id: "directional", name: "Directional (Yagi, panel or dish)", hBeamwidthDeg: 0, frontToBackDb: 20 },
 ];
 
-/** The antenna pattern with this id, or Omni when it is missing or unknown. */
+/**
+ * The built-in pattern with this id, or Omni when it is missing or unknown. An
+ * imported pattern's id gives the built-in shape that stands in for it.
+ */
 export function findPattern(id: string | undefined): AntennaPattern {
-  return patterns.find((p) => p.id === id) ?? patterns[0];
+  const shape = isFilePatternId(id) ? fallbackOf(id) : id;
+  return patterns.find((p) => p.id === shape) ?? patterns[0];
 }
 
 /** Kraus's beam area: G (linear) * φ * θ is about 32 400 square degrees. */
@@ -49,10 +60,16 @@ export interface Beam {
   azimuthDeg: number;
   /** Degrees below the horizon the beam points (electrical plus mechanical). */
   downtiltDeg: number;
+  /** An imported pattern's measured cuts, used instead of the shape when present. */
+  table?: PatternTable;
 }
 
-/** Beamwidths for a pattern at this peak gain. */
-export function beam(patternId: string | undefined, gainDbi: number, azimuthDeg = 0, downtiltDeg = 0): Beam {
+/**
+ * Beamwidths for a pattern at this peak gain. table, when given, is an imported
+ * pattern's measured cuts, which then decide the losses (the beamwidths still
+ * describe the stand-in shape).
+ */
+export function beam(patternId: string | undefined, gainDbi: number, azimuthDeg = 0, downtiltDeg = 0, table?: PatternTable): Beam {
   const pattern = findPattern(patternId);
   const g = 10 ** (Math.max(0, gainDbi) / 10);
   let h = pattern.hBeamwidthDeg;
@@ -69,7 +86,29 @@ export function beam(patternId: string | undefined, gainDbi: number, azimuthDeg 
     vBeamwidthDeg: v,
     azimuthDeg: Number.isFinite(azimuthDeg) ? azimuthDeg : 0,
     downtiltDeg: Number.isFinite(downtiltDeg) ? downtiltDeg : 0,
+    ...(table ? { table } : {}),
   };
+}
+
+// Each imported pattern's deepest null, worked out once: the coverage map asks
+// for thousands of losses and the table never changes.
+const deepest = new WeakMap<PatternTable, number>();
+/** The largest loss anywhere in a pattern's two cuts. */
+function deepestNull(t: PatternTable): number {
+  let d = deepest.get(t);
+  if (d === undefined) {
+    d = Math.max(...t.h, ...t.v);
+    deepest.set(t, d);
+  }
+  return d;
+}
+
+/** A cut's loss at any angle, by straight-line interpolation between whole degrees. */
+function cutLoss(cut: number[], angleDeg: number): number {
+  const a = ((angleDeg % 360) + 360) % 360;
+  const i = Math.floor(a);
+  const t = a - i;
+  return cut[i] + (cut[(i + 1) % 360] - cut[i]) * t;
 }
 
 /** Signed angle from a to b, −180 to 180 degrees. */
@@ -82,6 +121,13 @@ export function angleOff(a: number, b: number): number {
  * positive above the horizon), dB, zero or more.
  */
 export function patternLossDb(b: Beam, bearingDeg: number, elevationDeg: number): number {
+  if (b.table) {
+    // Horizontal: clockwise from where the antenna points. Vertical: downward
+    // from the beam, which a downtilt has already lowered.
+    const h = cutLoss(b.table.h, angleOff(b.azimuthDeg, bearingDeg));
+    const v = cutLoss(b.table.v, -elevationDeg - b.downtiltDeg);
+    return Math.min(h + v, deepestNull(b.table));
+  }
   const omni = b.pattern.id === "omni";
   const cap = omni ? OMNI_VERTICAL_FLOOR_DB : b.pattern.frontToBackDb;
   const h = omni ? 0 : Math.min(12 * (angleOff(b.azimuthDeg, bearingDeg) / b.hBeamwidthDeg) ** 2, cap);

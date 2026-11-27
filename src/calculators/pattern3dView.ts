@@ -4,6 +4,7 @@
 // peak to dark blue at −30 dB, with X, Y and Z axes, a ground grid and the antenna
 // in the scene. Drag to turn it.
 
+import { THEME_EVENT } from "./theme";
 import { toDb } from "../lib/antennaPattern";
 
 const FLOOR = -30;
@@ -296,7 +297,19 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
   const animate = () => {
     if (!frame && waves && scene && !stillMotion.matches) frame = requestAnimationFrame(tick);
   };
-  document.addEventListener("visibilitychange", animate);
+  // These two listeners belong to the whole page and outlive this view, so each
+  // removes both once the view has left the page instead of piling up a new
+  // pair with every visit.
+  const detach = () => {
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener(THEME_EVENT, onTheme);
+  };
+  // Starts or stops the waves as the page is hidden or shown.
+  const onVisibility = () => (wrap.isConnected ? animate() : detach());
+  // Redraws in the new theme's colors.
+  const onTheme = () => (wrap.isConnected ? draw() : detach());
+  document.addEventListener("visibilitychange", onVisibility);
+  window.addEventListener(THEME_EVENT, onTheme);
   const toggle = wrap.querySelector<HTMLButtonElement>(".pattern3d-waves")!;
   toggle.addEventListener("click", () => {
     waves = !waves;
@@ -321,7 +334,6 @@ export function createPattern3d(): { element: HTMLElement; show(scene: PatternSc
   canvas.addEventListener("pointerup", stop);
   canvas.addEventListener("pointercancel", stop);
   new ResizeObserver(() => draw()).observe(wrap);
-  window.addEventListener("rf-toolkit:theme", () => wrap.isConnected && draw());
 
   return {
     element: wrap,

@@ -1013,6 +1013,9 @@ details.routes .note { margin-top: 6px; }
 .preset-dialog input, .preset-dialog select { font-size: 16px; }
 /* The preset picker and its Presets button: apart, not joined like a unit. */
 .preset-pick { display: flex; gap: 10px; align-items: stretch; }
+.node-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.node-tools .note { margin: 0; }
+.node-tools button { flex: none; white-space: nowrap; }
 .preset-pick select { flex: 1; min-width: 0; }
 .preset-pick button { flex: none; }
 .node-radio-pick { display: flex; flex-direction: row; align-items: center; gap: 10px; margin: 4px 0 6px; }

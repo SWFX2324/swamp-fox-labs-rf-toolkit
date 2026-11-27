@@ -24,6 +24,16 @@ describe("share links", () => {
     expect(plan.nodes![1]).toEqual({ name: "b", lat: 1, lon: 2, height: "" });
   });
 
+  it("keeps an imported antenna pattern's id, but not a look-alike", () => {
+    const nodes = [
+      { name: "a", lat: 1, lon: 2, height: "", antenna: "file-sector90-k3j9x2ab" },
+      { name: "b", lat: 1, lon: 2, height: "", antenna: "file-<b>-x" },
+    ];
+    const plan = decodePlan(encodePlan({ settings: {}, nodes }), names)!;
+    expect(plan.nodes![0].antenna).toBe("file-sector90-k3j9x2ab");
+    expect(plan.nodes![1].antenna).toBeUndefined();
+  });
+
   it("keeps only known settings and short strings", () => {
     const encoded = encodePlan({ settings: { freq: "915", evil: "x", power: "y".repeat(500) } });
     expect(decodePlan(encoded, names)).toEqual({ settings: { freq: "915" } });

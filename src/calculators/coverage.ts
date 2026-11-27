@@ -1,3 +1,5 @@
+import { THEME_EVENT, cssColor } from "./theme";
+import { PATTERNS_EVENT, importedPattern, openPatternManager, patternBeam, patternChoices, patternGain, patternOptionsHtml, patternWarning, refillPatternSelect } from "./patternLibrary";
 import { escapeHtml } from "../lib/html";
 import { rfIcon } from "../ui/rfIcons";
 // Coverage Analysis: shade the area one or more sites can reach, over terrain,
@@ -26,7 +28,7 @@ import {
   sumGrids,
   unionBounds,
 } from "../lib/coverage";
-import { type Beam, beam, patterns } from "../lib/pattern";
+import type { Beam } from "../lib/pattern";
 import { type PlanNode, sanitizePlan } from "../lib/plans";
 import { AUTO_ENVIRONMENT, LandCoverGrid, type LandCoverPoint } from "../lib/landCover";
 import { loadLandCover } from "./landCoverTiles";
@@ -151,8 +153,12 @@ const template = `
         </label>
         ${numberField("Antenna gain", "txGain", "dBi")}
         <label>Antenna pattern
-          <select name="txPattern">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select>
+          <span class="preset-pick">
+            <select name="txPattern">${patternOptionsHtml()}</select>
+            <button type="button" class="secondary" data-action="patterns">Patterns</button>
+          </span>
         </label>
+        <p class="note span-all" data-out="patternNote" hidden></p>
         <label data-show="txAim">Antenna points
           <span class="input-unit">
             <input name="txAzimuth" type="number" inputmode="decimal" step="any" min="0" max="360" />
@@ -296,16 +302,6 @@ function loadState(defaults: Record<string, string>): Record<string, string> {
 const fmt = (v: number, digits = 1) =>
   v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }).replace("-", "−");
 
-/** A color from the page's CSS variables (such as --good) as red, green and blue, so the canvas uses the theme's colors. */
-function cssColor(name: string): [number, number, number] {
-  const probe = document.createElement("span");
-  probe.style.color = `var(${name})`;
-  document.body.append(probe);
-  const m = getComputedStyle(probe).color.match(/\d+/g) ?? ["0", "0", "0"];
-  probe.remove();
-  return [Number(m[0]), Number(m[1]), Number(m[2])];
-}
-
 
 
 /** A site beyond Site A: where it is, its mast, its antenna and its radio. */
@@ -445,10 +441,13 @@ export const coverageCalculator: Calculator = {
       return r.length ? slowest(r) : deratedSensitivity(num("siteSens"));
     };
 
-    for (const [name, value] of Object.entries(loadState(defaults))) {
+    const loaded = loadState(defaults);
+    for (const [name, value] of Object.entries(loaded)) {
       const el = form.elements.namedItem(name);
       if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
     }
+    // An imported pattern this device doesn't have needs its own option to stay chosen.
+    refillPatternSelect(field("txPattern") as HTMLSelectElement, loaded.txPattern);
     field("site").setAttribute("placeholder", coordPlaceholder());
     const savedSite = parseCoordinates(field("site").value);
     if (savedSite) field("site").value = formatCoordinates(savedSite);
@@ -487,7 +486,9 @@ export const coverageCalculator: Calculator = {
     // An extra site's typed name, or its label when it has none.
     const extraName = (i: number) => extras[i]?.name.trim() || extraLabel(i);
     // Site A's antenna pattern, gain and aim.
-    const txBeam = () => beam(field("txPattern").value, num("txGain") || 0, num("txAzimuth"), num("txTilt"));
+    const txBeam = () => patternBeam(field("txPattern").value, txGain(), num("txAzimuth"), num("txTilt"));
+    // Site A's antenna gain: an imported pattern's own, otherwise the field's.
+    const txGain = () => patternGain(field("txPattern").value, num("txGain") || 0);
 
     /** Every placed site's radio and antenna, Site A first. */
     const siteSpecs = (): SiteSpec[] => {
@@ -500,7 +501,7 @@ export const coverageCalculator: Calculator = {
         beam: txBeam(),
         powerDbm: toDbm(num("power"), asPowerUnit(field("powerUnit").value)),
         cableDb: num("txCable") || 0,
-        gainDbi: num("txGain") || 0,
+        gainDbi: txGain(),
         sensDbm: siteSensitivity(),
         rungs: siteRungs(),
       };
@@ -515,14 +516,15 @@ export const coverageCalculator: Calculator = {
         ...extras.map((e, i): SiteSpec => {
           // Its own preset where it has one; Site A's numbers for anything it leaves out.
           const p = e.preset ? presets.find((q) => q.id === e.preset) : undefined;
-          const gain = val(p?.gain) ?? A.gainDbi;
+          // An imported pattern brings its own gain.
+          const gain = patternGain(e.antenna, val(p?.gain) ?? A.gainDbi);
           const own = p ? ladder(p, deratedSensitivity) : A.rungs;
           const presetSens = val(p?.sens);
           return {
             name: extraName(i),
             at: { lat: e.lat, lon: e.lon },
             heightM: val(e.height) !== undefined ? toMeters(val(e.height)!, heightUnit()) : A.heightM,
-            beam: beam(e.antenna || "omni", gain, val(e.aim) ?? 0, 0),
+            beam: patternBeam(e.antenna || "omni", gain, val(e.aim) ?? 0, 0),
             powerDbm: p?.power ? toDbm(Number(p.power), asPowerUnit(p.powerUnit ?? "W")) : A.powerDbm,
             cableDb: val(p?.cable) ?? A.cableDb,
             gainDbi: gain,
@@ -608,9 +610,17 @@ export const coverageCalculator: Calculator = {
       }
     };
 
-    // Shows the aim fields only for an antenna that isn't omni.
+    // Shows the aim fields only for an antenna that isn't omni, steps the gain
+    // field aside when an imported pattern brings its own gain, and warns about
+    // patterns this device lacks or that were measured far from this frequency.
     const syncPattern = () => {
-      form.querySelector<HTMLElement>('[data-show="txAim"]')!.hidden = field("txPattern").value === "omni";
+      const id = field("txPattern").value;
+      form.querySelector<HTMLElement>('[data-show="txAim"]')!.hidden = id === "omni";
+      field("txGain").closest("label")!.hidden = !!sitePreset()?.gain || !!importedPattern(id);
+      const freqMhz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value)) / 1e6;
+      const notes = [patternWarning(id, siteName(), freqMhz), ...extras.map((e, i) => patternWarning(e.antenna, extraName(i), freqMhz))].filter(Boolean);
+      out("patternNote").textContent = notes.join(" ");
+      out("patternNote").hidden = !notes.length;
     };
 
     // Each site's samples and margins, for the shading and the tap readout.
@@ -755,7 +765,7 @@ export const coverageCalculator: Calculator = {
         const beamKey = JSON.stringify([b, txH, rxH]);
         if (run.patternLoss?.key !== beamKey) {
           // An omni at 0 dBi with no tilt has a 90° beam: not worth the grid.
-          const flat = b.pattern.id === "omni" && b.downtiltDeg === 0 && b.vBeamwidthDeg >= 90;
+          const flat = b.pattern.id === "omni" && !b.table && b.downtiltDeg === 0 && b.vBeamwidthDeg >= 90;
           run.patternLoss = { key: beamKey, loss: flat ? undefined : coveragePatternLoss(run.samples, b, txH, rxH) };
         }
         const offset = Math.min(0, delta);
@@ -917,7 +927,7 @@ export const coverageCalculator: Calculator = {
               <label>Location<input data-k="loc" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>
               <label>Antenna height<span class="input-unit"><input data-k="height" type="number" inputmode="decimal" step="any" min="0" /><span class="unit"></span></span></label>
               <label>Radio<select data-k="preset"></select></label>
-              <label>Antenna pattern<select data-k="antenna">${patterns.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select></label>
+              <label>Antenna pattern<select data-k="antenna">${patternOptionsHtml(e.antenna)}</select></label>
               <label data-k="aimRow">Antenna points<span class="input-unit"><input data-k="aim" type="number" inputmode="decimal" step="any" min="0" max="360" /><span class="unit">° true</span></span></label>
             </div>`;
           // An element of this site's row by its data-k name.
@@ -1042,7 +1052,7 @@ export const coverageCalculator: Calculator = {
           f("siteName", "Name", undefined, "text"),
           ...(shown("power") ? [f("power", "TX power", field("powerUnit").value)] : []),
           ...(shown("txGain") ? [f("txGain", "Antenna gain", "dBi")] : []),
-          { ...f("txPattern", "Antenna pattern", undefined, "select"), options: patterns.map((q) => ({ value: q.id, label: q.name })) },
+          { ...f("txPattern", "Antenna pattern", undefined, "select"), options: patternChoices(field("txPattern").value) },
           ...(field("txPattern").value === "omni" ? [] : [f("txAzimuth", "Points", "° true")]),
           f("txHeight", "Antenna height", field("heightUnit").value),
           ...(shown("siteSens") ? [f("siteSens", "RX sensitivity", "dBm")] : []),
@@ -1056,7 +1066,7 @@ export const coverageCalculator: Calculator = {
         const e = extras[i];
         return [
           { key: "name", label: "Name", value: e.name, type: "text", placeholder: extraLabel(i) },
-          { key: "antenna", label: "Antenna pattern", value: e.antenna, type: "select", options: patterns.map((q) => ({ value: q.id, label: q.name })) },
+          { key: "antenna", label: "Antenna pattern", value: e.antenna, type: "select", options: patternChoices(e.antenna) },
           ...(e.antenna === "omni" ? [] : [{ key: "aim", label: "Points", value: e.aim, unit: "° true", type: "number" as const }]),
           { key: "height", label: "Antenna height", value: e.height, unit: field("heightUnit").value, type: "number", placeholder: field("txHeight").value },
           { key: "location", label: "Location", value: formatCoordinates({ lat: e.lat, lon: e.lon }), type: "text" },
@@ -1191,9 +1201,9 @@ export const coverageCalculator: Calculator = {
     // The shading uses theme colors, so redraw it when the theme changes.
     const onTheme = () => {
       if (form.isConnected) drawOverlay();
-      else window.removeEventListener("rf-toolkit:theme", onTheme);
+      else window.removeEventListener(THEME_EVENT, onTheme);
     };
-    window.addEventListener("rf-toolkit:theme", onTheme);
+    window.addEventListener(THEME_EVENT, onTheme);
     // Waits until the page is on screen, since the map needs its real size.
     const waitForPage = () => (form.isConnected ? initMap() : setTimeout(waitForPage, 50));
     setTimeout(waitForPage, 0);
@@ -1227,7 +1237,7 @@ export const coverageCalculator: Calculator = {
       // Hides or shows a field's label.
       const hide = (name: string, hidden: boolean) => (field(name).closest("label")!.hidden = hidden);
       hide("power", !!s?.power);
-      hide("txGain", !!s?.gain);
+      hide("txGain", !!s?.gain || !!importedPattern(field("txPattern").value));
       hide("txCable", !!s?.cable);
       hide("rxGain", !!r?.gain);
       hide("rxCable", !!r?.cable);
@@ -1257,6 +1267,19 @@ export const coverageCalculator: Calculator = {
       inputsChanged();
     };
     window.addEventListener(PRESETS_EVENT, onPresets);
+    form.querySelector('[data-action="patterns"]')!.addEventListener("click", () => openPatternManager());
+    // Patterns imported or deleted (here or in another tab): refresh the dropdowns and the numbers.
+    const onPatterns = () => {
+      if (!form.isConnected) {
+        window.removeEventListener(PATTERNS_EVENT, onPatterns);
+        return;
+      }
+      refillPatternSelect(field("txPattern") as HTMLSelectElement);
+      applyPresets();
+      renderExtras();
+      inputsChanged();
+    };
+    window.addEventListener(PATTERNS_EVENT, onPatterns);
     applyPresets();
 
     form.querySelector('[data-action="run"]')!.addEventListener("click", () => void run());
@@ -1337,6 +1360,8 @@ export const coverageCalculator: Calculator = {
           for (const p of plan.nodePresets ?? []) ids.set(p.id, adoptPreset(p, "coverage"));
           const rxWas = plan.settings.rxPreset ?? "";
           fillPresetOptions();
+          // A plan's imported pattern needs an option to land on, even if this device lacks it.
+          refillPatternSelect(field("txPattern") as HTMLSelectElement, plan.settings.txPattern ?? "omni");
           applySettings(form, {
             ...plan.settings,
             sitePreset: plan.preset ? ids.get(plan.preset.id)! : "",

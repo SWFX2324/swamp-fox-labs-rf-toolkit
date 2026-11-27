@@ -18,6 +18,7 @@ if (beta) document.querySelector(".brand")?.insertAdjacentHTML("beforeend", '<sp
 // button stays until tapped; tapping it switches to the new version and reloads.
 const updateSW = registerSW({
   immediate: true,
+  // Runs when a new version has downloaded and is waiting: shows the button once.
   onNeedRefresh() {
     if (document.querySelector(".update-prompt")) return;
     const button = document.createElement("button");

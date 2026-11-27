@@ -1,4 +1,5 @@
 import { escapeHtml } from "../lib/html";
+import { PATTERNS_EVENT, openPatternManager, patternBeam, patternChoices, patternGain, patternOptionsHtml, patternWarning } from "./patternLibrary";
 import { rfIcon } from "../ui/rfIcons";
 // Mesh Analysis: drop nodes on a map and see every node-to-node link over
 // real terrain with identical radios, plus whether the mesh holds together.
@@ -26,7 +27,7 @@ import { tabStateToSave, tabValues } from "../lib/appSettings";
 import { deratedSensitivity, fallbackEnvironment, getSettings, setSettings, sharedFields } from "./settingsStore";
 import { fetchPathElevations } from "./tileElevation";
 import { type LatLon, bearingDeg, destinationPoint, distanceBetweenM, samplePath } from "../lib/geo";
-import { beam, elevationAngleDeg, patternLossDb, patterns } from "../lib/pattern";
+import { elevationAngleDeg, patternLossDb } from "../lib/pattern";
 import { type EndRadio, type MeshLink, type MeshLinkStatus, connectedGroups, hopCounts, meshLink, pairs } from "../lib/mesh";
 import { createPathStore, pathKey } from "../lib/pathStore";
 import { type ProfileStatus, analyzeProfile, sampleCount } from "../lib/profile";
@@ -87,6 +88,8 @@ const NODE_RADIO_FIELDS = [
 /** True when a node has any of its own radio figures typed in, instead of the shared radio's. */
 const hasOwnRadio = (n: MeshNode) => NODE_RADIO_FIELDS.some((f) => (n[f.key] ?? "").trim() !== "");
 const RADIO_ICON = rfIcon("radio", "node-radio-icon");
+/** The node rows' shorter names for the built-in patterns ("Sector 90°", "Directional"). */
+const shortPatternName = (id: string, name: string) => (id === "directional" ? "Directional" : name.replace(", ", " "));
 
 // The built-in defaults from before Settings existed. Settings now override the
 // fields they cover; these still fill the rest and recognize untouched old saves.
@@ -165,8 +168,12 @@ const template = `
         <button type="button" class="secondary" data-action="add">Add node</button>
         ${locateButton('data-action="locate"', "Add a node at my location", "")}
       </div>
-      <p class="note node-count" data-out="nodeCount"></p>
+      <div class="node-tools">
+        <p class="note node-count" data-out="nodeCount"></p>
+        <button type="button" class="secondary" data-action="patterns">Antenna patterns</button>
+      </div>
       <p class="note warn" data-out="status"></p>
+      <p class="note warn" data-out="patternNote" hidden></p>
       <div class="table-wrap">
         <table class="ledger node-list">
           <thead><tr><th></th><th>Name</th><th>Location</th><th>Height</th><th>Antenna</th><th></th></tr></thead>
@@ -378,7 +385,7 @@ export const meshCalculator: Calculator = {
     const antennaLoss = (from: MeshNode, to: MeshNode, distanceM: number, elev: number[] | undefined, gainDbi: number, k: number) => {
       // Omni antennas lose a little straight up or down too, which only
       // matters close in under a tall mast.
-      const b = beam(from.antenna, gainDbi, Number.parseFloat(from.aim ?? "") || 0);
+      const b = patternBeam(from.antenna, gainDbi, Number.parseFloat(from.aim ?? "") || 0);
       const fromTop = (elev?.[0] ?? 0) + heightM(from);
       const toTop = (elev?.[elev.length - 1] ?? 0) + heightM(to);
       return patternLossDb(b, bearingDeg(from, to), elevationAngleDeg(fromTop, toTop, distanceM, k));
@@ -397,7 +404,7 @@ export const meshCalculator: Calculator = {
             <td class="mono node-loc"></td>
             <td><span class="input-unit node-height"><input type="number" inputmode="decimal" step="any" min="0" /><span class="unit"></span></span></td>
             <td class="node-antenna">
-              <select aria-label="Node ${idx + 1} antenna pattern">${patterns.map((p) => `<option value="${p.id}">${p.id === "directional" ? "Directional" : p.name.replace(", ", " ")}</option>`).join("")}</select>
+              <select aria-label="Node ${idx + 1} antenna pattern">${patternOptionsHtml(n.antenna, shortPatternName)}</select>
               <span class="input-unit node-aim"><input type="number" inputmode="decimal" step="any" min="0" max="360" placeholder="0" title="Degrees from true north" aria-label="Node ${idx + 1} antenna points, degrees true" /><span class="unit">°</span></span>
             </td>
             <td class="node-actions">
@@ -676,6 +683,11 @@ export const meshCalculator: Calculator = {
       for (const l of lines) l.remove();
       lines = [];
       drawAims();
+      // Nodes whose imported pattern isn't on this device, or was measured far from this frequency.
+      const freqMhz = toHz(num("freq"), asFrequencyUnit(field("freqUnit").value)) / 1e6;
+      const warnings = nodes.map((n, i) => patternWarning(n.antenna, nodeName(i), freqMhz)).filter(Boolean);
+      out("patternNote").textContent = warnings.join(" ");
+      out("patternNote").hidden = !warnings.length;
       const ready = nodes.length >= 2;
       out("empty").hidden = ready;
       out("results").hidden = !ready;
@@ -728,7 +740,8 @@ export const meshCalculator: Calculator = {
         const sens = own(src.sens);
         return {
           txPowerDbm: power === undefined ? radio.txPowerDbm : toDbm(power, asPowerUnit(src.powerUnit ?? field("powerUnit").value)),
-          gainDbi: own(src.gain) ?? radio.gainDbi,
+          // An imported antenna pattern brings its own gain.
+          gainDbi: patternGain(n.antenna, own(src.gain) ?? radio.gainDbi),
           cableLossDb: own(src.cable) ?? radio.cableLossDb,
           sensitivityDbm: sens === undefined || rungs.length ? radio.sensitivityDbm : deratedSensitivity(sens),
         };
@@ -962,7 +975,7 @@ export const meshCalculator: Calculator = {
           label: "Antenna",
           value: n.antenna ?? "omni",
           type: "select",
-          options: patterns.map((p) => ({ value: p.id, label: p.id === "directional" ? "Directional" : p.name.replace(", ", " ") })),
+          options: patternChoices(n.antenna, shortPatternName),
         },
         ...(n.antenna && n.antenna !== "omni" ? [{ key: "aim", label: "Points", value: n.aim ?? "", unit: "° true", type: "number" as const, placeholder: "0" }] : []),
         {
@@ -1114,6 +1127,17 @@ export const meshCalculator: Calculator = {
       recompute();
     };
     window.addEventListener(PRESETS_EVENT, onPresets);
+    form.querySelector('[data-action="patterns"]')!.addEventListener("click", () => openPatternManager());
+    // Patterns imported or deleted (here or in another tab): refresh the node rows and the links.
+    const onPatterns = () => {
+      if (!form.isConnected) {
+        window.removeEventListener(PATTERNS_EVENT, onPatterns);
+        return;
+      }
+      renderNodes();
+      recompute();
+    };
+    window.addEventListener(PATTERNS_EVENT, onPatterns);
     // A saved preset's numbers win over what's in the fields, in case it changed since.
     if (activePreset()) {
       applyPreset(activePreset());
